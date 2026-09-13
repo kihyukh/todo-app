@@ -1,0 +1,180 @@
+import AppKit
+import WebKit
+import UniformTypeIdentifiers
+
+final class DaymarkAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+    private var window: NSWindow!
+    private var bridge: DaymarkWebBridge!
+    private var terminationPending = false
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        do {
+            let store = try DaymarkStore()
+            bridge = DaymarkWebBridge(store: store)
+            guard let resources = Bundle.main.resourceURL else { throw CocoaError(.fileNoSuchFile) }
+            let webView = bridge.makeWebView(root: resources.appendingPathComponent("Web"))
+            webView.setValue(false, forKey: "drawsBackground")
+            window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1420, height: 920), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+            window.title = "Daymark"
+            window.titlebarAppearsTransparent = true
+            window.backgroundColor = NSColor(calibratedRed: 0.965, green: 0.965, blue: 0.957, alpha: 1)
+            window.minSize = NSSize(width: 860, height: 620)
+            window.contentView = webView
+            window.delegate = self
+            window.setFrameAutosaveName("DaymarkMainWindow")
+            if !window.setFrameUsingName("DaymarkMainWindow") { window.center() }
+            buildMenus()
+            bridge.chooseFolder = { [weak self] requestID in self?.chooseFolder(requestID) }
+            bridge.attach = { [weak self] requestID in self?.attach(requestID) }
+            bridge.export = { [weak self] state, requestID in self?.export(state, requestID: requestID) }
+            bridge.openURL = { url in NSWorkspace.shared.open(url) }
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        } catch {
+            let alert = NSAlert(error: error)
+            alert.messageText = "Daymark could not open its data folder"
+            alert.runModal()
+            NSApp.terminate(nil)
+        }
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        NSApp.terminate(nil)
+        return false
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard bridge != nil else { return .terminateNow }
+        if terminationPending { return .terminateLater }
+        terminationPending = true
+        // AppKit must receive terminateLater before the eventual reply, including
+        // when the web editor is not loaded and there is nothing to flush.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { sender.reply(toApplicationShouldTerminate: true); return }
+            self.bridge.flush { [weak self] result in
+                guard let self else { sender.reply(toApplicationShouldTerminate: true); return }
+                switch result {
+                case .success:
+                    sender.reply(toApplicationShouldTerminate: true)
+                case .failure(let error):
+                    self.terminationPending = false
+                    let alert = NSAlert()
+                    alert.messageText = "Your latest changes could not be saved"
+                    alert.informativeText = error.localizedDescription
+                    alert.alertStyle = .warning
+                    alert.addButton(withTitle: "Keep Daymark Open")
+                    alert.addButton(withTitle: "Quit Anyway")
+                    alert.beginSheetModal(for: self.window) { response in
+                        sender.reply(toApplicationShouldTerminate: response == .alertSecondButtonReturn)
+                    }
+                }
+            }
+        }
+        return .terminateLater
+    }
+
+    private func buildMenus() {
+        let menu = NSMenu()
+        let appItem = NSMenuItem()
+        menu.addItem(appItem)
+        let appMenu = NSMenu()
+        appItem.submenu = appMenu
+        appMenu.addItem(withTitle: "About Daymark", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Hide Daymark", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Quit Daymark", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+
+        let fileItem = NSMenuItem()
+        menu.addItem(fileItem)
+        let fileMenu = NSMenu(title: "File")
+        fileItem.submenu = fileMenu
+        let newTask = fileMenu.addItem(withTitle: "New Task", action: #selector(newTaskAction), keyEquivalent: "n")
+        newTask.target = self
+        let choose = fileMenu.addItem(withTitle: "Choose Sync Folder…", action: #selector(chooseFolderAction), keyEquivalent: "")
+        choose.target = self
+        let exportItem = fileMenu.addItem(withTitle: "Export All Tasks…", action: #selector(exportAction), keyEquivalent: "")
+        exportItem.target = self
+
+        let editItem = NSMenuItem()
+        menu.addItem(editItem)
+        let editMenu = NSMenu(title: "Edit")
+        editItem.submenu = editMenu
+        for (name, selector, key) in [("Undo", "undo:", "z"), ("Redo", "redo:", "Z"), ("Cut", "cut:", "x"), ("Copy", "copy:", "c"), ("Paste", "paste:", "v"), ("Select All", "selectAll:", "a")] {
+            editMenu.addItem(withTitle: name, action: Selector(selector), keyEquivalent: key)
+        }
+
+        let windowItem = NSMenuItem()
+        menu.addItem(windowItem)
+        let windowMenu = NSMenu(title: "Window")
+        windowItem.submenu = windowMenu
+        windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        NSApp.windowsMenu = windowMenu
+        NSApp.mainMenu = menu
+    }
+
+    @objc private func newTaskAction() {
+        bridge.webView?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('daymark-new-task'));", completionHandler: nil)
+    }
+
+    @objc private func chooseFolderAction() { chooseFolder(nil) }
+    @objc private func exportAction() { export(nil, requestID: nil) }
+
+    private func chooseFolder(_ requestID: Any?) {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Daymark’s sync folder"
+        panel.message = "Choose or create a Daymark folder in iCloud Drive. Use the same folder on iPhone. Existing tasks are copied into it."
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Use Folder"
+        panel.directoryURL = bridge.store.folder
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard let self else { return }
+            guard response == .OK, let url = panel.url else { self.bridge.send(["type": "cancelled"], requestID: requestID); return }
+            do { try self.bridge.store.chooseFolder(url); try self.bridge.sendState(requestID: requestID) }
+            catch { self.bridge.sendError(error.localizedDescription, requestID: requestID) }
+        }
+    }
+
+    private func attach(_ requestID: Any?) {
+        let panel = NSOpenPanel()
+        panel.title = "Attach an image or PDF"
+        panel.allowedContentTypes = [.image, .pdf]
+        panel.allowsMultipleSelection = false
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard let self else { return }
+            guard response == .OK, let url = panel.url else { self.bridge.send(["type": "cancelled"], requestID: requestID); return }
+            do { self.bridge.send(["type": "attachment", "attachment": try self.bridge.store.addAttachment(url)], requestID: requestID) }
+            catch { self.bridge.sendError(error.localizedDescription, requestID: requestID) }
+        }
+    }
+
+    private func export(_ state: [String: Any]?, requestID: Any?) {
+        let panel = NSSavePanel()
+        panel.title = "Export Daymark tasks"
+        panel.nameFieldStringValue = "Daymark-export.json"
+        panel.allowedContentTypes = [.json]
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard let self else { return }
+            guard response == .OK, let url = panel.url else { self.bridge.send(["type": "cancelled"], requestID: requestID); return }
+            do {
+                let value = try state ?? self.bridge.store.load() ?? ["schemaVersion": 1, "tasks": [], "projects": [], "columns": []]
+                let data = try JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+                try data.write(to: url, options: .atomic)
+                self.bridge.send(["type": "exported", "path": url.path], requestID: requestID)
+            } catch { self.bridge.sendError(error.localizedDescription, requestID: requestID) }
+        }
+    }
+}
+
+let application = NSApplication.shared
+let delegate = DaymarkAppDelegate()
+application.delegate = delegate
+application.setActivationPolicy(.regular)
+application.appearance = NSAppearance(named: .aqua)
+application.run()

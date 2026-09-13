@@ -1,0 +1,42 @@
+name: Daymark
+options:
+  minimumXcodeGenVersion: 2.38.0
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  Daymark:
+    type: application
+    platform: iOS
+    sources:
+      - path: Shared
+      - path: iOS
+        excludes:
+          - Info.plist
+    preBuildScripts:
+      - name: Bundle Daymark web app
+        script: |
+          set -eu
+          WEB_SOURCE="$SRCROOT/../dist"
+          if [ ! -f "$WEB_SOURCE/index.html" ]; then
+            echo "Run npm run build in the repository before building the iPhone app."
+            exit 1
+          fi
+          mkdir -p "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Web"
+          ditto "$WEB_SOURCE" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Web"
+        basedOnDependencyAnalysis: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.daymark.mobile
+        INFOPLIST_FILE: iOS/Info.plist
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+    dependencies:
+      - sdk: WebKit.framework
+      - sdk: QuickLook.framework
+      - sdk: UniformTypeIdentifiers.framework
