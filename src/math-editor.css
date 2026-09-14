@@ -79,6 +79,21 @@
   vertical-align: baseline;
   margin: 0 2px;
 }
+.math-note-input[data-vim-mode="normal"] {
+  caret-color: transparent;
+}
+.math-note-input[data-vim-mode="normal"]::selection {
+  background: var(--note-accent);
+  color: white;
+}
+.math-note-input[data-vim-empty-line="true"] {
+  caret-color: var(--note-accent);
+}
+.math-note-input[data-vim-empty-source="true"] {
+  background-image: linear-gradient(var(--note-accent), var(--note-accent));
+  background-repeat: no-repeat;
+  background-size: 1ch 1.5em;
+}
 .math-note-preview {
   overflow-x: auto;
 }

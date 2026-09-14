@@ -60,6 +60,41 @@ function key(editor: Editor, key: string, options: KeyboardEventInit = {}) {
 function keys(editor: Editor, sequence: string) {
   for (const letter of sequence) key(editor, letter);
 }
+function sourceKey(
+  input: HTMLInputElement | HTMLTextAreaElement,
+  value: string,
+  options: KeyboardEventInit = {},
+) {
+  const event = new KeyboardEvent("keydown", {
+    key: value,
+    bubbles: true,
+    cancelable: true,
+    ...options,
+  });
+  input.dispatchEvent(event);
+  return event.defaultPrevented;
+}
+function sourceType(
+  input: HTMLInputElement | HTMLTextAreaElement,
+  text: string,
+  inputType = "insertText",
+) {
+  const before = new InputEvent("beforeinput", {
+    data: text,
+    inputType,
+    bubbles: true,
+    cancelable: true,
+  });
+  input.dispatchEvent(before);
+  if (before.defaultPrevented) return false;
+  const start = input.selectionStart ?? 0;
+  const end = input.selectionEnd ?? start;
+  input.setRangeText(text, start, end, "end");
+  input.dispatchEvent(
+    new InputEvent("input", { data: text, inputType, bubbles: true }),
+  );
+  return true;
+}
 function type(editor: Editor, text: string) {
   for (const character of text) {
     const { from, to } = editor.state.selection;
@@ -333,7 +368,7 @@ describe("optional Vim note editor", () => {
     expect(editor.getJSON().content).toHaveLength(1);
   });
 
-  it("leaves native math source typing and platform shortcuts untouched", async () => {
+  it("keeps source movement modal and accepts text only after entering Insert", async () => {
     const { editor } = createEditor([
       paragraph("Before"),
       { type: "blockMath", attrs: { latex: "x^2" } },
@@ -350,16 +385,18 @@ describe("optional Vim note editor", () => {
     await Promise.resolve();
     const input = math.querySelector<HTMLTextAreaElement>("textarea")!;
     expect(document.activeElement).toBe(input);
-    const event = new KeyboardEvent("keydown", {
-      key: "j",
-      bubbles: true,
-      cancelable: true,
-    });
-    input.dispatchEvent(event);
-    expect(event.defaultPrevented).toBe(false);
-    input.value = "j(x)";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    expect(editor.getJSON().content?.[1].attrs?.latex).toBe("j(x)");
+    expect(mode(editor)).toBe("normal");
+    expect(sourceKey(input, "h")).toBe(true);
+    expect(input.selectionStart).toBe(1);
+    expect(sourceKey(input, "z")).toBe(true);
+    expect(sourceType(input, "accidental")).toBe(false);
+    expect(editor.getJSON().content?.[1].attrs?.latex).toBe("x^2");
+    sourceKey(input, "A");
+    expect(mode(editor)).toBe("insert");
+    expect(sourceKey(input, "j")).toBe(false);
+    expect(sourceType(input, "j")).toBe(true);
+    expect(editor.getJSON().content?.[1].attrs?.latex).toBe("x^2j");
+    expect(sourceKey(input, "f", { metaKey: true })).toBe(false);
     expect(key(editor, "f", { metaKey: true })).toBe(false);
   });
 
@@ -382,29 +419,17 @@ describe("optional Vim note editor", () => {
     expect(document.activeElement).toBe(input);
     expect(input.selectionStart).toBe(0);
     expect(mode(editor)).toBe("normal");
-    input.setSelectionRange(input.value.length, input.value.length);
-    input.dispatchEvent(
-      new KeyboardEvent("keydown", {
-        key: "ArrowRight",
-        bubbles: true,
-        cancelable: true,
-      }),
-    );
+    sourceKey(input, "$");
+    sourceKey(input, "l");
     expect(document.activeElement).toBe(editor.view.dom);
     expect(mode(editor)).toBe("normal");
     expect(editor.state.selection.head).toBe(4);
     key(editor, "h");
     await Promise.resolve();
     expect(document.activeElement).toBe(input);
-    expect(input.selectionStart).toBe(input.value.length);
-    input.setSelectionRange(0, 0);
-    input.dispatchEvent(
-      new KeyboardEvent("keydown", {
-        key: "ArrowLeft",
-        bubbles: true,
-        cancelable: true,
-      }),
-    );
+    expect(input.selectionStart).toBe(input.value.length - 1);
+    sourceKey(input, "0");
+    sourceKey(input, "h");
     expect(editor.state.selection.head).toBe(2);
     expect(document.activeElement).toBe(editor.view.dom);
     expect(mode(editor)).toBe("normal");
@@ -430,7 +455,7 @@ describe("optional Vim note editor", () => {
         ".math-note-inline input",
       )!;
       expect(document.activeElement).toBe(input);
-      expect(input.selectionStart).toBe(motion === "b" ? 1 : 0);
+      expect(input.selectionStart).toBe(0);
       expect(editor.state.doc.child(0).child(1).attrs.latex).toBe("y");
     },
   );
@@ -453,20 +478,13 @@ describe("optional Vim note editor", () => {
     await Promise.resolve();
     expect(document.activeElement).toBe(input);
     expect(input.selectionStart).toBe(0);
-    input.setSelectionRange(input.value.length, input.value.length);
-    input.dispatchEvent(
-      new KeyboardEvent("keydown", {
-        key: "ArrowDown",
-        bubbles: true,
-        cancelable: true,
-      }),
-    );
+    sourceKey(input, "j");
     expect(editor.state.selection.$head.parent.textContent).toBe("After");
     expect(mode(editor)).toBe("normal");
     key(editor, "k");
     await Promise.resolve();
     expect(document.activeElement).toBe(input);
-    expect(input.selectionStart).toBe(input.value.length);
+    expect(input.selectionStart).toBe(input.value.length - 1);
     expect(editor.getJSON().content?.[0].type).toBe("blockquote");
   });
 
@@ -598,37 +616,16 @@ describe("optional Vim note editor", () => {
     key(editor, "l");
     await Promise.resolve();
     expect(document.activeElement).toBe(inputs[0]);
-    inputs[0].setSelectionRange(1, 1);
-    inputs[0].dispatchEvent(
-      new KeyboardEvent("keydown", {
-        key: "ArrowRight",
-        bubbles: true,
-        cancelable: true,
-      }),
-    );
+    sourceKey(inputs[0], "l");
     await Promise.resolve();
     expect(document.activeElement).toBe(inputs[1]);
     expect(inputs[1].selectionStart).toBe(0);
-    inputs[1].setSelectionRange(1, 1);
-    inputs[1].dispatchEvent(
-      new KeyboardEvent("keydown", {
-        key: "ArrowRight",
-        bubbles: true,
-        cancelable: true,
-      }),
-    );
+    sourceKey(inputs[1], "l");
     expect(editor.state.selection.head).toBe(4);
     key(editor, "l");
     await Promise.resolve();
     expect(document.activeElement).toBe(inputs[2]);
-    inputs[2].setSelectionRange(0, 0);
-    inputs[2].dispatchEvent(
-      new KeyboardEvent("keydown", {
-        key: "ArrowLeft",
-        bubbles: true,
-        cancelable: true,
-      }),
-    );
+    sourceKey(inputs[2], "h");
     await Promise.resolve();
     expect(document.activeElement).toBe(editor.view.dom);
     expect(editor.state.selection.head).toBe(4);
@@ -718,5 +715,137 @@ describe("Vim cursor arrival at equation line boundaries", () => {
     await Promise.resolve();
     expect(editor.view.dom.querySelector(".math-note")).toBeNull();
     expect(editor.state.doc.textContent).toBe("");
+  });
+});
+
+describe("Vim modes inside equation source", () => {
+  async function inlineSource(latex = "x^2") {
+    const result = createEditor([
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "a" },
+          { type: "inlineMath", attrs: { latex } },
+          { type: "text", text: "b" },
+        ],
+      },
+    ]);
+    key(result.editor, "l");
+    await Promise.resolve();
+    const input = result.editor.view.dom.querySelector<HTMLInputElement>(
+      ".math-note-inline input",
+    )!;
+    expect(document.activeElement).toBe(input);
+    return { ...result, input };
+  }
+
+  it("shares Insert and Normal mode with the note while Escape keeps source focused", async () => {
+    const { editor, onModeChange, input } = await inlineSource();
+    sourceKey(input, "A");
+    expect(mode(editor)).toBe("insert");
+    expect(onModeChange).toHaveBeenLastCalledWith("insert");
+    expect(input.closest(".math-note")?.classList.contains("is-editing")).toBe(
+      true,
+    );
+    expect(sourceType(input, "+y")).toBe(true);
+    expect(input.closest(".math-note")?.classList.contains("is-editing")).toBe(
+      true,
+    );
+    sourceKey(input, "Escape");
+    expect(mode(editor)).toBe("normal");
+    expect(onModeChange).toHaveBeenLastCalledWith("normal");
+    expect(document.activeElement).toBe(input);
+    expect(input.closest(".math-note")?.classList.contains("is-editing")).toBe(
+      true,
+    );
+    expect(input.selectionStart).toBe(4);
+    expect(editor.state.doc.child(0).child(1).attrs.latex).toBe("x^2+y");
+    sourceKey(input, "l");
+    expect(document.activeElement).toBe(editor.view.dom);
+    expect(mode(editor)).toBe("normal");
+    expect(editor.state.selection.head).toBe(3);
+    expect(editor.view.dom.querySelector(".math-note.is-editing")).toBeNull();
+    expect(key(editor, "z")).toBe(true);
+    expect(editor.state.doc.child(0).lastChild?.textContent).toBe("b");
+  });
+
+  it("uses the note history for source edits without closing the source or merging prose edits", async () => {
+    const { editor, input } = await inlineSource("x+y");
+    sourceKey(input, "x");
+    expect(input.value).toBe("+y");
+    expect(editor.state.doc.child(0).child(1).attrs.latex).toBe("+y");
+    expect(input.closest(".math-note")?.classList.contains("is-editing")).toBe(
+      true,
+    );
+    sourceKey(input, "u");
+    expect(input.value).toBe("x+y");
+    expect(document.activeElement).toBe(input);
+    expect(input.closest(".math-note")?.classList.contains("is-editing")).toBe(
+      true,
+    );
+    expect(mode(editor)).toBe("normal");
+    sourceKey(input, "r", { ctrlKey: true });
+    expect(input.value).toBe("+y");
+    expect(document.activeElement).toBe(input);
+    expect(input.closest(".math-note")?.classList.contains("is-editing")).toBe(
+      true,
+    );
+    sourceKey(input, "$");
+    sourceKey(input, "l");
+    key(editor, "i");
+    type(editor, "new ");
+    key(editor, "Escape");
+    key(editor, "u");
+    expect(editor.state.doc.child(0).lastChild?.textContent).toBe("b");
+    expect(editor.state.doc.child(0).child(1).attrs.latex).toBe("+y");
+  });
+
+  it("blocks non-keyboard text insertion in Normal and allows it in Insert", async () => {
+    const { editor, input } = await inlineSource();
+    expect(sourceType(input, "pasted", "insertFromPaste")).toBe(false);
+    expect(input.value).toBe("x^2");
+    sourceKey(input, "i");
+    expect(sourceType(input, "pasted", "insertFromPaste")).toBe(true);
+    expect(editor.state.doc.child(0).child(1).attrs.latex).toBe("pastedx^2");
+    sourceKey(input, "Escape");
+    expect(document.activeElement).toBe(input);
+    expect(sourceType(input, "accidental")).toBe(false);
+    expect(input.value).toBe("pastedx^2");
+  });
+
+  it("retains Insert when it is entered inside math and the arrow cursor exits into prose", async () => {
+    const { editor, input } = await inlineSource();
+    sourceKey(input, "A");
+    sourceType(input, "+y");
+    sourceKey(input, "ArrowRight");
+    expect(document.activeElement).toBe(editor.view.dom);
+    expect(mode(editor)).toBe("insert");
+    type(editor, "continued ");
+    expect(editor.state.doc.child(0).child(1).attrs.latex).toBe("x^2+y");
+    expect(editor.state.doc.child(0).lastChild?.textContent).toBe(
+      "continued b",
+    );
+  });
+
+  it("shares Visual mode while changing source text without selecting surrounding note content", async () => {
+    const { editor, onModeChange, input } = await inlineSource("alpha+beta");
+    sourceKey(input, "v");
+    sourceKey(input, "e");
+    expect(mode(editor)).toBe("visual");
+    expect(onModeChange).toHaveBeenLastCalledWith("visual");
+    expect(input.value.slice(input.selectionStart!, input.selectionEnd!)).toBe(
+      "alpha",
+    );
+    sourceKey(input, "c");
+    expect(mode(editor)).toBe("insert");
+    expect(sourceType(input, "gamma")).toBe(true);
+    sourceKey(input, "Escape");
+    expect(document.activeElement).toBe(input);
+    expect(input.closest(".math-note")?.classList.contains("is-editing")).toBe(
+      true,
+    );
+    expect(mode(editor)).toBe("normal");
+    expect(editor.state.doc.child(0).child(1).attrs.latex).toBe("gamma+beta");
+    expect(editor.state.doc.textContent).toBe("ab");
   });
 });

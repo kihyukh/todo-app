@@ -244,7 +244,7 @@ describe("rendered math after applying Markdown source", () => {
   });
 
   it("enters the display source with Vim j from the paragraph above after Markdown is applied", async () => {
-    const { editor } = await applyMathSource(true);
+    const { editor, container } = await applyMathSource(true);
     await act(async () => {
       editor.commands.setTextSelection(1);
       editor.view.focus();
@@ -263,11 +263,46 @@ describe("rendered math after applying Markdown source", () => {
     expect(source.value).toBe("a+b=c");
     expect(source.selectionStart).toBe(0);
     expect(vimPluginKey.getState(editor.state)?.mode).toBe("normal");
+    expect(
+      container.querySelector('[aria-label="Vim mode status"]')?.textContent,
+    ).toBe("Vim · normal");
     expect(editor.state.selection.$from.nodeAfter?.type.name).toBe("blockMath");
+    await act(async () => {
+      source.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "A",
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    expect(vimPluginKey.getState(editor.state)?.mode).toBe("insert");
+    expect(
+      container.querySelector('[aria-label="Vim mode status"]')?.textContent,
+    ).toBe("Vim · insert");
+    expect(document.activeElement).toBe(source);
     await act(async () => {
       source.value = "a+b=d";
       source.setSelectionRange(source.value.length, source.value.length);
       source.dispatchEvent(new Event("input", { bubbles: true }));
+      source.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Escape",
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    expect(vimPluginKey.getState(editor.state)?.mode).toBe("normal");
+    expect(
+      container.querySelector('[aria-label="Vim mode status"]')?.textContent,
+    ).toBe("Vim · normal");
+    expect(document.activeElement).toBe(source);
+    expect(source.closest(".math-note")!.classList.contains("is-editing")).toBe(
+      true,
+    );
+    expect(source.selectionStart).toBe(4);
+    await act(async () => {
       source.dispatchEvent(
         new KeyboardEvent("keydown", {
           key: "ArrowDown",
@@ -293,6 +328,6 @@ describe("rendered math after applying Markdown source", () => {
     });
     expect(document.activeElement).toBe(source);
     expect(source.value).toBe("a+b=d");
-    expect(source.selectionStart).toBe(source.value.length);
+    expect(source.selectionStart).toBe(source.value.length - 1);
   });
 });

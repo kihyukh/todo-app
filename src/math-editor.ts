@@ -12,6 +12,8 @@ import {
   registerMathSource,
 } from "./math-navigation";
 import type { MathDirection } from "./math-navigation";
+import { createMathVim } from "./math-vim";
+import { getVimMode, setMathVimMode } from "./vim-editor";
 import "./math-editor.css";
 
 /** Keep the existing math schema and Markdown codecs; only replace the editing UI. */
@@ -21,6 +23,7 @@ const mathNodeView =
     let node = initialNode;
     let editing = false;
     let destroyed = false;
+    let sourceVim: ReturnType<typeof createMathVim> | undefined;
     const tag = display ? "div" : "span";
     const dom = document.createElement(tag);
     dom.className = `tiptap-mathematics-render math-note ${display ? "math-note-block" : "math-note-inline"}`;
@@ -96,6 +99,7 @@ const mathNodeView =
         }
       }
       resize();
+      if (editing) sourceVim?.sync();
     };
 
     const hideSource = () => {
@@ -121,6 +125,7 @@ const mathNodeView =
       input.focus({ preventScroll: true });
       const offset = caret === "start" ? 0 : input.value.length;
       input.setSelectionRange(offset, offset);
+      sourceVim?.activate(caret);
       resize();
     };
 
@@ -146,12 +151,14 @@ const mathNodeView =
       )
         return;
       // Resolve the position each time: preceding note edits can move this node.
-      editor.view.dispatch(
-        editor.state.tr.setNodeMarkup(pos, undefined, {
-          ...current.attrs,
-          latex: input.value,
-        }),
-      );
+      const transaction = editor.state.tr.setNodeMarkup(pos, undefined, {
+        ...current.attrs,
+        latex: input.value,
+      });
+      // Replacing an inline atom's attributes can map its NodeSelection into
+      // prose. Keep the active source selected so typing does not close it.
+      transaction.setSelection(NodeSelection.create(transaction.doc, pos));
+      editor.view.dispatch(transaction);
     };
 
     const leave = (direction: MathDirection) => {
@@ -218,6 +225,21 @@ const mathNodeView =
       if (!enteredNext) editor.view.focus();
     };
 
+    sourceVim = createMathVim({
+      input,
+      multiline: display,
+      getMode: () => getVimMode(view),
+      setMode: (mode) => setMathVimMode(view, mode),
+      leave,
+      commit: persist,
+      undo: () => editor.commands.undo(),
+      redo: () => editor.commands.redo(),
+    });
+    const syncSourceMode = () => {
+      if (editing && !destroyed) sourceVim?.sync();
+    };
+    editor.on("transaction", syncSourceMode);
+
     const onClick = (event: Event) => {
       const mouse = event as MouseEvent;
       if (
@@ -244,7 +266,15 @@ const mathNodeView =
     };
     const onInput = () => {
       persist();
+      sourceVim?.input();
       resize();
+    };
+    const onSelectionChanged = () => {
+      if (editing) sourceVim?.selectionChanged();
+    };
+    const protectNormalInput = (event: Event) => {
+      const mode = getVimMode(view);
+      if (mode && mode !== "insert") event.preventDefault();
     };
     const onBlur = () => {
       // Clicking another equation or a toolbar must not bring focus back here.
@@ -269,6 +299,10 @@ const mathNodeView =
       const event = rawEvent as KeyboardEvent;
       event.stopPropagation();
       if (event.isComposing) return;
+      if (sourceVim?.handleKey(event)) {
+        event.preventDefault();
+        return;
+      }
       const modifier = event.metaKey || event.ctrlKey;
       if (modifier && event.key.toLowerCase() === "z") {
         event.preventDefault();
@@ -315,6 +349,9 @@ const mathNodeView =
     input.addEventListener("input", onInput);
     input.addEventListener("blur", onBlur);
     input.addEventListener("keydown", onKeyDown);
+    input.addEventListener("beforeinput", protectNormalInput);
+    input.addEventListener("paste", protectNormalInput);
+    input.addEventListener("mouseup", onSelectionChanged);
     render();
 
     return {
@@ -343,11 +380,15 @@ const mathNodeView =
       destroy() {
         destroyed = true;
         unregisterSource();
+        editor.off("transaction", syncSourceMode);
         dom.removeEventListener("mousedown", onMouseDown);
         dom.removeEventListener("click", onClick);
         input.removeEventListener("input", onInput);
         input.removeEventListener("blur", onBlur);
         input.removeEventListener("keydown", onKeyDown);
+        input.removeEventListener("beforeinput", protectNormalInput);
+        input.removeEventListener("paste", protectNormalInput);
+        input.removeEventListener("mouseup", onSelectionChanged);
       },
     };
   };

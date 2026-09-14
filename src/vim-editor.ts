@@ -48,6 +48,21 @@ const INITIAL: VimState = {
 
 export const vimPluginKey = new PluginKey<VimState>("daymarkVim");
 
+export function getVimMode(view: EditorView): VimMode | null {
+  const vim = vimPluginKey.getState(view.state);
+  return vim?.enabled ? vim.mode : null;
+}
+
+/** Source editors share the mode without moving the surrounding math selection. */
+export function setMathVimMode(view: EditorView, mode: VimMode) {
+  if (getVimMode(view) === null) return;
+  update(
+    view,
+    reset({ mode, anchor: null, head: null }),
+    closeHistory(view.state.tr),
+  );
+}
+
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
     daymarkVim: {
