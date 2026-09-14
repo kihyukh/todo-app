@@ -17,7 +17,7 @@ final class DaymarkAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1420, height: 920), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
             window.title = "Daymark"
             window.titlebarAppearsTransparent = true
-            window.backgroundColor = NSColor(calibratedRed: 0.965, green: 0.965, blue: 0.957, alpha: 1)
+            window.backgroundColor = NSColor(calibratedRed: 243 / 255, green: 244 / 255, blue: 246 / 255, alpha: 1)
             window.minSize = NSSize(width: 860, height: 620)
             window.contentView = webView
             window.delegate = self

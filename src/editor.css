@@ -1,8 +1,8 @@
 .task-note-editor {
-  --note-ink: var(--text, #626f84);
-  --note-muted: var(--muted, #9da6b5);
-  --note-line: var(--border, #e9edf3);
-  --note-accent: var(--accent, #5579dc);
+  --note-ink: var(--text, #303744);
+  --note-muted: var(--secondary, #526071);
+  --note-line: var(--border, #dfe3e8);
+  --note-accent: var(--accent, #315fd5);
   width: 100%;
   min-width: 0;
   color: var(--note-ink);
@@ -12,7 +12,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 5px;
-  padding: 6px 0 12px;
+  padding: 4px 0 9px;
   border-bottom: 1px solid var(--note-line);
 }
 .note-toolbar-main {
@@ -30,7 +30,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #97a1b2;
+  color: var(--secondary);
   padding: 0;
   cursor: pointer;
   transition:
@@ -40,11 +40,11 @@
 }
 .note-tool:hover {
   background: #f1f4f9;
-  color: #566781;
+  color: var(--secondary);
 }
 .note-tool.is-active {
   background: #edf2fe;
-  color: #5579dc;
+  color: var(--blue);
 }
 .note-tool:disabled {
   opacity: 0.3;
@@ -65,9 +65,9 @@
 .note-prose {
   outline: none;
   min-height: 200px;
-  padding: 18px 1px 10px;
-  font-size: 13px;
-  line-height: 1.75;
+  padding: 12px 1px 8px;
+  font-size: 14px;
+  line-height: 1.45;
   overflow-wrap: anywhere;
   caret-color: var(--note-accent);
 }
@@ -75,69 +75,69 @@
   margin-top: 0;
 }
 .note-prose p {
-  margin: 0 0 12px;
+  margin: 0 0 5px;
 }
 .note-prose h1,
 .note-prose h2,
 .note-prose h3 {
   letter-spacing: -0.02em;
-  line-height: 1.5;
-  color: #445066;
+  line-height: 1.4;
+  color: var(--ink);
   font-weight: 600;
 }
 .note-prose h1 {
   font-size: 20px;
-  margin: 24px 0 12px;
+  margin: 16px 0 5px;
 }
 .note-prose h2 {
   font-size: 15px;
-  margin: 22px 0 9px;
+  margin: 14px 0 4px;
 }
 .note-prose h3 {
   font-size: 13px;
-  margin: 20px 0 7px;
+  margin: 12px 0 4px;
 }
 .note-prose strong {
   font-weight: 600;
 }
 .note-prose a {
-  color: #6886c5;
-  text-decoration-color: #bac8e5;
+  color: var(--blue);
+  text-decoration-color: currentColor;
   text-underline-offset: 3px;
   cursor: pointer;
 }
 .note-prose a:hover {
-  color: #466dbc;
+  color: var(--blue);
 }
 .note-prose ul,
 .note-prose ol {
   padding-left: 22px;
-  margin: 8px 0 14px;
+  margin: 5px 0 7px;
 }
 .note-prose li {
   padding-left: 1px;
-  margin-bottom: 5px;
+  margin-bottom: 2px;
 }
 .note-prose li p {
-  margin: 0 0 3px;
+  margin: 0 0 1px;
 }
 .note-prose ul[data-type="taskList"] {
   list-style: none;
   padding: 0;
-  margin: 11px 0 18px;
+  margin: 5px 0 8px;
 }
 .note-prose ul[data-type="taskList"] li {
   display: flex;
   align-items: flex-start;
   gap: 9px;
-  margin: 0 0 7px;
+  margin: 0 0 2px;
   padding: 0;
 }
 .note-prose ul[data-type="taskList"] li > label {
   display: flex;
   align-items: center;
   flex: 0 0 auto;
-  height: 24px;
+  height: 20px;
   user-select: none;
 }
 .note-prose ul[data-type="taskList"] li > div {
@@ -148,7 +148,7 @@
   margin: 0;
 }
 .note-prose ul[data-type="taskList"] li[data-checked="true"] > div > p {
-  color: #a1a9b7;
+  color: var(--muted);
   text-decoration: line-through;
   text-decoration-color: #bcc4d1;
 }
@@ -157,15 +157,15 @@
   width: 14px;
   height: 14px;
   margin: 0;
-  border: 1px solid #c5cddc;
+  border: 1px solid var(--control);
   border-radius: 3px;
   background: transparent;
   cursor: pointer;
   position: relative;
 }
 .note-prose ul[data-type="taskList"] input[type="checkbox"]:checked {
-  background: #8299d3;
-  border-color: #8299d3;
+  background: var(--blue);
+  border-color: var(--blue);
 }
 .note-prose ul[data-type="taskList"] input[type="checkbox"]:checked::after {
   content: "";
@@ -183,37 +183,37 @@
   outline-offset: 3px;
 }
 .note-prose ul[data-type="taskList"] ul[data-type="taskList"] {
-  margin: 8px 0 5px;
+  margin: 3px 0 3px;
 }
 .note-prose code {
   font-size: 0.91em;
   font-family: "SFMono-Regular", Menlo, monospace;
-  color: #64738c;
+  color: var(--ink);
   background: #f1f4f9;
   padding: 2px 5px;
   border-radius: 4px;
 }
 .note-prose pre {
-  padding: 14px 16px;
+  padding: 10px 12px;
   border: 1px solid #e8edf5;
   background: #f7f9fc;
   border-radius: 7px;
   overflow: auto;
-  margin: 14px 0;
-  line-height: 1.6;
+  margin: 9px 0;
+  line-height: 1.45;
 }
 .note-prose pre code {
   padding: 0;
   background: transparent;
-  color: #62718a;
+  color: var(--ink);
   font-size: 12px;
   white-space: pre;
 }
 .note-prose blockquote {
-  margin: 16px 0;
+  margin: 9px 0;
   padding: 2px 0 2px 15px;
   border-left: 2px solid #bdcce4;
-  color: #8d98aa;
+  color: var(--secondary);
 }
 .note-prose blockquote p:last-child {
   margin-bottom: 0;
@@ -221,7 +221,7 @@
 .note-prose hr {
   border: 0;
   border-top: 1px solid var(--note-line);
-  margin: 24px 0;
+  margin: 14px 0;
 }
 .note-prose img {
   display: block;
@@ -236,37 +236,11 @@
   outline-offset: 2px;
 }
 .note-prose p.is-editor-empty:first-child::before {
-  color: #a5aebc;
+  color: var(--secondary);
   content: attr(data-placeholder);
   float: left;
   height: 0;
   pointer-events: none;
-}
-.note-prose .tiptap-mathematics-render {
-  cursor: pointer;
-  border-radius: 4px;
-  transition: background 0.15s;
-}
-.note-prose .tiptap-mathematics-render:hover {
-  background: #eef3ff;
-}
-.note-prose .tiptap-mathematics-render[data-type="inline-math"] {
-  padding: 2px 3px;
-  color: #5a6e95;
-}
-.note-prose .tiptap-mathematics-render[data-type="block-math"] {
-  margin: 18px 0;
-  padding: 13px 10px;
-  background: #f7f9fd;
-  border: 1px solid #edf1f8;
-  overflow-x: auto;
-  color: #556785;
-}
-.note-prose .tiptap-mathematics-render[data-type="block-math"]:hover {
-  background: #f0f4ff;
-}
-.note-prose .tiptap-mathematics-render.ProseMirror-selectednode {
-  outline: 1px solid #9aafe0;
 }
 .note-prose .katex {
   font-size: 1.08em;
@@ -279,7 +253,7 @@
   table-layout: fixed;
   width: 100%;
   overflow: hidden;
-  margin: 14px 0;
+  margin: 9px 0;
   font-size: 12px;
 }
 .note-prose td,
@@ -313,8 +287,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #a6afbe;
-  font-size: 10px;
+  color: var(--secondary);
+  font-size: 11px;
   margin-top: 6px;
   padding-bottom: 8px;
 }
@@ -349,40 +323,11 @@
   border: 0;
   background: transparent;
   cursor: pointer;
-  color: #98a3b6;
+  color: var(--secondary);
   padding: 0;
   line-height: 0;
 }
-.equation-mode {
-  display: flex;
-  gap: 3px;
-  border-radius: 6px;
-  background: #f2f5fa;
-  padding: 3px;
-  margin-bottom: 10px;
-}
-.equation-mode button {
-  flex: 1;
-  border: 0;
-  padding: 6px;
-  border-radius: 4px;
-  background: transparent;
-  font-size: 11px;
-  color: #8996ad;
-  cursor: pointer;
-}
-.equation-mode button.selected {
-  background: #fff;
-  color: #586f9d;
-  box-shadow: 0 1px 4px #405b8d10;
-}
-.equation-mode button span {
-  margin-left: 6px;
-  opacity: 0.65;
-  font-family: Menlo, monospace;
-  font-size: 10px;
-}
-.equation-popover textarea,
+
 .note-source-panel textarea {
   display: block;
   width: 100%;
@@ -394,25 +339,15 @@
   box-sizing: border-box;
   font-family: "SFMono-Regular", Menlo, monospace;
   font-size: 12px;
-  line-height: 1.7;
-  color: #5b6d8c;
+  line-height: 1.45;
+  color: var(--ink);
   outline: none;
 }
-.equation-popover textarea:focus,
+
 .link-popover input:focus,
 .note-source-panel textarea:focus {
   border-color: #9db3e1;
   box-shadow: 0 0 0 2px #94abe812;
-}
-.equation-preview {
-  min-height: 43px;
-  padding: 13px 7px 8px;
-  overflow-x: auto;
-  font-size: 13px;
-  color: #566e99;
-}
-.equation-preview .katex-display {
-  margin: 0;
 }
 .note-popover-footer {
   display: flex;
@@ -421,8 +356,8 @@
   margin-top: 8px;
 }
 .note-popover-footer > span {
-  color: #a4aec0;
-  font-size: 10px;
+  color: var(--secondary);
+  font-size: 11px;
 }
 .task-note-editor button.note-apply {
   display: inline-flex;
@@ -434,12 +369,12 @@
   padding: 7px 11px;
   border-radius: 5px;
   color: #fff;
-  background: #6887d0;
+  background: var(--blue);
   cursor: pointer;
   white-space: nowrap;
 }
 .task-note-editor button.note-apply:hover {
-  background: #5779c5;
+  background: var(--blue-hover);
 }
 .task-note-editor button.note-apply:disabled {
   opacity: 0.45;
@@ -456,15 +391,15 @@
   border-radius: 5px;
   padding: 8px;
   font-size: 12px;
-  color: #5b6e8e;
+  color: var(--ink);
   outline: none;
   background: #fff;
 }
 .note-remove-link {
   border: 0;
   padding: 8px 0 0;
-  font-size: 10px;
-  color: #ac7a7d;
+  font-size: 11px;
+  color: var(--danger);
   background: transparent;
   cursor: pointer;
 }
@@ -477,8 +412,8 @@
   border-radius: 5px;
   background: #fff8ea;
   font-size: 11px;
-  line-height: 1.5;
-  color: #9d865a;
+  line-height: 1.4;
+  color: var(--secondary);
 }
 .note-source-panel {
   margin-top: 16px;
@@ -486,15 +421,15 @@
 .note-source-label {
   display: flex;
   justify-content: space-between;
-  color: #8b9bb7;
-  font-size: 9px;
+  color: var(--secondary);
+  font-size: 11px;
   letter-spacing: 1px;
   margin-bottom: 9px;
 }
 .note-source-label span {
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0;
-  color: #a1aec3;
+  color: var(--secondary);
 }
 .note-source-panel textarea {
   min-height: 310px;
@@ -509,7 +444,7 @@
 }
 .note-source-actions > button:not(.note-apply) {
   font-size: 11px;
-  color: #919fb7;
+  color: var(--secondary);
   background: transparent;
   border: 0;
   cursor: pointer;
@@ -521,11 +456,11 @@
   padding-bottom: 12px;
 }
 .note-table-actions button {
-  font-size: 10px;
+  font-size: 11px;
   border: 1px solid #e4eaf4;
   border-radius: 4px;
   padding: 5px 7px;
-  color: #7d8fac;
+  color: var(--secondary);
   background: #fafcff;
   cursor: pointer;
 }
@@ -543,7 +478,7 @@
   .note-prose {
     font-size: 14px;
   }
-  .equation-popover textarea,
+
   .link-popover input,
   .note-source-panel textarea {
     font-size: 16px;

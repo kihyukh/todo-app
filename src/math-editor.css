@@ -1,0 +1,98 @@
+.note-prose .math-note[hidden],
+.note-prose .math-note [hidden] {
+  display: none !important;
+}
+.note-prose .math-note {
+  color: var(--note-ink);
+  border-radius: 4px;
+  cursor: text;
+}
+.note-prose .math-note[data-type="block-math"] {
+  margin: 10px 0;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  overflow: visible;
+  color: var(--note-ink);
+}
+.note-prose .math-note[data-type="block-math"]:hover {
+  background: var(--sidebar);
+}
+.note-prose .math-note[data-type="block-math"].is-editing {
+  border-color: var(--note-accent);
+  background: #f7f9fd;
+}
+.note-prose .math-note[data-type="inline-math"] {
+  padding: 1px 2px;
+  color: var(--note-ink);
+}
+.note-prose .math-note-inline.is-editing {
+  display: inline-flex;
+  align-items: baseline;
+  max-width: 100%;
+  background: var(--selected);
+  box-shadow: 0 0 0 1px var(--note-accent);
+}
+.math-note-source {
+  cursor: text;
+}
+.math-note-inline .math-note-source {
+  display: inline-flex;
+  align-items: baseline;
+  max-width: 100%;
+}
+.math-note-delimiter,
+.task-note-editor .math-note-input {
+  font-family: "SFMono-Regular", Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.math-note-delimiter {
+  color: var(--note-accent);
+  user-select: none;
+}
+.task-note-editor .math-note-input {
+  color: var(--note-ink);
+  caret-color: var(--note-accent);
+  background: transparent;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  resize: none;
+  margin: 0;
+  min-width: 2ch;
+  max-width: 100%;
+}
+.math-note-block .math-note-input {
+  display: block;
+  width: 100%;
+  min-height: 22px;
+  overflow-y: hidden;
+}
+.math-note-inline .math-note-input {
+  vertical-align: baseline;
+  margin: 0 2px;
+}
+.math-note-preview {
+  overflow-x: auto;
+}
+.math-note-block.is-editing .math-note-preview {
+  border-top: 1px solid var(--note-line);
+  padding: 9px 0 2px;
+  margin-top: 7px;
+}
+.math-note-preview.is-empty {
+  color: var(--note-muted);
+  font-family: inherit;
+  font-size: 11px;
+}
+.note-prose .math-note .katex-display {
+  margin: 0.25em 0;
+}
+@media (max-width: 600px) {
+  .task-note-editor .math-note-input {
+    font-size: 16px;
+  }
+}

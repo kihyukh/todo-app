@@ -11,7 +11,7 @@ On this Mac, tasks are stored in **iCloud Drive → Daymark**. The footer report
 ## What works
 
 - **Do date and deadline are independent.** Today includes only tasks deliberately scheduled for today. Older work stays in a separate, collapsed section. Plan your day and the sun button change the do date without touching the deadline.
-- **Rich notes.** Markdown input shortcuts, headings, bold/italic, links, code blocks, quotes, tables, nested checklists, images, and editable inline/display LaTeX. Type `$x^2$` or `$$x^2$$`, or use the equation button. Click a rendered equation to edit its source. Markdown source mode has explicit Apply and Cancel actions.
+- **Rich notes.** Markdown input shortcuts, headings, bold/italic, links, code blocks, quotes, tables, nested checklists, images, and editable inline/display LaTeX. Type `$x^2$` for inline math, or type `$$` on a new line and press Enter for a display equation. Click any rendered equation to edit its LaTeX directly in the note; changes save as you type. Click elsewhere or press Escape / ⌘ Enter to return to rendered math. Markdown source mode has explicit Apply and Cancel actions.
 - **Images and PDFs.** Paste/drop images into notes or attach image/PDF files. Attachments preview inside the Mac app and can open in the default viewer.
 - **Open checkboxes.** Every unchecked note item appears with a link to its parent. Checking it updates the original note. Completed parent tasks remain included until their steps are checked; trashed tasks are excluded.
 - **Lists and boards.** Add/rename lists. Switch list/board layouts. Add, rename, recolor, reorder, or remove board columns. Drag a card between columns or change its status in the detail pane. Removing a column moves its tasks into a remaining column.
@@ -43,7 +43,7 @@ On iPhone, choose the Mac app’s **same Daymark folder in iCloud Drive** using 
 
 ## Validation
 
-- 19 automated frontend tests cover date independence, task visibility, merge convergence, deletion preservation, concurrent browser saves, rich Markdown/math round trips, and nested checkbox updates.
+- 28 automated frontend tests cover date independence, task visibility, merge convergence, deletion preservation, concurrent browser saves, rich Markdown/math round trips, nested checkbox updates, and direct math editing with stable focus, undo, and keyboard navigation.
 - 11 native persistence checks cover conflict handling, unreadable-file protection, revision history, and attachments.
 - Manually checked native app launch, task creation, images/PDF previews, iCloud folder saving, quit/reopen persistence, and confirmed-save shutdown.
 - Manually checked Today rescheduling, live checkbox aggregation, typed inline/display math, equation editing, and desktop/mobile layouts.

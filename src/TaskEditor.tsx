@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { InputRule } from "@tiptap/core";
 import type { Editor, JSONContent } from "@tiptap/core";
 import type { NoteNode } from "./model";
 import StarterKit from "@tiptap/starter-kit";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
-import { BlockMath, InlineMath } from "@tiptap/extension-mathematics";
+import { NaturalBlockMath, NaturalInlineMath } from "./math-editor";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
@@ -19,18 +18,15 @@ import {
   List,
   ListTodo,
   Code2,
-  Sigma,
   Link2,
   Paperclip,
   ImagePlus,
   X,
-  Check,
   Table2,
   FileCode2,
   Undo2,
   Redo2,
 } from "lucide-react";
-import katex from "katex";
 import "katex/dist/katex.min.css";
 import "./editor.css";
 
@@ -42,66 +38,6 @@ const EMPTY_NOTE: JSONContent = {
 };
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
-// Match the familiar Obsidian / HackMD syntax while retaining Tiptap's math nodes.
-// The upstream typing rules use double / triple dollars, unlike its Markdown parser.
-const NaturalInlineMath = InlineMath.extend({
-  addInputRules() {
-    return [
-      new InputRule({
-        find: /(?<![$\\])\$([^$\n]+)\$$/,
-        handler: ({ state, range, match }) => {
-          state.tr.replaceWith(
-            range.from,
-            range.to,
-            this.type.create({ latex: match[1].trim() }),
-          );
-        },
-      }),
-    ];
-  },
-});
-
-const NaturalBlockMath = BlockMath.extend({
-  addInputRules() {
-    return [
-      new InputRule({
-        find: /^\$\$([^$]+)\$\$$/,
-        handler: ({ state, range, match }) => {
-          const position = state.doc.resolve(range.from);
-          const consumesParagraph =
-            position.depth > 0 &&
-            position.parent.isTextblock &&
-            range.from === position.start() &&
-            range.to === position.end();
-          const canReplace =
-            consumesParagraph &&
-            position
-              .node(-1)
-              .canReplaceWith(
-                position.index(-1),
-                position.indexAfter(-1),
-                this.type,
-              );
-          state.tr.replaceWith(
-            canReplace ? position.before() : range.from,
-            canReplace ? position.after() : range.to,
-            this.type.create({ latex: match[1].trim() }),
-          );
-        },
-      }),
-    ];
-  },
-});
-
-type MathKind = "inline" | "block";
-interface MathDraft {
-  latex: string;
-  kind: MathKind;
-  originalKind: MathKind;
-  position?: number;
-  from: number;
-  to: number;
-}
 interface LinkDraft {
   url: string;
   from: number;
@@ -165,7 +101,6 @@ export default function TaskEditor({
   onChange,
   onAttach,
 }: TaskEditorProps) {
-  const [mathDraft, setMathDraft] = useState<MathDraft | null>(null);
   const [linkDraft, setLinkDraft] = useState<LinkDraft | null>(null);
   const [source, setSource] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
@@ -175,8 +110,6 @@ export default function TaskEditor({
   const taskIdRef = useRef(taskId);
   const receivedContent = useRef(content);
   const imageInput = useRef<HTMLInputElement>(null);
-  const equationInput = useRef<HTMLTextAreaElement>(null);
-  const mathPanel = useRef<HTMLDivElement>(null);
   onChangeRef.current = onChange;
   taskIdRef.current = taskId;
 
@@ -249,39 +182,8 @@ export default function TaskEditor({
         }),
         TaskList,
         TaskItem.configure({ nested: true }),
-        NaturalInlineMath.configure({
-          katexOptions: { throwOnError: false, trust: false, strict: false },
-          onClick: (node, position) => {
-            setLinkDraft(null);
-            setMathDraft({
-              latex: node.attrs.latex,
-              kind: "inline",
-              originalKind: "inline",
-              position,
-              from: position,
-              to: position + node.nodeSize,
-            });
-          },
-        }),
-        NaturalBlockMath.configure({
-          katexOptions: {
-            throwOnError: false,
-            trust: false,
-            strict: false,
-            displayMode: true,
-          },
-          onClick: (node, position) => {
-            setLinkDraft(null);
-            setMathDraft({
-              latex: node.attrs.latex,
-              kind: "block",
-              originalKind: "block",
-              position,
-              from: position,
-              to: position + node.nodeSize,
-            });
-          },
-        }),
+        NaturalInlineMath,
+        NaturalBlockMath,
         Image.configure({
           allowBase64: true,
           HTMLAttributes: { loading: "lazy" },
@@ -369,7 +271,6 @@ export default function TaskEditor({
   useEffect(() => {
     editorRef.current = editor;
     setSource(null);
-    setMathDraft(null);
     setLinkDraft(null);
     setNotice("");
     receivedContent.current = content;
@@ -393,57 +294,7 @@ export default function TaskEditor({
     refreshToolbar((value) => value + 1);
   }, [content, editor]);
 
-  useEffect(() => {
-    if (!mathDraft) return;
-    equationInput.current?.focus();
-    mathPanel.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [mathDraft?.position, Boolean(mathDraft)]);
-
   if (!editor) return null;
-
-  const openMath = () => {
-    const { from, to } = editor.state.selection;
-    setLinkDraft(null);
-    setMathDraft({
-      latex: editor.state.doc.textBetween(from, to),
-      kind: "inline",
-      originalKind: "inline",
-      from,
-      to,
-    });
-  };
-
-  const applyMath = () => {
-    if (!mathDraft?.latex.trim()) return;
-    const { latex, kind, originalKind, position, from, to } = mathDraft;
-    if (position !== undefined && kind === originalKind) {
-      if (kind === "inline")
-        editor
-          .chain()
-          .focus()
-          .updateInlineMath({ latex: latex.trim(), pos: position })
-          .run();
-      else
-        editor
-          .chain()
-          .focus()
-          .updateBlockMath({ latex: latex.trim(), pos: position })
-          .run();
-    } else {
-      editor
-        .chain()
-        .focus()
-        .insertContentAt(
-          { from, to },
-          {
-            type: kind === "inline" ? "inlineMath" : "blockMath",
-            attrs: { latex: latex.trim() },
-          },
-        )
-        .run();
-    }
-    setMathDraft(null);
-  };
 
   const applyLink = () => {
     if (!linkDraft) return;
@@ -480,22 +331,11 @@ export default function TaskEditor({
     setNotice("");
   };
 
-  const mathPreview = mathDraft
-    ? katex.renderToString(mathDraft.latex || "\\phantom{x}", {
-        throwOnError: false,
-        displayMode: mathDraft.kind === "block",
-        trust: false,
-        strict: false,
-        output: "htmlAndMathml",
-      })
-    : "";
-
   return (
     <div
       className="task-note-editor"
       onKeyDown={(event) => {
-        if (event.key === "Escape" && (mathDraft || linkDraft)) {
-          setMathDraft(null);
+        if (event.key === "Escape" && linkDraft) {
           setLinkDraft(null);
           editor.commands.focus();
           event.stopPropagation();
@@ -557,20 +397,11 @@ export default function TaskEditor({
           </ToolButton>
           <span className="note-tool-divider" />
           <ToolButton
-            label="Insert equation"
-            active={Boolean(mathDraft)}
-            disabled={source !== null}
-            onClick={openMath}
-          >
-            <Sigma size={16} />
-          </ToolButton>
-          <ToolButton
             label="Add or edit link"
             active={editor.isActive("link")}
             disabled={source !== null}
             onClick={() => {
               const { from, to } = editor.state.selection;
-              setMathDraft(null);
               setLinkDraft({
                 url: editor.getAttributes("link").href ?? "",
                 from,
@@ -611,7 +442,6 @@ export default function TaskEditor({
           active={source !== null}
           onClick={() => {
             setSource(source === null ? editor.getMarkdown() : null);
-            setMathDraft(null);
             setLinkDraft(null);
           }}
         >
@@ -629,76 +459,6 @@ export default function TaskEditor({
           >
             <X size={13} />
           </button>
-        </div>
-      )}
-
-      {mathDraft && (
-        <div
-          className="note-popover equation-popover"
-          ref={mathPanel}
-          role="dialog"
-          aria-label="Edit equation"
-        >
-          <div className="note-popover-heading">
-            <strong>Equation</strong>
-            <button
-              type="button"
-              aria-label="Close equation editor"
-              onClick={() => setMathDraft(null)}
-            >
-              <X size={15} />
-            </button>
-          </div>
-          <div className="equation-mode">
-            <button
-              type="button"
-              className={mathDraft.kind === "inline" ? "selected" : ""}
-              onClick={() => setMathDraft({ ...mathDraft, kind: "inline" })}
-            >
-              Inline <span>$…$</span>
-            </button>
-            <button
-              type="button"
-              className={mathDraft.kind === "block" ? "selected" : ""}
-              onClick={() => setMathDraft({ ...mathDraft, kind: "block" })}
-            >
-              Display <span>$$…$$</span>
-            </button>
-          </div>
-          <textarea
-            ref={equationInput}
-            value={mathDraft.latex}
-            onChange={(event) =>
-              setMathDraft({ ...mathDraft, latex: event.target.value })
-            }
-            aria-label="LaTeX equation"
-            placeholder="e.g. \\sum_{i=1}^{n} x_i"
-            spellCheck={false}
-            rows={3}
-            onKeyDown={(event) => {
-              if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-                event.preventDefault();
-                applyMath();
-              }
-            }}
-          />
-          <div
-            className="equation-preview"
-            aria-label="Equation preview"
-            dangerouslySetInnerHTML={{ __html: mathPreview }}
-          />
-          <div className="note-popover-footer">
-            <span>⌘ Enter to apply</span>
-            <button
-              type="button"
-              className="note-apply"
-              disabled={!mathDraft.latex.trim()}
-              onClick={applyMath}
-            >
-              <Check size={13} />
-              {mathDraft.position !== undefined ? "Update" : "Insert"}
-            </button>
-          </div>
         </div>
       )}
 

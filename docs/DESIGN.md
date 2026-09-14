@@ -23,7 +23,9 @@ Checkboxes stay inside notes. The aggregate view indexes the same document nodes
 
 Status columns can be changed without affecting completion or scheduling. Completion has its own control and archive view.
 
-The first visual direction is neutral white with a soft gray sidebar, blue selection states, small project colors, and compact toolbar controls. It intentionally leaves room for the user's detailed feedback about density, typography, keyboard behavior, and editor feel.
+The visual direction uses charcoal text, readable slate metadata, a cool gray sidebar, and cobalt selection states. A left selection indicator reinforces the active task or view. Do dates use cobalt; deadline flags use dark amber and overdue dates use red. Meaningful text remains readable on both white and selected surfaces.
+
+Task notes use 14px body text at 1.45 line height, 5px paragraph gaps, and 2px checklist item gaps for compact reading. Equation editing follows the local source/render behavior of [Obsidian Live Preview](https://help.obsidian.md/Live%2Bpreview%2Bupdate): selecting the equation reveals editable LaTeX in place, leaving it restores the rendered equation. Display math also shows a live preview below the active source. The separate equation popup and toolbar button have been removed.
 
 ## Implementation references
 
