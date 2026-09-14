@@ -9,7 +9,14 @@ import StarterKit from "@tiptap/starter-kit";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { NaturalBlockMath, NaturalInlineMath } from "./math-editor";
-import Image from "@tiptap/extension-image";
+import { NoteImage } from "./image-editor";
+import {
+  ImageImports,
+  clipboardImages,
+  insertImageFiles,
+  isImageFile,
+} from "./image-imports";
+import { continueFromImage } from "./image-navigation";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "@tiptap/markdown";
@@ -43,7 +50,6 @@ const EMPTY_NOTE: JSONContent = {
   type: "doc",
   content: [{ type: "paragraph" }],
 };
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 interface LinkDraft {
   url: string;
@@ -147,54 +153,18 @@ export default function TaskEditor({
     };
   }, [publisher]);
 
-  const insertImages = async (files: File[], position?: number) => {
+  const insertImages = (files: File[], position?: number, focus = false) => {
     const destinationTaskId = taskIdRef.current;
     const currentEditor = editorRef.current;
     if (!currentEditor) return;
-    const images = files.filter((file) => file.type.startsWith("image/"));
-    if (images.some((file) => file.size > MAX_IMAGE_BYTES))
-      setNotice(
-        "Each image can be up to 10 MB. Larger files can be added as attachments.",
-      );
-    const safeImages = images.filter((file) => file.size <= MAX_IMAGE_BYTES);
-    try {
-      const nodes = await Promise.all(
-        safeImages.map(
-          (file) =>
-            new Promise<JSONContent>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onerror = () =>
-                reject(new Error("Image could not be read."));
-              reader.onload = () =>
-                resolve({
-                  type: "image",
-                  attrs: {
-                    src: reader.result as string,
-                    alt: file.name,
-                    title: file.name,
-                  },
-                });
-              reader.readAsDataURL(file);
-            }),
-        ),
-      );
-      if (
-        !nodes.length ||
-        currentEditor.isDestroyed ||
-        destinationTaskId !== taskIdRef.current
-      )
-        return;
-      const chain = currentEditor.chain().focus();
-      if (position !== undefined)
-        chain.insertContentAt(
-          Math.min(position, currentEditor.state.doc.content.size),
-          nodes,
-        );
-      else chain.insertContent(nodes);
-      chain.run();
-    } catch {
-      setNotice("This image could not be added. Please try another image.");
-    }
+    if (focus) currentEditor.view.focus();
+    return insertImageFiles(currentEditor, files, {
+      position,
+      isCurrent: () =>
+        destinationTaskId === taskIdRef.current &&
+        editorRef.current === currentEditor,
+      notice: setNotice,
+    });
   };
 
   const editor = useEditor(
@@ -202,6 +172,7 @@ export default function TaskEditor({
       extensions: [
         StarterKit.configure({
           listKeymap: false,
+          dropcursor: { color: "#315fd5", width: 2 },
           heading: { levels: [1, 2, 3] },
           link: {
             openOnClick: false,
@@ -222,7 +193,8 @@ export default function TaskEditor({
         NoteInteractions,
         NaturalInlineMath,
         NaturalBlockMath,
-        Image.configure({
+        ImageImports,
+        NoteImage.configure({
           allowBase64: true,
           HTMLAttributes: { loading: "lazy" },
         }),
@@ -273,16 +245,15 @@ export default function TaskEditor({
             return false;
           },
         },
-        handlePaste: (_view, event) => {
-          const images = Array.from(event.clipboardData?.files ?? []).filter(
-            (file) => file.type.startsWith("image/"),
-          );
+        handlePaste: (view, event) => {
+          const images = clipboardImages(event.clipboardData);
           if (images.length) {
             void insertImages(images);
             return true;
           }
           const text = event.clipboardData?.getData("text/plain") ?? "";
           const html = event.clipboardData?.getData("text/html");
+          if (text || html) continueFromImage(view, 1);
           const currentEditor = editorRef.current;
           const looksLikeMarkdown =
             /(^|\n)(#{1,3} |[-*] \[[ xX]\] |```|\$\$|> )|(?<![$\\])\$[^$\n]+\$|\*\*[^*]+\*\*/.test(
@@ -302,15 +273,19 @@ export default function TaskEditor({
           return false;
         },
         handleDrop: (view, event, _slice, moved) => {
-          const images = Array.from(event.dataTransfer?.files ?? []).filter(
-            (file) => file.type.startsWith("image/"),
-          );
-          if (moved || !images.length) return false;
-          const position = view.posAtCoords({
-            left: event.clientX,
-            top: event.clientY,
-          })?.pos;
-          void insertImages(images, position);
+          const files = Array.from(event.dataTransfer?.files ?? []);
+          const images = files.filter(isImageFile);
+          if (moved || !files.length) return false;
+          if (!images.length) {
+            setNotice("Use Attach a file or PDF to add this file to the task.");
+            return true;
+          }
+          const position =
+            view.posAtCoords({
+              left: event.clientX,
+              top: event.clientY,
+            })?.pos ?? view.state.doc.content.size;
+          void insertImages(images, position, true);
           return true;
         },
       },
@@ -343,6 +318,7 @@ export default function TaskEditor({
             quote: current.isActive("blockquote"),
             equation:
               current.isActive("inlineMath") || current.isActive("blockMath"),
+            image: current.isActive("image"),
             canUndo: undoDepth(current.state) > 0,
             canRedo: redoDepth(current.state) > 0,
           }
@@ -399,9 +375,11 @@ export default function TaskEditor({
             ? "Tab indent · ⇧Tab outdent"
             : toolbar?.codeBlock || toolbar?.quote
               ? "⌘Enter to continue below"
-              : toolbar?.link
-                ? "⌘/Ctrl-click to open link"
-                : "Markdown & LaTeX supported";
+              : toolbar?.image
+                ? "Select an image to resize or crop · Delete to remove · Enter to continue"
+                : toolbar?.link
+                  ? "⌘/Ctrl-click to open link"
+                  : "Markdown & LaTeX supported";
 
   const applyLink = () => {
     if (!linkDraft) return;
@@ -686,7 +664,11 @@ export default function TaskEditor({
         multiple
         hidden
         onChange={(event) => {
-          void insertImages(Array.from(event.target.files ?? []));
+          void insertImages(
+            Array.from(event.target.files ?? []),
+            undefined,
+            true,
+          );
           event.target.value = "";
         }}
       />

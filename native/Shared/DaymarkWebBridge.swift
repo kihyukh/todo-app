@@ -1,5 +1,9 @@
 import Foundation
 import WebKit
+#if os(macOS)
+import AppKit
+import UniformTypeIdentifiers
+#endif
 
 final class DaymarkSchemeHandler: NSObject, WKURLSchemeHandler {
     let webRoot: URL
@@ -237,4 +241,30 @@ final class DaymarkWebBridge: NSObject, WKScriptMessageHandler, WKNavigationDele
         if let url = navigationAction.request.url, ["https", "http", "mailto"].contains(url.scheme?.lowercased() ?? "") { openURL?(url) }
         return nil
     }
+
+    #if os(macOS)
+    func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
+        guard webView === self.webView,
+              frame.isMainFrame,
+              frame.request.url?.scheme == "daymark",
+              frame.request.url?.host == "app",
+              let window = webView.window else {
+            completionHandler(nil)
+            return
+        }
+        // The rich-note image input is the app's only HTML file picker.
+        let panel = NSOpenPanel()
+        panel.title = "Add images"
+        panel.prompt = "Add"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.canCreateDirectories = false
+        panel.allowsMultipleSelection = parameters.allowsMultipleSelection
+        panel.allowedContentTypes = [.image]
+        panel.allowsOtherFileTypes = false
+        panel.beginSheetModal(for: window) { response in
+            completionHandler(response == .OK ? panel.urls : nil)
+        }
+    }
+    #endif
 }

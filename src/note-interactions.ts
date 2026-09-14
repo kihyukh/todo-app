@@ -3,6 +3,11 @@ import { ListKeymap } from "@tiptap/extension-list";
 import { Fragment } from "@tiptap/pm/model";
 import { NodeSelection, Plugin, TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
+import {
+  continueFromImage,
+  imageKeyNavigation,
+  isImageNode,
+} from "./image-navigation";
 
 // Keep Tiptap's carefully handled list deletion, but let Tab in an ordinary
 // paragraph move focus. Its default Tab rule absorbs a paragraph into a list
@@ -105,6 +110,18 @@ export const NoteInteractions = Extension.create({
     return [
       new Plugin({
         props: {
+          handleTextInput(view, _from, _to, text) {
+            const mode = view.dom.dataset.vimMode;
+            if (mode && mode !== "off" && mode !== "insert") return false;
+            if (
+              !(view.state.selection instanceof NodeSelection) ||
+              !isImageNode(view.state.selection.node)
+            )
+              return false;
+            if (!continueFromImage(view, 1)) return false;
+            view.dispatch(view.state.tr.insertText(text).scrollIntoView());
+            return true;
+          },
           handleKeyDown(view, event) {
             if (!view.editable || view.composing || event.isComposing)
               return false;
@@ -118,6 +135,8 @@ export const NoteInteractions = Extension.create({
               )
             )
               return false;
+
+            if (imageKeyNavigation(view, event)) return true;
 
             if (
               event.key === "Tab" &&

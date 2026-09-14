@@ -31,7 +31,17 @@ Typing stays in ProseMirror. The app holds an immutable document snapshot and se
 
 Autocomplete and automatic correction are disabled per editable surface and in the native WebKit configuration, without changing system preferences. This uses the public [inline-predictions setting](https://developer.apple.com/documentation/webkit/wkwebviewconfiguration/allowsinlinepredictions) and WebKit's [writing suggestions attribute](https://webkit.org/blog/15865/webkit-features-in-safari-18-0/#html).
 
-Vim mode is optional and remembers its setting on each device. It edits rich notes directly with Normal, Insert, characterwise Visual, and linewise Visual modes. The small mode indicator is shown only when enabled. Paragraphs and checklist items are logical lines rather than visual wraps. This supports common motions, counts, operators, yank/paste, and undo; it is not a full Vim runtime with Ex commands, macros, or plugins. Math and Markdown source fields retain their existing direct text editing behavior.
+Vim mode is optional and remembers its setting on each device. It edits rich notes directly with Normal, Insert, characterwise Visual, and linewise Visual modes. The small mode indicator is shown only when enabled. Paragraphs and checklist items are logical lines rather than visual wraps. This supports common motions, counts, operators, yank/paste, and undo; it is not a full Vim runtime with Ex commands, macros, or plugins. Equation source shares the note's Vim mode and commands. The Markdown source panel remains an ordinary text field.
+
+## Images inside notes
+
+An image is a selectable block in the note. Clicking it reveals a clear outline and a compact toolbar below the image: Small, Medium, Full, Crop, and Delete. These controls disappear when the writer returns to text. The corner handle resizes proportionally; keyboard users can focus it and use the arrow keys. Cropping reveals the original image with a movable rectangle and corner handles. Apply commits the crop, Cancel keeps the previous view, and Reset restores the full original. Cropping stores a viewing rectangle without changing the original image bytes. Each size, crop, or deletion action can be undone independently.
+
+Clipboard images are embedded at the current writing position. Dropped image files are embedded at the visible drop cursor. A temporary loading marker follows intervening edits, so continuing to type does not relocate the image or lose new text. Multiple file reads can run together, while insertion follows paste order. When the writer stays at the insertion point, the new image is selected for immediate adjustment; otherwise the active text cursor stays put. Pasting beside a selected image keeps the existing image. Embedded image data stays in the note and follows the existing save and iCloud workflow.
+
+Arrow navigation visits the image as a single block, then continues into adjacent text. Backspace at the start of the following paragraph selects the image first; pressing it again deletes the selected image. Enter creates a place to write below. Vim motions also visit images while retaining the current mode, with deletion, yank/paste, and insertion beside the image using familiar commands. Size and crop metadata survive Markdown source editing as an HTML image element; untouched images retain familiar Markdown syntax.
+
+Direct clipboard and file-drop insertion follows the familiar note-taking pattern described in [Obsidian's attachment guide](https://obsidian.md/help/attachments). Resize gestures commit when the gesture finishes, following [Tiptap's resizable node-view lifecycle](https://tiptap.dev/docs/editor/api/resizable-nodeviews), so dragging does not create an undo step for each pixel.
 
 ## Implementation references
 

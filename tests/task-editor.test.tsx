@@ -7,6 +7,7 @@ import type { Editor } from "@tiptap/core";
 import type { NoteNode } from "../src/model";
 import TaskEditor from "../src/TaskEditor";
 import { vimPluginKey } from "../src/vim-editor";
+import { NodeSelection } from "@tiptap/pm/state";
 
 let root: Root | undefined;
 beforeAll(() => {
@@ -14,6 +15,131 @@ beforeAll(() => {
   Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
   Range.prototype.getBoundingClientRect = () => new DOMRect();
   HTMLElement.prototype.scrollIntoView = () => {};
+});
+
+describe("images in the task note", () => {
+  function transfer(files: File[], text = "", html = "") {
+    return {
+      files,
+      types: files.length ? ["Files"] : ["text/plain"],
+      getData: (type: string) =>
+        type === "text/html" ? html : type === "text/plain" ? text : "",
+    };
+  }
+
+  it("returns focus from the image picker and selects the new image", async () => {
+    const { editor: getEditor, container } = await mount();
+    const editor = getEditor();
+    const fileInput =
+      container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    await act(async () => {
+      editor.commands.setTextSelection(6);
+      editor.view.dom.blur();
+      Object.defineProperty(fileInput, "files", {
+        value: [new File(["bitmap"], "Chosen.png", { type: "image/png" })],
+      });
+      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+      await vi.waitFor(() =>
+        expect(editor.state.selection).toBeInstanceOf(NodeSelection),
+      );
+    });
+    expect(editor.view.hasFocus()).toBe(true);
+    expect((editor.state.selection as NodeSelection).node.attrs.alt).toBe(
+      "Chosen.png",
+    );
+  });
+
+  it("pastes clipboard images at the cursor and exposes selection controls", async () => {
+    const { editor: getEditor, container } = await mount();
+    const editor = getEditor();
+    await act(async () => {
+      editor.view.focus();
+      editor.commands.setTextSelection(3);
+      const paste = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(paste, "clipboardData", {
+        value: transfer([
+          new File(["bitmap"], "Pasted screenshot.png", { type: "image/png" }),
+        ]),
+      });
+      editor.view.dom.dispatchEvent(paste);
+      await vi.waitFor(() =>
+        expect(
+          editor.getJSON().content?.some((node) => node.type === "image"),
+        ).toBe(true),
+      );
+    });
+    expect(editor.getText()).toContain("Al");
+    expect(editor.getText()).toContain("pha");
+    expect(editor.state.selection).toBeInstanceOf(NodeSelection);
+    expect(container.querySelector(".note-image")).not.toBeNull();
+    expect(
+      container.querySelector('[aria-label="Delete image"]'),
+    ).not.toBeNull();
+    await act(async () => editor.commands.undo());
+    expect(editor.getText()).toBe("Alpha");
+    expect(container.querySelector(".note-image")).toBeNull();
+  });
+
+  it("uses the file drop location instead of the current text cursor", async () => {
+    const { editor: getEditor } = await mount();
+    const editor = getEditor();
+    vi.spyOn(editor.view, "posAtCoords").mockReturnValue({ pos: 3, inside: 0 });
+    await act(async () => {
+      editor.view.focus();
+      editor.commands.setTextSelection(6);
+      const drop = new Event("drop", { bubbles: true, cancelable: true });
+      Object.defineProperties(drop, {
+        dataTransfer: {
+          value: transfer([
+            new File(["bitmap"], "Dropped.png", { type: "image/png" }),
+          ]),
+        },
+        clientX: { value: 10 },
+        clientY: { value: 20 },
+      });
+      editor.view.dom.dispatchEvent(drop);
+      await vi.waitFor(() =>
+        expect(
+          editor.getJSON().content?.some((node) => node.type === "image"),
+        ).toBe(true),
+      );
+    });
+    const blocks = editor.getJSON().content!;
+    expect(blocks.map((node) => node.type)).toEqual([
+      "paragraph",
+      "image",
+      "paragraph",
+    ]);
+    expect(blocks[0].content?.[0].text).toBe("Al");
+    expect(blocks[2].content?.[0].text).toBe("pha");
+  });
+
+  it("pastes text beside a selected image without deleting the image", async () => {
+    const { editor: getEditor } = await mount({
+      initialNote: {
+        type: "doc",
+        content: [
+          {
+            type: "image",
+            attrs: { src: "data:image/png;base64,YQ==", alt: "Keep me" },
+          },
+          { type: "paragraph", content: [{ type: "text", text: "Below" }] },
+        ],
+      },
+    });
+    const editor = getEditor();
+    await act(async () => {
+      editor.view.focus();
+      editor.commands.setNodeSelection(0);
+      const paste = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(paste, "clipboardData", {
+        value: transfer([], "Caption. "),
+      });
+      editor.view.dom.dispatchEvent(paste);
+    });
+    expect(editor.getJSON().content?.[0].type).toBe("image");
+    expect(editor.getText()).toContain("Caption. Below");
+  });
 });
 afterEach(async () => {
   await act(async () => root?.unmount());

@@ -1,12 +1,26 @@
 import { Extension } from "@tiptap/core";
 import { Fragment, Slice } from "@tiptap/pm/model";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
-import { Plugin, PluginKey, Selection, TextSelection } from "@tiptap/pm/state";
+import {
+  NodeSelection,
+  Plugin,
+  PluginKey,
+  Selection,
+  TextSelection,
+} from "@tiptap/pm/state";
 import type { EditorState, Transaction } from "@tiptap/pm/state";
 import { closeHistory, redo, undo } from "@tiptap/pm/history";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { EditorView } from "@tiptap/pm/view";
 import { enterMathAt, isMathNode } from "./math-navigation";
+import {
+  continueFromImage,
+  deleteSelectedImage,
+  isImageNode,
+  moveFromImage,
+  neighboringImage,
+  selectImageAt,
+} from "./image-navigation";
 import "./vim-editor.css";
 
 export type VimMode = "normal" | "insert" | "visual" | "visual-line";
@@ -169,6 +183,17 @@ function select(transaction: Transaction, position: number) {
 
 function setMode(view: EditorView, mode: VimMode) {
   const old = vimPluginKey.getState(view.state)!;
+  if (
+    view.state.selection instanceof NodeSelection &&
+    isImageNode(view.state.selection.node)
+  ) {
+    update(
+      view,
+      reset({ mode, anchor: null, head: null }),
+      closeHistory(view.state.tr),
+    );
+    return;
+  }
   let position = view.state.selection.head;
   if (mode === "normal") {
     if (old.mode === "insert") {
@@ -332,7 +357,7 @@ function motionTarget(
 }
 
 /** Plain cursor movement reveals math; operators and visual ranges stay atomic. */
-function enterMathAlongMotion(
+function enterAtomAlongMotion(
   view: EditorView,
   motion: string,
   from: number,
@@ -348,7 +373,11 @@ function enterMathAlongMotion(
     "e",
   ].includes(motion);
   const vertical = ["j", "k", "ArrowDown", "ArrowUp"].includes(motion);
-  const direction = to < from ? -1 : 1;
+  const direction = ["h", "k", "ArrowLeft", "ArrowUp", "b"].includes(motion)
+    ? -1
+    : to < from
+      ? -1
+      : 1;
   const candidates: number[] = [];
   const start = Math.min(from, to);
   const end = Math.max(from, to);
@@ -360,6 +389,7 @@ function enterMathAlongMotion(
         if (position === from || position < start || position > end) return;
         if (
           node.type.name === "blockMath" ||
+          isImageNode(node) ||
           (horizontal && node.type.name === "inlineMath")
         )
           candidates.push(position);
@@ -380,10 +410,20 @@ function enterMathAlongMotion(
   // The next motion enters that source before advancing past it.
   if ((horizontal || vertical) && isMathNode(view.state.doc.nodeAt(from)))
     candidates.push(from);
+  if (horizontal) {
+    const line = currentLine(lines(view.state.doc), from);
+    const backwards = ["h", "ArrowLeft", "b"].includes(motion);
+    if (line && (backwards ? to <= line.from : to >= line.to)) {
+      const image = neighboringImage(view, backwards ? -1 : 1);
+      if (image !== null) candidates.push(image);
+    }
+  }
   const position = candidates.sort((a, b) => direction * (a - b))[0];
   if (position === undefined) return false;
   update(view, reset());
-  return enterMathAt(view, position, direction);
+  return isImageNode(view.state.doc.nodeAt(position))
+    ? selectImageAt(view, position)
+    : enterMathAt(view, position, direction);
 }
 
 /** Include a list item's wrapper when linewise commands consume all its text. */
@@ -487,6 +527,23 @@ function paste(view: EditorView, before: boolean, count: number) {
     update(view, reset());
     return;
   }
+  const selected = view.state.selection;
+  if (selected instanceof NodeSelection && isImageNode(selected.node)) {
+    if (register.linewise) {
+      const position = before ? selected.from : selected.to;
+      const transaction = closeHistory(view.state.tr);
+      for (let iteration = 0; iteration < count; iteration++)
+        transaction.replaceRange(position, position, register.slice);
+      if (isImageNode(transaction.doc.nodeAt(position)))
+        transaction.setSelection(
+          NodeSelection.create(transaction.doc, position),
+        );
+      else select(transaction, position);
+      update(view, reset(), transaction.scrollIntoView());
+      return;
+    }
+    if (!continueFromImage(view, before ? -1 : 1, true)) return;
+  }
   const line = currentLine(lines(view.state.doc), view.state.selection.head);
   if (!line) return;
   if (register.linewise && (register.partialLine || line.partial)) {
@@ -530,11 +587,14 @@ function paste(view: EditorView, before: boolean, count: number) {
   for (let iteration = 0; iteration < count; iteration++) {
     transaction = transaction.replaceRange(position, position, register.slice);
   }
-  select(
-    transaction,
-    position +
-      (register.linewise ? 1 : Math.max(0, register.slice.size * count - 1)),
-  );
+  if (register.linewise && isImageNode(transaction.doc.nodeAt(position)))
+    transaction.setSelection(NodeSelection.create(transaction.doc, position));
+  else
+    select(
+      transaction,
+      position +
+        (register.linewise ? 1 : Math.max(0, register.slice.size * count - 1)),
+    );
   update(view, reset(), transaction.scrollIntoView());
 }
 
@@ -586,6 +646,104 @@ function openLine(view: EditorView, before: boolean) {
   );
 }
 
+/** An image is an atomic Normal-mode target, never an invisible text position. */
+function handleSelectedImage(view: EditorView, key: string, count: number) {
+  const selection = view.state.selection;
+  if (!(selection instanceof NodeSelection) || !isImageNode(selection.node))
+    return false;
+  const vim = vimPluginKey.getState(view.state)!;
+  const command = vim.operator;
+  if (command && key !== command) {
+    update(view, reset());
+    return true;
+  }
+  if (["d", "c", "y"].includes(key) && !command) {
+    update(view, {
+      operator: key as "d" | "c" | "y",
+      operatorCount: count,
+      count: "",
+      pending: "",
+    });
+    return true;
+  }
+  if (command || ["x", "X", "Delete", "Backspace", "D", "C"].includes(key)) {
+    const operator = command ?? (key === "C" ? "c" : "d");
+    const register: Register = {
+      slice: view.state.doc.slice(selection.from, selection.to),
+      linewise: true,
+    };
+    if (operator !== "y") deleteSelectedImage(view);
+    update(
+      view,
+      reset({
+        register,
+        mode: operator === "c" ? "insert" : "normal",
+        anchor: null,
+        head: null,
+      }),
+    );
+    if (
+      operator !== "y" &&
+      operator !== "c" &&
+      view.state.selection instanceof TextSelection
+    )
+      move(view, view.state.selection.head);
+    return true;
+  }
+  if (
+    [
+      "h",
+      "k",
+      "ArrowLeft",
+      "ArrowUp",
+      "b",
+      "l",
+      "j",
+      "ArrowRight",
+      "ArrowDown",
+      "w",
+      "e",
+    ].includes(key)
+  ) {
+    update(view, reset());
+    moveFromImage(
+      view,
+      ["h", "k", "ArrowLeft", "ArrowUp", "b"].includes(key) ? -1 : 1,
+    );
+    if (view.state.selection instanceof TextSelection)
+      move(view, view.state.selection.head);
+    return true;
+  }
+  if (["i", "I", "a", "A", "o", "O"].includes(key)) {
+    const before = ["i", "I", "O"].includes(key);
+    if (continueFromImage(view, before ? -1 : 1, key === "o" || key === "O"))
+      update(view, reset({ mode: "insert", anchor: null, head: null }));
+    return true;
+  }
+  if (key === "Enter") {
+    continueFromImage(view, 1);
+    update(view, reset());
+    return true;
+  }
+  if (key === "p" || key === "P") {
+    paste(view, key === "P", count);
+    return true;
+  }
+  if (key === "u") {
+    for (let i = 0; i < count; i++) undo(view.state, view.dispatch);
+    update(view, reset());
+    return true;
+  }
+  // Whole-document motions can still leave the image. Other printable keys
+  // must never fall through as text replacement for the selected object.
+  if (key === "g" || key === "G") return false;
+  if (key.length === 1) {
+    update(view, reset());
+    return true;
+  }
+  return false;
+}
+
 function handleKey(view: EditorView, event: KeyboardEvent): boolean {
   const vim = vimPluginKey.getState(view.state);
   if (!vim?.enabled || event.isComposing || view.composing) return false;
@@ -621,7 +779,6 @@ function handleKey(view: EditorView, event: KeyboardEvent): boolean {
   const position = vim.head ?? view.state.selection.head;
   const all = lines(view.state.doc);
   const line = currentLine(all, position);
-  if (!line) return false;
   if (/^[1-9]$/.test(key) || (key === "0" && vim.count)) {
     update(view, { count: (vim.count + key).slice(0, 4) });
     return true;
@@ -639,6 +796,8 @@ function handleKey(view: EditorView, event: KeyboardEvent): boolean {
     return true;
   }
   if (key === "G" && !vim.count) count = all.length;
+  if (handleSelectedImage(view, key, count)) return true;
+  if (!line) return false;
 
   if (vim.mode === "visual" || vim.mode === "visual-line") {
     if (key === "v" || key === "V") {
@@ -704,7 +863,7 @@ function handleKey(view: EditorView, event: KeyboardEvent): boolean {
   if (targetPosition !== null) {
     if (
       vim.mode === "normal" &&
-      enterMathAlongMotion(view, motion, position, targetPosition)
+      enterAtomAlongMotion(view, motion, position, targetPosition)
     )
       return true;
     move(view, targetPosition);
@@ -803,7 +962,14 @@ export const VimEditor = Extension.create<VimOptions>({
         ({ tr, dispatch }) => {
           if (dispatch) {
             tr.setMeta(vimPluginKey, { ...INITIAL, enabled });
-            if (enabled) select(tr, normalPosition(tr.doc, tr.selection.head));
+            if (
+              enabled &&
+              !(
+                tr.selection instanceof NodeSelection &&
+                isImageNode(tr.selection.node)
+              )
+            )
+              select(tr, normalPosition(tr.doc, tr.selection.head));
           }
           return true;
         },
