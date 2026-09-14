@@ -14,6 +14,10 @@
   cursor: default;
 }
 .note-prose .note-image-content {
+  /* Let the image frame own clicks; WebKit Live Text must not select OCR text. */
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: none;
   display: block;
   max-width: none;
   max-height: none;
