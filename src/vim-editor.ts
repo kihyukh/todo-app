@@ -67,6 +67,18 @@ export function getVimMode(view: EditorView): VimMode | null {
   return vim?.enabled ? vim.mode : null;
 }
 
+/** A deliberate control action cancels an unfinished command, without changing
+ * the writing mode, visual selection, or copied text in the register. */
+export function clearVimPendingAction(view: EditorView) {
+  const vim = vimPluginKey.getState(view.state);
+  if (
+    !vim?.enabled ||
+    (!vim.count && !vim.pending && !vim.operator && vim.operatorCount === 1)
+  )
+    return;
+  update(view, reset());
+}
+
 /** Source editors share the mode without moving the surrounding math selection. */
 export function setMathVimMode(view: EditorView, mode: VimMode) {
   if (getVimMode(view) === null) return;

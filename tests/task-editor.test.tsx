@@ -199,6 +199,469 @@ async function mount(
   };
 }
 
+async function openNoteOptions(container: HTMLElement) {
+  await act(async () => {
+    container
+      .querySelector<HTMLButtonElement>('[aria-label="Note options"]')!
+      .click();
+  });
+  const menu = document.body.querySelector<HTMLElement>(
+    '[role="dialog"][aria-label="Note elements"]',
+  );
+  expect(menu).not.toBeNull();
+  return menu!;
+}
+
+async function chooseNoteOption(container: HTMLElement, label: string) {
+  const menu = await openNoteOptions(container);
+  await act(async () => {
+    menu.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click();
+  });
+}
+
+function pressKey(target: HTMLElement, key: string) {
+  const event = new KeyboardEvent("keydown", {
+    key,
+    bubbles: true,
+    cancelable: true,
+  });
+  target.dispatchEvent(event);
+  return event;
+}
+
+describe("contextual note elements", () => {
+  it("replaces the fixed toolbar with options and makes a heading in one undoable action", async () => {
+    const { container, editor: getEditor } = await mount();
+    const editor = getEditor();
+    expect(
+      container.querySelector(
+        '.note-toolbar, [role="toolbar"][aria-label="Note formatting"]',
+      ),
+    ).toBeNull();
+    expect(
+      container.querySelector('[aria-label="Note options"]'),
+    ).not.toBeNull();
+    await chooseNoteOption(container, "Heading 2");
+    expect(
+      document.body.querySelector('[aria-label="Note elements"]'),
+    ).toBeNull();
+    expect(editor.getJSON().content).toEqual([
+      {
+        type: "heading",
+        attrs: { level: 2 },
+        content: [{ type: "text", text: "Alpha" }],
+      },
+      { type: "paragraph" },
+    ]);
+    await act(async () => {
+      editor.commands.undo();
+    });
+    expect(editor.getJSON()).toEqual(note("Alpha"));
+  });
+
+  it("does not offer heading or code conversion that would lift a checkbox out of its list", async () => {
+    const initialNote: NoteNode = {
+      type: "doc",
+      content: [
+        {
+          type: "taskList",
+          content: [
+            {
+              type: "taskItem",
+              attrs: { checked: true },
+              content: [note("Keep this checked").content![0]],
+            },
+            {
+              type: "taskItem",
+              attrs: { checked: false },
+              content: [note("Keep this next step").content![0]],
+            },
+          ],
+        },
+      ],
+    };
+    const { container, editor: getEditor } = await mount({ initialNote });
+    const editor = getEditor();
+    await act(async () => {
+      editor.commands.setTextSelection(3);
+    });
+    const before = editor.getJSON();
+    const menu = await openNoteOptions(container);
+    for (const label of ["Heading 1", "Heading 2", "Heading 3", "Code block"]) {
+      const button = menu.querySelector<HTMLButtonElement>(
+        `[aria-label="${label}"]`,
+      )!;
+      expect(button.disabled).toBe(true);
+      await act(async () => button.click());
+    }
+    expect(editor.getJSON()).toEqual(before);
+    await act(async () =>
+      menu
+        .querySelector<HTMLButtonElement>('[aria-label="Plain text"]')!
+        .click(),
+    );
+    expect(editor.getJSON()).toEqual(before);
+  });
+
+  it("applies bold to the saved text selection without expanding or replacing it", async () => {
+    const { container, editor: getEditor } = await mount({
+      initialNote: note("Alpha Beta"),
+    });
+    const editor = getEditor();
+    await act(async () => {
+      editor.commands.setTextSelection({ from: 1, to: 6 });
+    });
+    await chooseNoteOption(container, "Bold (⌘B)");
+    expect(editor.getJSON().content?.[0].content).toEqual([
+      { type: "text", text: "Alpha", marks: [{ type: "bold" }] },
+      { type: "text", text: " Beta" },
+    ]);
+    expect(editor.state.selection.from).toBe(1);
+    expect(editor.state.selection.to).toBe(6);
+    await act(async () => {
+      editor.commands.undo();
+    });
+    expect(editor.getJSON()).toEqual(note("Alpha Beta"));
+  });
+
+  it("keeps a heading inside its quote when reselected or changed to plain text", async () => {
+    const { container, editor: getEditor } = await mount({
+      initialNote: {
+        type: "doc",
+        content: [
+          {
+            type: "blockquote",
+            content: [
+              {
+                type: "heading",
+                attrs: { level: 2 },
+                content: [{ type: "text", text: "Quoted heading" }],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const editor = getEditor();
+    await act(async () => {
+      editor.commands.setTextSelection(2);
+    });
+    const before = editor.getJSON();
+    await chooseNoteOption(container, "Heading 2");
+    expect(editor.getJSON()).toEqual(before);
+    await chooseNoteOption(container, "Plain text");
+    expect(editor.getJSON().content?.[0]).toEqual({
+      type: "blockquote",
+      content: [note("Quoted heading").content![0]],
+    });
+    await act(async () => {
+      editor.commands.undo();
+    });
+    expect(editor.getJSON()).toEqual(before);
+  });
+
+  it("keeps stored formatting when another mark is chosen on an empty line", async () => {
+    const { container, editor: getEditor } = await mount({
+      initialNote: { type: "doc", content: [{ type: "paragraph" }] },
+    });
+    const editor = getEditor();
+    await chooseNoteOption(container, "Bold (⌘B)");
+    await chooseNoteOption(container, "Italic (⌘I)");
+    await act(async () => {
+      editor.commands.insertContent("Both marks");
+    });
+    expect(editor.getJSON().content?.[0].content?.[0]).toEqual({
+      type: "text",
+      text: "Both marks",
+      marks: [{ type: "bold" }, { type: "italic" }],
+    });
+  });
+
+  it.each(["normal", "insert"])(
+    "closes with Escape and returns focus without changing Vim %s mode",
+    async (mode) => {
+      const { container, editor: getEditor } = await mount({
+        vimEnabled: true,
+      });
+      const editor = getEditor();
+      await act(async () => {
+        editor.view.focus();
+        if (mode === "insert") pressKey(editor.view.dom, "i");
+      });
+      const before = editor.getJSON();
+      const selection = editor.state.selection;
+      const menu = await openNoteOptions(container);
+      await act(async () => {
+        const first = document.activeElement as HTMLElement;
+        expect(menu.contains(first)).toBe(true);
+        expect(pressKey(first, "ArrowDown").defaultPrevented).toBe(true);
+        expect(document.activeElement).not.toBe(first);
+        expect(
+          pressKey(document.activeElement as HTMLElement, "Escape")
+            .defaultPrevented,
+        ).toBe(true);
+      });
+      expect(
+        document.body.querySelector('[aria-label="Note elements"]'),
+      ).toBeNull();
+      expect(editor.view.hasFocus()).toBe(true);
+      expect(vimPluginKey.getState(editor.state)?.mode).toBe(mode);
+      expect(editor.state.selection.eq(selection)).toBe(true);
+      expect(editor.getJSON()).toEqual(before);
+    },
+  );
+
+  it("cancels a pending Vim operator on formatting while retaining the copied register", async () => {
+    const { container, editor: getEditor } = await mount({ vimEnabled: true });
+    const editor = getEditor();
+    await act(async () => {
+      editor.view.focus();
+      for (const key of ["y", "y", "2", "d"]) pressKey(editor.view.dom, key);
+    });
+    const before = vimPluginKey.getState(editor.state)!;
+    expect(before.register).not.toBeNull();
+    expect(before.operator).toBe("d");
+    await chooseNoteOption(container, "Heading 2");
+    const after = vimPluginKey.getState(editor.state)!;
+    expect(after.mode).toBe("normal");
+    expect(after.register).toBe(before.register);
+    expect(after.operator).toBeNull();
+    expect(after.count).toBe("");
+    expect(after.pending).toBe("");
+    expect(after.operatorCount).toBe(1);
+    expect(editor.state.doc.textContent).toBe("Alpha");
+  });
+
+  it("inserts display math directly into the note and preserves Vim mode while entering its source", async () => {
+    const { container, editor: getEditor } = await mount({
+      initialNote: { type: "doc", content: [{ type: "paragraph" }] },
+      vimEnabled: true,
+    });
+    const editor = getEditor();
+    await chooseNoteOption(container, "Display equation");
+    expect(
+      document.body.querySelector('[aria-label="Note elements"]'),
+    ).toBeNull();
+    const input = editor.view.dom.querySelector<HTMLTextAreaElement>(
+      ".math-note-block .math-note-input",
+    )!;
+    expect(input).not.toBeNull();
+    expect(document.activeElement).toBe(input);
+    expect(input.closest(".math-note")?.classList.contains("is-editing")).toBe(
+      true,
+    );
+    expect(vimPluginKey.getState(editor.state)?.mode).toBe("normal");
+    await act(async () => {
+      pressKey(input, "i");
+      input.value = "x^2 + y^2";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      pressKey(input, "Escape");
+      pressKey(input, "ArrowDown");
+    });
+    expect(editor.getJSON().content?.[0]).toEqual({
+      type: "blockMath",
+      attrs: { latex: "x^2 + y^2" },
+    });
+    expect(editor.state.selection.$from.parent.type.name).toBe("paragraph");
+    expect(editor.view.hasFocus()).toBe(true);
+    expect(vimPluginKey.getState(editor.state)?.mode).toBe("normal");
+  });
+
+  it("closes a portal menu when the task changes and leaves the next task intact", async () => {
+    const harness = await mount();
+    await openNoteOptions(harness.container);
+    await act(async () => harness.select("b"));
+    expect(
+      document.body.querySelector('[aria-label="Note elements"]'),
+    ).toBeNull();
+    expect(harness.editor().getJSON()).toEqual(note("Beta"));
+    expect(harness.published).toEqual([]);
+  });
+
+  it("keeps the iPhone menu open through outer scrolling but closes on an outside tap or Escape", async () => {
+    window.__DAYMARK_PLATFORM__ = "ios";
+    try {
+      const { container, editor: getEditor } = await mount();
+      const anchor = container.querySelector<HTMLButtonElement>(
+        '[aria-label="Note options"]',
+      )!;
+      let anchorTop = 220;
+      anchor.getBoundingClientRect = () => new DOMRect(20, anchorTop, 30, 30);
+      const menu = await openNoteOptions(container);
+      const initialTop = parseFloat(menu.style.top);
+      await act(async () => {
+        // Focusing the menu changes the software keyboard and can scroll its
+        // surrounding detail panel without any deliberate dismissal gesture.
+        anchorTop = 100;
+        document.dispatchEvent(new Event("scroll"));
+      });
+      expect(document.body.querySelector('[aria-label="Note elements"]')).toBe(
+        menu,
+      );
+      expect(parseFloat(menu.style.top)).toBeLessThan(initialTop);
+      await act(async () => {
+        document.body.dispatchEvent(
+          new Event("pointerdown", { bubbles: true }),
+        );
+      });
+      expect(
+        document.body.querySelector('[aria-label="Note elements"]'),
+      ).toBeNull();
+      const reopened = await openNoteOptions(container);
+      await act(async () => {
+        pressKey(
+          reopened.querySelector<HTMLButtonElement>("button")!,
+          "Escape",
+        );
+      });
+      expect(
+        document.body.querySelector('[aria-label="Note elements"]'),
+      ).toBeNull();
+      expect(getEditor().view.hasFocus()).toBe(true);
+    } finally {
+      delete window.__DAYMARK_PLATFORM__;
+    }
+  });
+
+  it.each(["Display equation", "Insert image"])(
+    "keeps selected inline LaTeX when choosing %s beside it",
+    async (action) => {
+      const { container, editor: getEditor } = await mount({
+        initialNote: {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                { type: "text", text: "Before " },
+                { type: "inlineMath", attrs: { latex: "\\alpha^2" } },
+                { type: "text", text: " after" },
+              ],
+            },
+          ],
+        },
+      });
+      const editor = getEditor();
+      let inlinePosition = -1;
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === "inlineMath") inlinePosition = pos;
+      });
+      await act(async () => {
+        editor.commands.setNodeSelection(inlinePosition);
+      });
+      const before = editor.getJSON();
+      const fileInput =
+        container.querySelector<HTMLInputElement>('input[type="file"]')!;
+      const picker = vi.spyOn(fileInput, "click").mockImplementation(() => {});
+      try {
+        await chooseNoteOption(container, action);
+        if (action === "Insert image") {
+          expect(picker).toHaveBeenCalledOnce();
+          expect(editor.getJSON()).toEqual(before);
+          await act(async () => {
+            Object.defineProperty(fileInput, "files", {
+              value: [
+                new File(["synthetic bitmap"], "Alongside.png", {
+                  type: "image/png",
+                }),
+              ],
+            });
+            fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+            await vi.waitFor(() =>
+              expect(
+                editor.view.dom.querySelector(".note-image"),
+              ).not.toBeNull(),
+            );
+          });
+        }
+        const atoms: Array<{ type: string; latex?: string; alt?: string }> = [];
+        editor.state.doc.descendants((node) => {
+          if (["inlineMath", "blockMath", "image"].includes(node.type.name))
+            atoms.push({
+              type: node.type.name,
+              latex: node.attrs.latex,
+              alt: node.attrs.alt,
+            });
+        });
+        expect(atoms[0]).toEqual({
+          type: "inlineMath",
+          latex: "\\alpha^2",
+          alt: undefined,
+        });
+        expect(atoms.map((node) => node.type)).toEqual([
+          "inlineMath",
+          action === "Display equation" ? "blockMath" : "image",
+        ]);
+        expect(editor.state.doc.textContent).toContain("Before ");
+        expect(editor.state.doc.textContent).toContain(" after");
+        if (action === "Display equation") {
+          const input = editor.view.dom.querySelector<HTMLTextAreaElement>(
+            ".math-note-block .math-note-input",
+          )!;
+          expect(document.activeElement).toBe(input);
+          expect(input.value).toBe("");
+        } else {
+          expect(atoms[1].alt).toBe("Alongside.png");
+          await act(async () => {
+            editor.commands.undo();
+          });
+          expect(editor.getJSON()).toEqual(before);
+        }
+      } finally {
+        picker.mockRestore();
+      }
+    },
+  );
+
+  it.each(["image", "blockMath"])(
+    "does not edit a selected %s merely to open and cancel the image picker",
+    async (type) => {
+      const { container, editor: getEditor } = await mount({
+        initialNote: {
+          type: "doc",
+          content: [
+            {
+              type,
+              attrs:
+                type === "image"
+                  ? { src: "data:image/png;base64,YQ==", alt: "Keep image" }
+                  : { latex: "x^2" },
+            },
+            note("Keep caption").content![0],
+          ],
+        },
+      });
+      const editor = getEditor();
+      await act(async () => {
+        editor.commands.setNodeSelection(0);
+      });
+      const before = editor.getJSON();
+      const input =
+        container.querySelector<HTMLInputElement>('input[type="file"]')!;
+      const picker = vi.spyOn(input, "click").mockImplementation(() => {});
+      try {
+        await chooseNoteOption(container, "Insert image");
+        expect(picker).toHaveBeenCalledOnce();
+        expect(editor.getJSON()).toEqual(before);
+        expect(editor.state.selection).toBeInstanceOf(NodeSelection);
+      } finally {
+        picker.mockRestore();
+      }
+    },
+  );
+
+  it("closes the menu when an incoming revision replaces its editing context", async () => {
+    const harness = await mount();
+    await openNoteOptions(harness.container);
+    await act(async () => harness.replace(note("Synced note")));
+    expect(
+      document.body.querySelector('[aria-label="Note elements"]'),
+    ).toBeNull();
+    expect(harness.editor().getJSON()).toEqual(note("Synced note"));
+    expect(harness.published).toEqual([]);
+  });
+});
+
 describe("task editor publication", () => {
   it("types immediately without rerendering the app for every keystroke", async () => {
     const harness = await mount();
@@ -320,13 +783,7 @@ describe("rendered math after applying Markdown source", () => {
       initialNote: { type: "doc", content: [{ type: "paragraph" }] },
       vimEnabled,
     });
-    await act(async () => {
-      harness.container
-        .querySelector<HTMLButtonElement>(
-          '[aria-label="Edit Markdown source"]',
-        )!
-        .click();
-    });
+    await chooseNoteOption(harness.container, "Edit Markdown source");
     const source = harness.container.querySelector<HTMLTextAreaElement>(
       '[aria-label="Markdown source"]',
     )!;
@@ -497,11 +954,7 @@ describe("attachments linked inside task notes", () => {
     expect(editor.view.dom.querySelector("a")!.getAttribute("href")).toBe(
       "daymark://attachment/review.pdf",
     );
-    await act(async () =>
-      harness.container
-        .querySelector<HTMLButtonElement>('[aria-label="Add or edit link"]')!
-        .click(),
-    );
+    await chooseNoteOption(harness.container, "Add or edit link");
     expect(
       harness.container.querySelector<HTMLInputElement>(
         '[aria-label="Link URL"]',

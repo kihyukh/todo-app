@@ -7,6 +7,7 @@ import type { Editor, JSONContent } from "@tiptap/core";
 import { APP_NAME } from "./brand";
 import { usesTouchInterface } from "./platform";
 import { undoDepth, redoDepth } from "@tiptap/pm/history";
+import { NodeSelection } from "@tiptap/pm/state";
 import type { NoteNode } from "./model";
 import StarterKit from "@tiptap/starter-kit";
 import TaskList from "@tiptap/extension-task-list";
@@ -33,23 +34,10 @@ import { noTextSuggestions } from "./editor-preferences";
 import { VimEditor } from "./vim-editor";
 import type { VimMode } from "./vim-editor";
 import { NoteInteractions, NoteListKeymap } from "./note-interactions";
-import {
-  Bold,
-  Italic,
-  Heading2,
-  List,
-  ListTodo,
-  Code2,
-  Link2,
-  Paperclip,
-  ImagePlus,
-  X,
-  Table2,
-  FileCode2,
-  Undo2,
-  Redo2,
-  ExternalLink,
-} from "lucide-react";
+import { NoteHeading } from "./note-heading";
+import NoteGutter from "./NoteGutter";
+import NoteElementMenu from "./NoteElementMenu";
+import { X, Ellipsis, Undo2, Redo2, ExternalLink, Link2 } from "lucide-react";
 import "katex/dist/katex.min.css";
 import "./editor.css";
 
@@ -124,6 +112,8 @@ export default function TaskEditor({
   const [touch] = useState(usesTouchInterface);
   const [touchLink, setTouchLink] = useState<TouchLink | null>(null);
   const touchLinkPanel = useRef<HTMLDivElement>(null);
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const menuFallback = useRef<HTMLButtonElement>(null);
   const [source, setSource] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [vimMode, setVimMode] = useState<VimMode>("normal");
@@ -190,8 +180,11 @@ export default function TaskEditor({
     const currentEditor = editorRef.current;
     if (!currentEditor) return;
     if (focus) currentEditor.view.focus();
+    const selection = currentEditor.state.selection;
     return insertImageFiles(currentEditor, files, {
-      position,
+      position:
+        position ??
+        (selection instanceof NodeSelection ? selection.to : undefined),
       isCurrent: () =>
         destinationTaskId === taskIdRef.current &&
         editorRef.current === currentEditor,
@@ -205,7 +198,7 @@ export default function TaskEditor({
         StarterKit.configure({
           listKeymap: false,
           dropcursor: { color: "#315fd5", width: 2 },
-          heading: { levels: [1, 2, 3] },
+          heading: false,
           link: {
             openOnClick: false,
             autolink: true,
@@ -221,6 +214,7 @@ export default function TaskEditor({
             },
           },
         }),
+        NoteHeading.configure({ levels: [1, 2, 3] }),
         TaskList,
         TaskItem.configure({ nested: true }),
         NoteListKeymap,
@@ -364,16 +358,14 @@ export default function TaskEditor({
     [taskId],
   );
 
-  const toolbar = useEditorState({
+  const context = useEditorState({
     editor,
     selector: ({ editor: current }) =>
       current
         ? {
-            bold: current.isActive("bold"),
-            italic: current.isActive("italic"),
-            heading: current.isActive("heading"),
             taskList: current.isActive("taskList"),
-            bulletList: current.isActive("bulletList"),
+            bulletList:
+              current.isActive("bulletList") || current.isActive("orderedList"),
             codeBlock: current.isActive("codeBlock"),
             link: current.isActive("link"),
             table: current.isActive("table"),
@@ -454,6 +446,7 @@ export default function TaskEditor({
   useEffect(() => {
     editorRef.current = editor;
     setSource(null);
+    setMenuAnchor(null);
     setLinkDraft(null);
     setTouchLink(null);
     setNotice("");
@@ -473,7 +466,8 @@ export default function TaskEditor({
       JSON.stringify(editor.getJSON()) === JSON.stringify(content ?? EMPTY_NOTE)
     )
       return;
-    // Link ranges belong to the current document, not an incoming synced revision.
+    // Context menus and link ranges belong to this document, not a synced revision.
+    setMenuAnchor(null);
     setTouchLink(null);
     setLinkDraft(null);
     const { from, to } = editor.state.selection;
@@ -490,21 +484,21 @@ export default function TaskEditor({
   const editorHint =
     source !== null
       ? "⌘Enter to apply Markdown"
-      : toolbar?.equation
+      : context?.equation
         ? "Arrow keys move in and out of math"
-        : toolbar?.table
+        : context?.table
           ? "Tab next cell · ⇧Tab previous cell"
-          : toolbar?.taskList || toolbar?.bulletList
+          : context?.taskList || context?.bulletList
             ? "Tab indent · ⇧Tab outdent"
-            : toolbar?.codeBlock || toolbar?.quote
+            : context?.codeBlock || context?.quote
               ? "⌘Enter to continue below"
-              : toolbar?.image
+              : context?.image
                 ? "Select an image to resize or crop · Delete to remove · Enter to continue"
-                : toolbar?.link
+                : context?.link
                   ? touch
                     ? "Tap a link to open or edit it"
                     : "⌘/Ctrl-click to open link"
-                  : "Markdown & LaTeX supported";
+                  : "⌘/ for elements · Markdown & LaTeX";
 
   const applyLink = () => {
     if (!linkDraft) return;
@@ -548,6 +542,19 @@ export default function TaskEditor({
         if (!event.currentTarget.contains(event.relatedTarget as Node | null))
           publisher.flush();
       }}
+      onKeyDownCapture={(event) => {
+        if (
+          (event.metaKey || event.ctrlKey) &&
+          event.key === "/" &&
+          source === null &&
+          event.target instanceof HTMLElement &&
+          !event.target.closest("input, textarea")
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          setMenuAnchor(menuAnchor ? null : menuFallback.current);
+        }
+      }}
       onKeyDown={(event) => {
         if (event.key === "Escape" && touchLink) {
           setTouchLink(null);
@@ -560,112 +567,28 @@ export default function TaskEditor({
         }
       }}
     >
-      <div className="note-toolbar" role="toolbar" aria-label="Note formatting">
-        <div className="note-toolbar-main">
-          <ToolButton
-            label="Bold (⌘B)"
-            active={toolbar?.bold}
-            disabled={source !== null}
-            onClick={() => editor.chain().focus().toggleBold().run()}
-          >
-            <Bold size={15} />
-          </ToolButton>
-          <ToolButton
-            label="Italic (⌘I)"
-            active={toolbar?.italic}
-            disabled={source !== null}
-            onClick={() => editor.chain().focus().toggleItalic().run()}
-          >
-            <Italic size={15} />
-          </ToolButton>
-          <ToolButton
-            label="Heading"
-            active={toolbar?.heading}
-            disabled={source !== null}
-            onClick={() =>
-              editor.chain().focus().toggleHeading({ level: 2 }).run()
-            }
-          >
-            <Heading2 size={16} />
-          </ToolButton>
-          <span className="note-tool-divider" />
-          <ToolButton
-            label="Checklist (⌘⇧9)"
-            active={toolbar?.taskList}
-            disabled={source !== null}
-            onClick={() => editor.chain().focus().toggleTaskList().run()}
-          >
-            <ListTodo size={16} />
-          </ToolButton>
-          <ToolButton
-            label="Bullet list"
-            active={toolbar?.bulletList}
-            disabled={source !== null}
-            onClick={() => editor.chain().focus().toggleBulletList().run()}
-          >
-            <List size={16} />
-          </ToolButton>
-          <ToolButton
-            label="Code block"
-            active={toolbar?.codeBlock}
-            disabled={source !== null}
-            onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-          >
-            <Code2 size={16} />
-          </ToolButton>
-          <span className="note-tool-divider" />
-          <ToolButton
-            label="Add or edit link"
-            active={toolbar?.link}
-            disabled={source !== null}
-            onClick={() => {
-              const { from, to } = editor.state.selection;
-              setLinkDraft({
-                url: editor.getAttributes("link").href ?? "",
-                from,
-                to,
-              });
-            }}
-          >
-            <Link2 size={15} />
-          </ToolButton>
-          <ToolButton
-            label="Insert image"
-            disabled={source !== null}
-            onClick={() => imageInput.current?.click()}
-          >
-            <ImagePlus size={16} />
-          </ToolButton>
-          <ToolButton label="Attach a file or PDF" onClick={onAttach}>
-            <Paperclip size={15} />
-          </ToolButton>
-          <ToolButton
-            label="Insert table"
-            disabled={source !== null}
-            onClick={() =>
-              editor
-                .chain()
-                .focus()
-                .insertTable({ rows: 3, cols: 2, withHeaderRow: true })
-                .run()
-            }
-          >
-            <Table2 size={15} />
-          </ToolButton>
-        </div>
-        <ToolButton
-          label={
-            source === null ? "Edit Markdown source" : "Close Markdown source"
-          }
-          active={source !== null}
-          onClick={() => {
-            setSource(source === null ? editor.getMarkdown() : null);
+      {menuAnchor && source === null && (
+        <NoteElementMenu
+          editor={editor}
+          anchor={menuAnchor}
+          touch={touch}
+          onClose={() => setMenuAnchor(null)}
+          onLink={() => {
+            const { from, to } = editor.state.selection;
+            setLinkDraft({
+              url: editor.getAttributes("link").href ?? "",
+              from,
+              to,
+            });
+          }}
+          onImage={() => imageInput.current?.click()}
+          onAttach={onAttach}
+          onSource={() => {
+            setSource(editor.getMarkdown());
             setLinkDraft(null);
           }}
-        >
-          <FileCode2 size={16} />
-        </ToolButton>
-      </div>
+        />
+      )}
 
       {notice && (
         <div className="note-notice" role="status">
@@ -834,7 +757,17 @@ export default function TaskEditor({
           </div>
         </div>
       ) : (
-        <EditorContent editor={editor} />
+        <div className="note-editor-surface">
+          <EditorContent editor={editor} />
+          <NoteGutter
+            editor={editor}
+            menuOpen={menuAnchor !== null}
+            onOpenMenu={(anchor) => {
+              setTouchLink(null);
+              setMenuAnchor(anchor);
+            }}
+          />
+        </div>
       )}
 
       <input
@@ -864,23 +797,41 @@ export default function TaskEditor({
           <span>{editorHint}</span>
         )}
         <div>
+          {source === null && (
+            <button
+              ref={menuFallback}
+              type="button"
+              className="note-tool"
+              aria-label="Note options"
+              title="Note options (⌘/)"
+              aria-haspopup="dialog"
+              aria-expanded={menuAnchor !== null}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={(event) => {
+                setTouchLink(null);
+                setMenuAnchor(menuAnchor ? null : event.currentTarget);
+              }}
+            >
+              <Ellipsis size={16} />
+            </button>
+          )}
           <ToolButton
             label="Undo (⌘Z)"
-            disabled={source !== null || !toolbar?.canUndo}
+            disabled={source !== null || !context?.canUndo}
             onClick={() => editor.chain().focus().undo().run()}
           >
             <Undo2 size={13} />
           </ToolButton>
           <ToolButton
             label="Redo (⌘⇧Z)"
-            disabled={source !== null || !toolbar?.canRedo}
+            disabled={source !== null || !context?.canRedo}
             onClick={() => editor.chain().focus().redo().run()}
           >
             <Redo2 size={13} />
           </ToolButton>
         </div>
       </div>
-      {toolbar?.table && source === null && (
+      {context?.table && source === null && (
         <div className="note-table-actions">
           <button
             type="button"
