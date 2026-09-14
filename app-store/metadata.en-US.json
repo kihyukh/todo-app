@@ -1,12 +1,12 @@
 {
   "status": "draft-not-submitted",
-  "workingName": "Daymark",
-  "name": "__APP_NAME__",
+  "workingName": "GreenDay",
+  "name": "GreenDay",
   "primaryLanguage": "en-US",
   "primaryCategory": "Productivity",
   "subtitle": "Plan today. Keep the details.",
   "promotionalText": "Choose what to work on today, keep deadlines separate, and put notes, checklists, images, and equations beside each task.",
-  "description": "Make room for the work that matters today.\n\n__APP_NAME__ combines a focused task list with space for the details behind your work.\n\nPLAN YOUR DAY\nGive a task a deadline, then choose one or several independent days to work on it. Today shows the tasks you deliberately scheduled, so distant deadlines do not crowd your daily plan.\n\nKEEP YOUR NOTES WITH THE TASK\nWrite Markdown, add links and checkboxes, and render inline or display LaTeX equations. Keep images and PDFs with the work they support.\n\nSEE THE NEXT STEPS\nOpen checkboxes gathers unfinished checklist items across your notes and takes you back to the original task. Organize larger efforts with projects, tags, and a board.\n\nWORK ON YOUR OWN TERMS\nTasks save automatically. Core task and note editing works offline. Choose a workspace folder in iCloud Drive to use the same files on your devices. Sync timing depends on iCloud Drive.\n\nPrefer the keyboard? Enable optional Vim mode for note editing with a hardware keyboard.\n\nNo app account is required. There are no advertisements or analytics SDKs in the app.",
+  "description": "Make room for the work that matters today.\n\nGreenDay combines a focused task list with space for the details behind your work.\n\nPLAN YOUR DAY\nGive a task a deadline, then choose one or several independent days to work on it. Today shows the tasks you deliberately scheduled, so distant deadlines do not crowd your daily plan.\n\nKEEP YOUR NOTES WITH THE TASK\nWrite Markdown, add links and checkboxes, and render inline or display LaTeX equations. Keep images and PDFs with the work they support.\n\nCALENDARS AND TASKS TOGETHER\nConnect calendars already added to Apple Calendar, including iCloud and Google accounts. Browse Month, Week, or Day, and link events to the tasks they support. Linked tasks stay one tap away without filling the calendar with duplicate entries.\n\nSEE THE NEXT STEPS\nOpen checkboxes gathers unfinished checklist items across your notes and takes you back to the original task. Organize larger efforts with projects, tags, and a board.\n\nWORK ON YOUR OWN TERMS\nTasks save automatically. Core task and note editing works offline. Choose a workspace folder in iCloud Drive to use the same files on your devices. Sync timing depends on iCloud Drive.\n\nPrefer the keyboard? Enable optional Vim mode for note editing with a hardware keyboard.\n\nNo app account is required. There are no advertisements or analytics SDKs in the app.",
   "keywords": "todo,tasks,planner,markdown,latex,notes,checklist,kanban,deadline,research,vim",
   "copyright": "__YEAR_AND_COPYRIGHT_OWNER__",
   "supportURL": "__PUBLIC_SUPPORT_HTTPS_URL__",
@@ -24,7 +24,7 @@
   },
   "testFlight": {
     "betaDescription": "A personal task planner with separate do dates and deadlines, rich Markdown and LaTeX notes, images, PDFs, and a view of unfinished checkboxes across tasks. No sign-in is required. Core editing works offline; selecting the same iCloud Drive workspace folder enables file syncing across devices.",
-    "whatToTest": "Please test selecting separate work days across months without changing deadlines; adding or removing Today while preserving the other dates; typing and cursor movement through equations, lists, and checkboxes; image insertion and reopening attachments; saving when the app backgrounds; and changes made on two devices using the same iCloud Drive workspace. Use fictional test tasks and report the steps that caused an issue.",
+    "whatToTest": "Please test selecting separate work days across months without changing deadlines; adding or removing Today while preserving the other dates; typing and cursor movement through equations, lists, and checkboxes; image insertion and reopening attachments; saving when the app backgrounds; and changes made on two devices using the same iCloud Drive workspace. Use fictional test tasks and report the steps that caused an issue. In a dedicated test calendar, check calendar permission, event creation and editing, all-day dates, and task-event links from both directions. Verify provider delivery separately from local event saves.",
     "feedbackEmail": "__TESTFLIGHT_FEEDBACK_EMAIL__"
   },
   "reviewContact": {

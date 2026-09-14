@@ -94,12 +94,28 @@ export default function NoteGutter({
           (parseFloat(style.borderTopWidth) || 0);
         // The first line's typographic baseline is approximately .3em below its center.
         // A baseline coordinate keeps heading labels aligned as heading sizes change.
-        const top =
-          element.getBoundingClientRect().top -
+        const bounds = element.getBoundingClientRect();
+        let top =
+          bounds.top -
           surfaceTop +
           inset +
           lineHeight / 2 +
           (kind === "heading" ? fontSize * 0.3 : 0);
+        if (kind === "heading" && selection instanceof TextSelection) {
+          // Wrapped headings keep their label beside the current visual line.
+          try {
+            const caret = editor.view.coordsAtPos(selection.head);
+            if (
+              caret.top >= bounds.top &&
+              caret.bottom <= bounds.bottom &&
+              caret.bottom > caret.top
+            )
+              top =
+                (caret.top + caret.bottom) / 2 - surfaceTop + fontSize * 0.3;
+          } catch {
+            // Geometry can be unavailable while React replaces an editor view.
+          }
+        }
         let id = ids.get(element);
         if (id === undefined) {
           id = ++nextId;
@@ -117,19 +133,6 @@ export default function NoteGutter({
         nextTargets.set(id, { element, kind });
       };
 
-      doc.descendants((node, position) => {
-        if (node.type.name === "heading") {
-          const element = editor.view.nodeDOM(position);
-          if (
-            element instanceof HTMLElement &&
-            (!element.closest("table") || selection.$head.parent === node)
-          )
-            add(element, "heading", node.attrs.level);
-          return false;
-        }
-        return !node.isAtom && !node.type.spec.code;
-      });
-
       const active = document.activeElement;
       const inEmbeddedControl =
         active instanceof HTMLElement &&
@@ -137,6 +140,17 @@ export default function NoteGutter({
         !!active.closest(
           ".math-note, .note-image, pre, [contenteditable='false']",
         );
+      if (
+        !inEmbeddedControl &&
+        (editor.view.hasFocus() || menuOpen) &&
+        selection instanceof TextSelection &&
+        selection.empty &&
+        selection.$head.parent.type.name === "heading"
+      ) {
+        const element = editor.view.nodeDOM(selection.$head.before());
+        if (element instanceof HTMLElement)
+          add(element, "heading", selection.$head.parent.attrs.level);
+      }
       if (
         !inEmbeddedControl &&
         selection instanceof TextSelection &&
@@ -205,7 +219,7 @@ export default function NoteGutter({
       document.removeEventListener("scroll", schedule, true);
       document.fonts?.removeEventListener("loadingdone", schedule);
     };
-  }, [editor, hidden, touch]);
+  }, [editor, hidden, touch, menuOpen]);
 
   const open = (id: number, anchor: HTMLButtonElement) => {
     const target = targets.current.get(id);
@@ -221,7 +235,6 @@ export default function NoteGutter({
     const position = editor.view.posAtDOM(target.element, 0);
     const selection = editor.state.selection;
     if (
-      target.kind === "heading" ||
       !(selection instanceof TextSelection) ||
       selection.$head.parent !== editor.state.doc.resolve(position).parent
     ) {

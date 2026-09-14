@@ -850,8 +850,8 @@ describe("rendered math after applying Markdown source", () => {
     expect(source.selectionStart).toBe(0);
     expect(vimPluginKey.getState(editor.state)?.mode).toBe("normal");
     expect(
-      container.querySelector('[aria-label="Vim mode status"]')?.textContent,
-    ).toBe("Vim · normal");
+      container.querySelector('[aria-label="Vim mode status"]'),
+    ).toBeNull();
     expect(editor.state.selection.$from.nodeAfter?.type.name).toBe("blockMath");
     await act(async () => {
       source.dispatchEvent(
@@ -864,8 +864,8 @@ describe("rendered math after applying Markdown source", () => {
     });
     expect(vimPluginKey.getState(editor.state)?.mode).toBe("insert");
     expect(
-      container.querySelector('[aria-label="Vim mode status"]')?.textContent,
-    ).toBe("Vim · insert");
+      container.querySelector('[aria-label="Vim mode status"]'),
+    ).toBeNull();
     expect(document.activeElement).toBe(source);
     await act(async () => {
       source.value = "a+b=d";
@@ -881,8 +881,8 @@ describe("rendered math after applying Markdown source", () => {
     });
     expect(vimPluginKey.getState(editor.state)?.mode).toBe("normal");
     expect(
-      container.querySelector('[aria-label="Vim mode status"]')?.textContent,
-    ).toBe("Vim · normal");
+      container.querySelector('[aria-label="Vim mode status"]'),
+    ).toBeNull();
     expect(document.activeElement).toBe(source);
     expect(source.closest(".math-note")!.classList.contains("is-editing")).toBe(
       true,

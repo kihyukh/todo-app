@@ -17,8 +17,8 @@
   font-weight: 650;
 }
 .today-date .work-dates-count {
-  background: #dbe5ff;
-  color: #234bbb;
+  background: #d4e9dc;
+  color: #185c3e;
 }
 .work-dates-popover {
   position: fixed;
@@ -45,7 +45,7 @@
   flex-shrink: 0;
 }
 .work-dates-popover button:focus-visible {
-  outline: 2px solid #315fd5;
+  outline: 2px solid #24704f;
   outline-offset: 2px;
   position: relative;
   z-index: 1;
@@ -89,9 +89,9 @@
   font-size: 12px;
 }
 .work-dates-shortcuts button[aria-pressed="true"] {
-  border-color: #315fd5;
-  background: #e8eefc;
-  color: #234bbb;
+  border-color: #24704f;
+  background: #e6f1e9;
+  color: #185c3e;
   font-weight: 600;
 }
 .work-calendar-heading {
@@ -128,14 +128,14 @@
   background: #f0f3f8;
 }
 .work-calendar-day.is-today {
-  color: #234bbb;
+  color: #185c3e;
   font-weight: 750;
   text-decoration: underline;
   text-underline-offset: 5px;
 }
 .work-calendar-day.is-selected,
 .work-calendar-day.is-selected:hover {
-  background: #315fd5;
+  background: #24704f;
   color: #fff;
   font-weight: 650;
 }
@@ -205,7 +205,7 @@
 }
 .work-dates-footer .work-dates-done,
 .work-dates-footer .work-dates-done:hover {
-  background: #315fd5;
+  background: #24704f;
   color: white;
   font-weight: 600;
   padding-left: 19px;

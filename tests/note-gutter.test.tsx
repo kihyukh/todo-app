@@ -138,19 +138,25 @@ async function click(button: HTMLButtonElement) {
 }
 
 describe("note gutter", () => {
-  it("positions heading labels outside the note and selects the clicked heading without changing its content or Vim mode", async () => {
+  it("shows only the focused heading and preserves the cursor when opening its options", async () => {
     const harness = await mount(
       "<h1>Introduction</h1><blockquote><h2>Nested section</h2></blockquote><h3>Detail</h3><p>Body</p>",
       true,
     );
-    const initial = harness.editor.getJSON();
-    expect(label("Heading 1 options")?.style.top).toBe("32px");
-    expect(label("Heading 2 options")?.style.top).toBe("72px");
-    expect(label("Heading 3 options")?.style.top).toBe("112px");
-    expect(harness.editor.view.dom.querySelector(".note-gutter")).toBeNull();
-    expect(vimPluginKey.getState(harness.editor.state)?.mode).toBe("normal");
+    expect(document.querySelectorAll(".note-gutter-heading")).toHaveLength(0);
+    const heading = harness.editor.view.dom.querySelector("h2")!;
+    const position = harness.editor.view.posAtDOM(heading, 0) + 4;
     await act(async () => {
       harness.editor.view.focus();
+      harness.editor.commands.setTextSelection(position);
+    });
+    await flushFrame();
+    const initial = harness.editor.getJSON();
+    expect(label("Heading 1 options")).toBeNull();
+    expect(label("Heading 3 options")).toBeNull();
+    expect(label("Heading 2 options")?.style.top).toBe("72px");
+    expect(harness.editor.view.dom.querySelector(".note-gutter")).toBeNull();
+    await act(async () => {
       harness.editor.view.dom.dispatchEvent(
         new KeyboardEvent("keydown", {
           key: "d",
@@ -161,20 +167,55 @@ describe("note gutter", () => {
     });
     expect(vimPluginKey.getState(harness.editor.state)?.operator).toBe("d");
     await click(label("Heading 2 options")!);
-    expect(harness.editor.state.selection.$head.parent.textContent).toBe(
-      "Nested section",
-    );
-    expect(harness.editor.state.selection.$head.parentOffset).toBe(0);
-    expect(harness.editor.view.hasFocus()).toBe(true);
+    expect(harness.editor.state.selection.head).toBe(position);
     expect(harness.onOpenMenu).toHaveBeenCalledExactlyOnceWith(
       label("Heading 2 options"),
     );
     expect(harness.editor.getJSON()).toEqual(initial);
     expect(vimPluginKey.getState(harness.editor.state)?.mode).toBe("normal");
     expect(vimPluginKey.getState(harness.editor.state)?.operator).toBeNull();
-    expect(label("Heading 2 options")?.getAttribute("aria-haspopup")).toBe(
-      "dialog",
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    await act(async () => outside.focus());
+    await flushFrame();
+    expect(document.querySelectorAll(".note-gutter-heading")).toHaveLength(0);
+    await act(async () => {
+      harness.editor.view.focus();
+      harness.editor.commands.setTextSelection(
+        harness.editor.view.posAtDOM(
+          harness.editor.view.dom.querySelector("p")!,
+          0,
+        ),
+      );
+    });
+    await flushFrame();
+    expect(document.querySelectorAll(".note-gutter-heading")).toHaveLength(0);
+  });
+
+  it("aligns a heading label with the cursor's wrapped visual line", async () => {
+    const harness = await mount(
+      "<h2>A heading spanning two visual lines</h2><p>Body</p>",
     );
+    const heading = harness.editor.view.dom.querySelector<HTMLElement>("h2")!;
+    heading.getBoundingClientRect = () => new DOMRect(100, 112, 280, 56);
+    vi.spyOn(harness.editor.view, "coordsAtPos").mockReturnValue({
+      left: 100,
+      right: 100,
+      top: 140,
+      bottom: 168,
+    });
+    await act(async () => {
+      harness.editor.view.focus();
+      harness.editor.commands.setTextSelection(20);
+    });
+    await flushFrame();
+    expect(label("Heading 2 options")?.style.top).toBe("60px");
+    expect(document.querySelectorAll(".note-gutter-heading")).toHaveLength(1);
+    await act(async () =>
+      harness.editor.commands.setTextSelection({ from: 2, to: 6 }),
+    );
+    await flushFrame();
+    expect(label("Heading 2 options")).toBeNull();
   });
 
   it("shows an affordance for the initial empty note without requiring focus", async () => {
@@ -189,27 +230,21 @@ describe("note gutter", () => {
     expect(harness.editor.isEmpty).toBe(true);
   });
 
-  it("keeps touch hit areas separated when neighboring headings have compact spacing", async () => {
+  it("uses one tall touch target for the active heading instead of controls on neighboring lines", async () => {
     window.__DAYMARK_PLATFORM__ = "ios";
     const harness = await mount("<h2>One</h2><h2>Two</h2><p>Body</p>");
     harness.tops[1] = harness.tops[0] + 25;
-    await act(async () => window.dispatchEvent(new Event("resize")));
+    await act(async () => {
+      harness.editor.view.focus();
+      harness.editor.commands.setTextSelection(2);
+    });
     await flushFrame();
     const headings = [
       ...document.querySelectorAll<HTMLButtonElement>(".note-gutter-heading"),
     ];
     expect(document.querySelector(".note-gutter.is-touch")).not.toBeNull();
-    expect(headings.map((button) => button.style.height)).toEqual([
-      "23px",
-      "23px",
-    ]);
-    expect(
-      (parseFloat(headings[0].style.height) +
-        parseFloat(headings[1].style.height)) /
-        2,
-    ).toBeLessThan(
-      parseFloat(headings[1].style.top) - parseFloat(headings[0].style.top),
-    );
+    expect(headings).toHaveLength(1);
+    expect(headings[0].style.height).toBe("44px");
   });
 
   it("shows only the active table heading when table cells share a line", async () => {
@@ -218,34 +253,20 @@ describe("note gutter", () => {
     );
     const headings = harness.editor.view.dom.querySelectorAll("h2");
     harness.tops[2] = harness.tops[1];
-    expect(document.querySelectorAll(".note-gutter-heading")).toHaveLength(1);
-    await act(async () =>
-      harness.editor.commands.setTextSelection(
-        harness.editor.view.posAtDOM(headings[2], 0),
-      ),
-    );
-    await flushFrame();
-    expect(document.querySelectorAll(".note-gutter-heading")).toHaveLength(2);
-    const activeLabel = document.querySelectorAll<HTMLButtonElement>(
-      ".note-gutter-heading",
-    )[1];
-    await click(activeLabel);
-    expect(harness.editor.state.selection.$head.parent.textContent).toBe(
-      "Cell two",
-    );
-    await act(async () =>
-      harness.editor.commands.setTextSelection(
-        harness.editor.view.posAtDOM(headings[1], 0),
-      ),
-    );
-    await flushFrame();
-    expect(document.querySelectorAll(".note-gutter-heading")).toHaveLength(2);
-    await click(
-      document.querySelectorAll<HTMLButtonElement>(".note-gutter-heading")[1],
-    );
-    expect(harness.editor.state.selection.$head.parent.textContent).toBe(
-      "Cell one",
-    );
+    for (const index of [2, 1]) {
+      await act(async () => {
+        harness.editor.view.focus();
+        harness.editor.commands.setTextSelection(
+          harness.editor.view.posAtDOM(headings[index], 0),
+        );
+      });
+      await flushFrame();
+      expect(document.querySelectorAll(".note-gutter-heading")).toHaveLength(1);
+      await click(label("Heading 2 options")!);
+      expect(harness.editor.state.selection.$head.parent.textContent).toBe(
+        index === 2 ? "Cell two" : "Cell one",
+      );
+    }
   });
 
   it("preserves a selected text range in a nested paragraph when opening its menu", async () => {
@@ -264,8 +285,7 @@ describe("note gutter", () => {
     expect(plus).not.toBeNull();
     expect(plus.classList.contains("is-empty")).toBe(false);
     await click(plus);
-    expect(harness.editor.state.selection.from).toBe(selection.from);
-    expect(harness.editor.state.selection.to).toBe(selection.to);
+    expect(harness.editor.state.selection.eq(selection)).toBe(true);
     expect(harness.editor.getJSON()).toEqual(before);
     expect(vimPluginKey.getState(harness.editor.state)?.mode).toBe("normal");
   });
@@ -308,12 +328,16 @@ describe("note gutter", () => {
     expect(label("Add note element")).toBeNull();
   });
 
-  it("batches reflow and image-load measurements and avoids React commits or serialization for unchanged typing geometry", async () => {
+  it("batches measurements without React commits or serialization while typing at unchanged geometry", async () => {
     const harness = await mount("<p>Alpha</p><h2>Heading</h2>");
+    await act(async () => {
+      harness.editor.view.focus();
+      harness.editor.commands.setTextSelection(10);
+    });
+    await flushFrame();
     const serialize = vi.spyOn(harness.editor, "getJSON");
     const initialCommits = harness.commits();
     await act(async () => {
-      harness.editor.commands.setTextSelection(3);
       harness.editor.commands.insertContent("b");
       harness.editor.commands.insertContent("c");
       window.dispatchEvent(new Event("resize"));

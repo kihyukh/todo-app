@@ -31,7 +31,7 @@
   outline: none;
 }
 .note-prose .note-image.ProseMirror-selectednode .note-image-frame {
-  outline: 2px solid var(--note-accent, #315fd5);
+  outline: 2px solid var(--note-accent, var(--accent, #23764d));
   outline-offset: 2px;
 }
 .note-prose .note-image-frame.is-cropped,
@@ -47,7 +47,7 @@
   max-width: 100%;
   margin-top: 8px;
   padding: 3px;
-  border: 1px solid #d8dde7;
+  border: 1px solid var(--border, #dce3de);
   border-radius: 7px;
   background: #fff;
   box-shadow: 0 2px 6px #17233b0a;
@@ -64,7 +64,7 @@
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: #374258;
+  color: var(--text, #303d35);
   font:
     500 11px/1.2 -apple-system,
     BlinkMacSystemFont,
@@ -73,11 +73,11 @@
   cursor: pointer;
 }
 .note-image-toolbar button:hover {
-  background: #edf1f7;
+  background: var(--sidebar, #f3f5f3);
 }
 .note-image-toolbar button[aria-pressed="true"] {
-  background: #e9efff;
-  color: #234ab0;
+  background: var(--selected, #e5f1e9);
+  color: var(--accent-hover, #1c623f);
 }
 .note-image-tool-divider {
   align-self: stretch;
@@ -92,16 +92,16 @@
   background: #fff0f0;
 }
 .note-image-toolbar .note-image-apply {
-  background: var(--note-accent, #315fd5);
+  background: var(--note-accent, var(--accent, #23764d));
   color: #fff;
 }
 .note-image-toolbar .note-image-apply:hover {
-  background: #234ab0;
+  background: var(--accent-hover, #1c623f);
 }
 .note-image-toolbar button:focus-visible,
 .note-image-resize:focus-visible,
 .note-image-crop-handle:focus-visible {
-  outline: 2px solid var(--note-accent, #315fd5);
+  outline: 2px solid var(--note-accent, var(--accent, #23764d));
   outline-offset: 2px;
 }
 .note-prose .note-image-resize {
@@ -115,8 +115,8 @@
   padding: 0;
   border: 2px solid #fff;
   border-radius: 4px;
-  background: var(--note-accent, #315fd5);
-  box-shadow: 0 0 0 1px var(--note-accent, #315fd5);
+  background: var(--note-accent, var(--accent, #23764d));
+  box-shadow: 0 0 0 1px var(--note-accent, var(--accent, #23764d));
   cursor: nwse-resize;
   touch-action: none;
 }
@@ -151,7 +151,7 @@
   border-right: 1px solid #fff;
 }
 .note-image-crop-box:focus-visible {
-  outline: 3px solid var(--note-accent, #315fd5);
+  outline: 3px solid var(--note-accent, var(--accent, #23764d));
   outline-offset: -3px;
 }
 .note-prose .note-image-crop-handle {
@@ -170,7 +170,7 @@
   inset: 5px;
   border: 2px solid #fff;
   border-radius: 2px;
-  background: var(--note-accent, #315fd5);
+  background: var(--note-accent, var(--accent, #23764d));
   box-shadow: 0 0 0 1px #17233b44;
 }
 .note-image-crop-handle.is-nw {

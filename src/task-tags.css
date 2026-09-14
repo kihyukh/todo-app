@@ -90,7 +90,7 @@
 }
 .tag-add:hover,
 .tag-add.active {
-  background: #eef2fa;
+  background: #edf4ee;
   color: var(--blue);
 }
 .tag-popover {
@@ -215,7 +215,7 @@
   padding: 6px 8px;
   border-radius: 5px;
   color: var(--blue);
-  background: #eaf0ff;
+  background: #e6f1e9;
   text-align: left;
   font-size: 12px;
 }
@@ -319,7 +319,7 @@
 .tag-dialog-label input:focus,
 .tag-dialog-label select:focus {
   border-color: var(--blue);
-  box-shadow: 0 0 0 2px #315fd514;
+  box-shadow: 0 0 0 2px #24704f14;
 }
 .tag-dialog-label input[aria-invalid="true"] {
   border-color: var(--danger);

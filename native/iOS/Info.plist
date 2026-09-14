@@ -17,5 +17,7 @@
 <key>UIApplicationSupportsIndirectInputEvents</key><true/>
 <key>NSCameraUsageDescription</key><string>Take a photo to include in your task notes.</string>
 <key>NSPhotoLibraryUsageDescription</key><string>Choose images to include in your task notes.</string>
+<key>NSCalendarsUsageDescription</key><string>Show your calendar beside your tasks and save events when you choose. Calendar accounts, including iCloud and Google, stay managed by Apple Calendar.</string>
+<key>NSCalendarsFullAccessUsageDescription</key><string>Show your calendar beside your tasks and create, edit, or remove events only when you choose. Your calendar data stays on your devices and with your calendar providers.</string>
 <key>ITSAppUsesNonExemptEncryption</key><false/>
 </dict></plist>

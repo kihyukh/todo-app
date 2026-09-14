@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Sun,
+  Play,
+  Clock3,
   Inbox,
   CalendarDays,
   Layers,
@@ -36,6 +38,19 @@ import {
   Hash,
 } from "lucide-react";
 import TaskEditor from "./TaskEditor";
+import { PaneDivider, usePaneWidths } from "./PaneResize";
+import {
+  compareTaskPriority,
+  isDueSoon,
+  planningCandidates,
+  priorityLabels,
+  taskPriority,
+} from "./task-planning";
+import { useCalendars } from "./calendar-client";
+import CalendarWorkspace, {
+  CalendarSettings,
+  TaskCalendarLinks,
+} from "./CalendarWorkspace";
 import WorkDatesField from "./WorkDatesField";
 import { PrivacyInfo } from "./PrivacyInfo";
 import { APP_NAME, APP_VERSION } from "./brand";
@@ -85,6 +100,7 @@ import {
 type View =
   | "today"
   | "upcoming"
+  | "calendar"
   | "all"
   | "inbox"
   | "checkboxes"
@@ -94,7 +110,7 @@ type View =
   | `tag:${string}`;
 type Dialog = { kind: "project" | "column"; id?: string; value: string } | null;
 const palette = [
-  "#547ce8",
+  "#24704f",
   "#bc82b5",
   "#4c9f88",
   "#c89a4d",
@@ -150,6 +166,10 @@ function App() {
   const [tagDialog, setTagDialog] = useState<{ id?: string } | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [plan, setPlan] = useState(false);
+  const [planFilter, setPlanFilter] = useState<"all" | "urgent" | "progress">(
+    "all",
+  );
+  const calendar = useCalendars();
   const [menu, setMenu] = useState(false);
   const [showEarlier, setShowEarlier] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<Attachment | null>(
@@ -176,6 +196,36 @@ function App() {
           (b.order ?? (["next", "progress", "waiting"].indexOf(b.id) + 1) * 10),
       );
   const selected = state.tasks.find((t) => t.id === selectedId && !t.deletedAt);
+  const panes = usePaneWidths(!!selected);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const field = titleRef.current;
+    if (!field) return;
+    field.style.height = "0px";
+    field.style.height = `${Math.min(180, Math.max(30, field.scrollHeight))}px`;
+  }, [selected?.id, selected?.title, panes.fitted.detail, panes.width]);
+  const progressColumn =
+    columns.find((column) => column.id === "progress") ??
+    columns.find((column) => /in progress|doing|working/i.test(column.name));
+  const candidates = planningCandidates(
+    active,
+    today,
+    progressColumn?.id,
+    planFilter,
+  );
+  const imminent = active.filter((task) => isDueSoon(task, today));
+  const overdueCount = imminent.filter((task) => task.deadline! < today).length;
+  const plannedMatches = active
+    .filter(
+      (task) =>
+        isScheduledOn(task, today) &&
+        (planFilter === "urgent"
+          ? isDueSoon(task, today)
+          : planFilter === "progress" &&
+            !!progressColumn &&
+            task.columnId === progressColumn.id),
+    )
+    .sort(compareTaskPriority);
   const openItems = useMemo(
     () =>
       state.tasks
@@ -195,6 +245,7 @@ function App() {
           {
             today: "Today",
             upcoming: "Upcoming",
+            calendar: "Calendar",
             all: "All tasks",
             inbox: "Inbox",
             checkboxes: "Open checkboxes",
@@ -210,10 +261,7 @@ function App() {
       if (!t.completedAt) return false;
     } else if (view !== "trash" && t.completedAt) return false;
     if (view === "today" && !isScheduledOn(t, today)) return false;
-    if (
-      view === "upcoming" &&
-      !(nextWorkDate(t, today) || (t.deadline && t.deadline >= today))
-    )
+    if (view === "upcoming" && !(nextWorkDate(t, today) || t.deadline))
       return false;
     if (view === "inbox" && t.projectId) return false;
     if (view.startsWith("project:") && t.projectId !== view.slice(8))
@@ -234,11 +282,33 @@ function App() {
       .filter((value): value is string => !!value && value >= today)
       .sort()[0] ?? "9999";
   const sorted = [...visible].sort((a, b) =>
-    view === "upcoming"
-      ? nextTaskDate(a).localeCompare(nextTaskDate(b))
-      : a.createdAt.localeCompare(b.createdAt),
+    view === "completed" || view === "trash"
+      ? 0
+      : view === "upcoming"
+        ? nextTaskDate(a).localeCompare(nextTaskDate(b)) ||
+          compareTaskPriority(a, b)
+        : (view === "today" && progressColumn
+            ? Number(b.columnId === progressColumn.id) -
+              Number(a.columnId === progressColumn.id)
+            : 0) || compareTaskPriority(a, b),
   );
-  const upcoming = view === "upcoming" ? agendaEntries(visible, today) : [];
+  const upcoming =
+    view === "upcoming"
+      ? [
+          ...visible
+            .filter((task) => task.deadline && task.deadline < today)
+            .map((task) => ({
+              date: task.deadline!,
+              task,
+              work: false,
+              deadline: true,
+            })),
+          ...agendaEntries(visible, today),
+        ].sort(
+          (a, b) =>
+            a.date.localeCompare(b.date) || compareTaskPriority(a.task, b.task),
+        )
+      : [];
   const earlier = active.filter((t) => hasMissedWork(t, today));
   const todayCount = active.filter((t) => isScheduledOn(t, today)).length;
   const completedToday = state.tasks.filter(
@@ -288,7 +358,8 @@ function App() {
     }
     const add = () => {
       if (window.innerWidth <= 920) setSelectedId(null);
-      if (["checkboxes", "completed", "trash"].includes(view)) setView("today");
+      if (["checkboxes", "completed", "trash", "calendar"].includes(view))
+        setView("today");
       requestAnimationFrame(() => quickRef.current?.focus());
     };
     window.addEventListener("keydown", key);
@@ -299,7 +370,7 @@ function App() {
     };
   }, [view]);
   function changeView(v: View) {
-    if (window.innerWidth <= 920) setSelectedId(null);
+    if (window.innerWidth <= 920 || v === "calendar") setSelectedId(null);
     setView(v);
     setQuery("");
     setSidebar(false);
@@ -403,6 +474,13 @@ function App() {
     if (view === `tag:${id}`) changeView("all");
     setTagDialog(null);
     setToast("Tag deleted");
+  }
+  function startWorking(task: Task) {
+    updateTask(task.id, {
+      ...schedulePatch([...workDates(task), today]),
+      ...(progressColumn ? { columnId: progressColumn.id } : {}),
+    });
+    setSelectedId(task.id);
   }
   function complete(task: Task) {
     updateTask(task.id, { completedAt: task.completedAt ? null : now() });
@@ -597,6 +675,18 @@ function App() {
                 {project.name}
               </span>
             )}
+            {taskPriority(task) > 0 && (
+              <span className={`priority-mark priority-${taskPriority(task)}`}>
+                <Flag size={11} />
+                {priorityLabels[taskPriority(task)]}
+              </span>
+            )}
+            {progressColumn && task.columnId === progressColumn.id && (
+              <span className="task-working">
+                <Clock3 size={11} />
+                In progress
+              </span>
+            )}
             {checks.length > 0 && (
               <span>
                 <CheckSquare2 size={12} />
@@ -666,6 +756,17 @@ function App() {
             </span>
           )
         )}
+        {!task.deletedAt && !task.completedAt && (
+          <button
+            type="button"
+            className={`start-task ${progressColumn && task.columnId === progressColumn.id ? "is-working" : ""}`}
+            aria-label={`Work on ${task.title}`}
+            title="Work on this task"
+            onClick={() => startWorking(task)}
+          >
+            <Play size={13} />
+          </button>
+        )}
         {!task.deletedAt && (
           <button
             className={`plan-task ${planned ? "planned" : ""}`}
@@ -690,7 +791,8 @@ function App() {
   }
   const navigation = [
     { id: "today", label: "Today", icon: Sun, count: todayCount },
-    { id: "upcoming", label: "Upcoming", icon: CalendarDays, count: null },
+    { id: "calendar", label: "Calendar", icon: CalendarDays, count: null },
+    { id: "upcoming", label: "Upcoming", icon: Clock3, count: null },
     { id: "all", label: "All tasks", icon: Layers, count: active.length },
     {
       id: "inbox",
@@ -716,6 +818,8 @@ function App() {
     );
   return (
     <div
+      ref={panes.shell}
+      style={panes.style}
       className={`app-shell ${selected ? "has-detail" : ""} ${sidebar ? "sidebar-open" : ""} ${touch ? "is-touch-device" : ""} ${touchFocus ? "has-touch-focus" : ""}`}
       onFocusCapture={(event) => {
         if (touch && isTextEntry(event.target)) setTouchFocus(true);
@@ -724,6 +828,8 @@ function App() {
         if (touch && !isTextEntry(event.relatedTarget)) setTouchFocus(false);
       }}
     >
+      <PaneDivider kind="sidebar" layout={panes} hasDetail={!!selected} />
+      <PaneDivider kind="detail" layout={panes} hasDetail={!!selected} />
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark">
@@ -862,7 +968,7 @@ function App() {
         />
       )}
       <main
-        className={`workspace ${mode === "board" && view !== "checkboxes" ? "board-workspace" : ""}`}
+        className={`workspace ${mode === "board" && view !== "checkboxes" && view !== "calendar" ? "board-workspace" : ""} ${view === "calendar" ? "calendar-workspace-container" : ""}`}
       >
         <div className="workspace-top">
           <IconButton label="Show sidebar" onClick={() => setSidebar(true)}>
@@ -890,7 +996,9 @@ function App() {
         <header className="workspace-header">
           <h1>{title}</h1>
           <div className="view-actions">
-            {!["checkboxes", "trash", "completed"].includes(view) && (
+            {!["checkboxes", "trash", "completed", "calendar"].includes(
+              view,
+            ) && (
               <div className="view-switch" role="group" aria-label="Layout">
                 <IconButton
                   label="List view"
@@ -951,12 +1059,53 @@ function App() {
               {todayCount} {todayCount === 1 ? "task" : "tasks"} to focus on
             </span>
             <button
-              onClick={() => setPlan(!plan)}
+              onClick={() => {
+                setPlanFilter("all");
+                setPlan(!plan);
+              }}
               className={`text-button ${plan ? "chosen" : ""}`}
             >
               <Plus size={14} />
               Plan your day
             </button>
+          </div>
+        )}
+        {view === "today" && (
+          <div className="today-briefing" aria-label="Planning overview">
+            <button
+              className={overdueCount > 0 ? "has-overdue" : ""}
+              onClick={() => {
+                setPlanFilter("urgent");
+                setPlan(true);
+              }}
+            >
+              <Flag size={13} />
+              <strong>{imminent.length}</strong> due soon
+              {overdueCount > 0 && <span>· {overdueCount} overdue</span>}
+            </button>
+            <button
+              onClick={() => {
+                setPlanFilter("progress");
+                setPlan(true);
+              }}
+            >
+              <Clock3 size={13} />
+              <strong>
+                {
+                  active.filter(
+                    (task) =>
+                      progressColumn && task.columnId === progressColumn.id,
+                  ).length
+                }
+              </strong>{" "}
+              in progress
+            </button>
+            {completedToday > 0 && (
+              <span>
+                <CheckCheck size={13} />
+                {completedToday} done today
+              </span>
+            )}
           </div>
         )}
         {error && !(touch && selected) && !showWorkspaceSetup && (
@@ -981,29 +1130,66 @@ function App() {
             <p>
               Adding Today keeps other work days and the deadline unchanged.
             </p>
-            {active.filter((t) => !isScheduledOn(t, today)).length ? (
-              active
-                .filter((t) => !isScheduledOn(t, today))
-                .map((t) => (
+            <div
+              className="planning-filters"
+              role="group"
+              aria-label="Suggestions"
+            >
+              {(["all", "urgent", "progress"] as const).map((filter) => (
+                <button
+                  key={filter}
+                  aria-pressed={planFilter === filter}
+                  onClick={() => setPlanFilter(filter)}
+                >
+                  {filter === "all"
+                    ? "All tasks"
+                    : filter === "urgent"
+                      ? "Due soon"
+                      : "In progress"}
+                </button>
+              ))}
+            </div>
+            {candidates.length ? (
+              candidates.map((t) => (
+                <button
+                  key={t.id}
+                  className="planning-row"
+                  onClick={() => {
+                    updateTask(t.id, schedulePatch([...workDates(t), today]));
+                    setToast("Added to Today");
+                  }}
+                >
+                  <Plus size={16} />
+                  <span>{t.title}</span>
+                  {t.deadline && <small>Due {dateLabel(t.deadline)}</small>}
+                </button>
+              ))
+            ) : !plannedMatches.length ? (
+              <p>
+                {planFilter === "all"
+                  ? "Everything is already on your list for today."
+                  : "These tasks are already planned for today, or there are none in this group."}
+              </p>
+            ) : null}
+            {plannedMatches.length > 0 && (
+              <div className="planning-already">
+                <span>Already on Today</span>
+                {plannedMatches.map((task) => (
                   <button
-                    key={t.id}
+                    key={task.id}
                     className="planning-row"
-                    onClick={() => {
-                      updateTask(t.id, schedulePatch([...workDates(t), today]));
-                      setToast("Added to Today");
-                    }}
+                    onClick={() => setSelectedId(task.id)}
                   >
-                    <Plus size={16} />
-                    <span>{t.title}</span>
-                    {t.deadline && <small>Due {dateLabel(t.deadline)}</small>}
+                    <Sun size={15} />
+                    <span>{task.title}</span>
+                    <small>Open task</small>
                   </button>
-                ))
-            ) : (
-              <p>Everything is already on your list for today.</p>
+                ))}
+              </div>
             )}
           </div>
         )}
-        {!["checkboxes", "completed", "trash"].includes(view) && (
+        {!["checkboxes", "completed", "trash", "calendar"].includes(view) && (
           <form className="quick-add" onSubmit={(e) => addTask(e)}>
             <Plus size={18} />
             <input
@@ -1025,235 +1211,248 @@ function App() {
             )}
           </form>
         )}
-        <div className="task-scroll">
-          {view === "checkboxes" ? (
-            <>
-              <p className="view-description">
-                The small steps, gathered from your task notes.
-              </p>
-              {openItems.length === 0 ? (
-                <Empty
-                  icon={CheckCheck}
-                  title="All the small things, done"
-                  body="Unchecked items in your task notes will appear here."
-                />
-              ) : (
-                state.tasks
-                  .filter(
-                    (task) =>
-                      !task.deletedAt &&
-                      openItems.some((item) => item.task.id === task.id),
-                  )
-                  .map((task) => (
-                    <section className="checkbox-group" key={task.id}>
-                      <button
-                        className="parent-task"
-                        onClick={() => setSelectedId(task.id)}
-                      >
-                        <span>
-                          {task.title}
-                          {task.completedAt && (
-                            <small className="completed-parent">
-                              Completed task
-                            </small>
-                          )}
-                        </span>
-                        <ArrowUpRight size={14} />
-                      </button>
-                      {openItems
-                        .filter((c) => c.task.id === task.id)
-                        .map((c) => (
-                          <div
-                            className="open-check-row"
-                            key={c.path.join(".")}
-                          >
-                            <button
-                              className="task-check"
-                              aria-label={`Check ${c.text}`}
-                              onClick={() =>
-                                updateTask(task.id, {
-                                  notes: toggleCheckbox(
-                                    task.notes,
-                                    c.path,
-                                    true,
-                                  ),
-                                })
-                              }
-                            />
-                            <button onClick={() => setSelectedId(task.id)}>
-                              {c.text || "Untitled checkbox"}
-                            </button>
-                          </div>
-                        ))}
-                    </section>
-                  ))
-              )}
-            </>
-          ) : mode === "board" && !["completed", "trash"].includes(view) ? (
-            <div className="board">
-              {columns.map((column) => (
-                <section
-                  className="board-column"
-                  key={column.id}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = "move";
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const id = e.dataTransfer.getData("text/plain");
-                    if (state.tasks.some((t) => t.id === id))
-                      updateTask(id, { columnId: column.id });
-                  }}
-                >
-                  <header>
-                    <i style={{ background: column.color }} />
-                    <button
-                      className="column-name"
-                      onClick={() =>
-                        setDialog({
-                          kind: "column",
-                          id: column.id,
-                          value: column.name,
-                        })
-                      }
-                    >
-                      {column.name}
-                    </button>
-                    <span>
-                      {
-                        sorted.filter(
-                          (t) =>
-                            t.columnId === column.id ||
-                            (!columns.some((c) => c.id === t.columnId) &&
-                              column.id === columns[0].id),
-                        ).length
-                      }
-                    </span>
-                    {columns.length > 1 && (
-                      <IconButton
-                        label={`Remove ${column.name} column`}
-                        onClick={() => removeColumn(column.id)}
-                      >
-                        <X size={13} />
-                      </IconButton>
-                    )}
-                  </header>
-                  {sorted
+        {view === "calendar" ? (
+          <CalendarWorkspace
+            tasks={state.tasks}
+            api={calendar}
+            onOpenTask={setSelectedId}
+            onUpdateTask={updateTask}
+          />
+        ) : (
+          <div className="task-scroll">
+            {view === "checkboxes" ? (
+              <>
+                <p className="view-description">
+                  The small steps, gathered from your task notes.
+                </p>
+                {openItems.length === 0 ? (
+                  <Empty
+                    icon={CheckCheck}
+                    title="All the small things, done"
+                    body="Unchecked items in your task notes will appear here."
+                  />
+                ) : (
+                  state.tasks
                     .filter(
-                      (t) =>
-                        t.columnId === column.id ||
-                        (!columns.some((c) => c.id === t.columnId) &&
-                          column.id === columns[0].id),
+                      (task) =>
+                        !task.deletedAt &&
+                        openItems.some((item) => item.task.id === task.id),
                     )
-                    .map((t) => taskRow(t, true))}
-                  <button
-                    className="board-add"
-                    onClick={() => {
-                      if (newTitle.trim()) addTask(undefined, column.id);
-                      else {
-                        quickRef.current?.focus();
-                        setToast(
-                          "Type a task title above, then use this column’s Add task.",
-                        );
-                      }
-                    }}
-                  >
-                    <Plus size={14} />
-                    Add task
-                  </button>
-                </section>
-              ))}
-              <button
-                className="add-column"
-                onClick={() => setDialog({ kind: "column", value: "" })}
-              >
-                <Plus size={16} />
-                Add column
-              </button>
-            </div>
-          ) : sorted.length ? (
-            <>
-              {view === "today" && (
-                <div className="section-title task-section-label">
-                  MY FOCUS<span>{todayCount}</span>
-                </div>
-              )}
-              {view === "upcoming"
-                ? Object.entries(
-                    upcoming.reduce(
-                      (groups, entry) => {
-                        (groups[entry.date] ??= []).push(entry);
-                        return groups;
-                      },
-                      {} as Record<string, typeof upcoming>,
-                    ),
-                  )
-                    .sort(([a], [b]) => a.localeCompare(b))
-                    .map(([date, tasks]) => (
-                      <section key={date}>
-                        <div className="section-title task-section-label">
-                          {dateLabel(date)}
-                          <span>{tasks.length}</span>
-                        </div>
-                        {tasks.map((entry) =>
-                          taskRow(entry.task, false, entry),
-                        )}
+                    .map((task) => (
+                      <section className="checkbox-group" key={task.id}>
+                        <button
+                          className="parent-task"
+                          onClick={() => setSelectedId(task.id)}
+                        >
+                          <span>
+                            {task.title}
+                            {task.completedAt && (
+                              <small className="completed-parent">
+                                Completed task
+                              </small>
+                            )}
+                          </span>
+                          <ArrowUpRight size={14} />
+                        </button>
+                        {openItems
+                          .filter((c) => c.task.id === task.id)
+                          .map((c) => (
+                            <div
+                              className="open-check-row"
+                              key={c.path.join(".")}
+                            >
+                              <button
+                                className="task-check"
+                                aria-label={`Check ${c.text}`}
+                                onClick={() =>
+                                  updateTask(task.id, {
+                                    notes: toggleCheckbox(
+                                      task.notes,
+                                      c.path,
+                                      true,
+                                    ),
+                                  })
+                                }
+                              />
+                              <button onClick={() => setSelectedId(task.id)}>
+                                {c.text || "Untitled checkbox"}
+                              </button>
+                            </div>
+                          ))}
                       </section>
                     ))
-                : sorted.map((t) => taskRow(t))}
-            </>
-          ) : (
-            <Empty
-              icon={view === "today" ? Sun : view === "trash" ? Trash2 : Inbox}
-              title={
-                query
-                  ? "No matching tasks"
-                  : view === "today"
-                    ? "A clear day ahead"
-                    : view === "completed"
-                      ? "Room for a little progress"
-                      : view === "trash"
-                        ? "Nothing in the trash"
-                        : "A little room to think"
-              }
-              body={
-                query
-                  ? "Try another word."
-                  : view === "today"
-                    ? "Choose a few things to work on, or add a new task."
-                    : view === "completed"
-                      ? "Completed tasks will be kept here."
-                      : view === "trash"
-                        ? "Deleted tasks can be restored here."
-                        : "Add your first task above."
-              }
-            />
-          )}
-          {view === "today" && earlier.length > 0 && (
-            <section className="earlier">
-              <button
-                className="earlier-toggle"
-                onClick={() => setShowEarlier(!showEarlier)}
-              >
-                {showEarlier ? (
-                  <ChevronDown size={15} />
-                ) : (
-                  <ChevronRight size={15} />
                 )}
-                Unfinished from earlier<span>{earlier.length}</span>
-              </button>
-              {showEarlier && earlier.map((t) => taskRow(t))}
-            </section>
-          )}
-          {view === "today" && sorted.length > 0 && (
-            <div className="focus-footer">
-              <span />
-              <Sun size={14} />
-              <span /> <p>You decide what deserves today.</p>
-            </div>
-          )}
-        </div>
+              </>
+            ) : mode === "board" && !["completed", "trash"].includes(view) ? (
+              <div className="board">
+                {columns.map((column) => (
+                  <section
+                    className="board-column"
+                    key={column.id}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const id = e.dataTransfer.getData("text/plain");
+                      if (state.tasks.some((t) => t.id === id))
+                        updateTask(id, { columnId: column.id });
+                    }}
+                  >
+                    <header>
+                      <i style={{ background: column.color }} />
+                      <button
+                        className="column-name"
+                        onClick={() =>
+                          setDialog({
+                            kind: "column",
+                            id: column.id,
+                            value: column.name,
+                          })
+                        }
+                      >
+                        {column.name}
+                      </button>
+                      <span>
+                        {
+                          sorted.filter(
+                            (t) =>
+                              t.columnId === column.id ||
+                              (!columns.some((c) => c.id === t.columnId) &&
+                                column.id === columns[0].id),
+                          ).length
+                        }
+                      </span>
+                      {columns.length > 1 && (
+                        <IconButton
+                          label={`Remove ${column.name} column`}
+                          onClick={() => removeColumn(column.id)}
+                        >
+                          <X size={13} />
+                        </IconButton>
+                      )}
+                    </header>
+                    {sorted
+                      .filter(
+                        (t) =>
+                          t.columnId === column.id ||
+                          (!columns.some((c) => c.id === t.columnId) &&
+                            column.id === columns[0].id),
+                      )
+                      .map((t) => taskRow(t, true))}
+                    <button
+                      className="board-add"
+                      onClick={() => {
+                        if (newTitle.trim()) addTask(undefined, column.id);
+                        else {
+                          quickRef.current?.focus();
+                          setToast(
+                            "Type a task title above, then use this column’s Add task.",
+                          );
+                        }
+                      }}
+                    >
+                      <Plus size={14} />
+                      Add task
+                    </button>
+                  </section>
+                ))}
+                <button
+                  className="add-column"
+                  onClick={() => setDialog({ kind: "column", value: "" })}
+                >
+                  <Plus size={16} />
+                  Add column
+                </button>
+              </div>
+            ) : sorted.length ? (
+              <>
+                {view === "today" && (
+                  <div className="section-title task-section-label">
+                    MY FOCUS<span>{todayCount}</span>
+                  </div>
+                )}
+                {view === "upcoming"
+                  ? Object.entries(
+                      upcoming.reduce(
+                        (groups, entry) => {
+                          (groups[entry.date] ??= []).push(entry);
+                          return groups;
+                        },
+                        {} as Record<string, typeof upcoming>,
+                      ),
+                    )
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([date, tasks]) => (
+                        <section key={date}>
+                          <div className="section-title task-section-label">
+                            {date < today
+                              ? `Overdue · ${dateLabel(date)}`
+                              : dateLabel(date)}
+                            <span>{tasks.length}</span>
+                          </div>
+                          {tasks.map((entry) =>
+                            taskRow(entry.task, false, entry),
+                          )}
+                        </section>
+                      ))
+                  : sorted.map((t) => taskRow(t))}
+              </>
+            ) : (
+              <Empty
+                icon={
+                  view === "today" ? Sun : view === "trash" ? Trash2 : Inbox
+                }
+                title={
+                  query
+                    ? "No matching tasks"
+                    : view === "today"
+                      ? "A clear day ahead"
+                      : view === "completed"
+                        ? "Room for a little progress"
+                        : view === "trash"
+                          ? "Nothing in the trash"
+                          : "A little room to think"
+                }
+                body={
+                  query
+                    ? "Try another word."
+                    : view === "today"
+                      ? "Choose a few things to work on, or add a new task."
+                      : view === "completed"
+                        ? "Completed tasks will be kept here."
+                        : view === "trash"
+                          ? "Deleted tasks can be restored here."
+                          : "Add your first task above."
+                }
+              />
+            )}
+            {view === "today" && earlier.length > 0 && (
+              <section className="earlier">
+                <button
+                  className="earlier-toggle"
+                  onClick={() => setShowEarlier(!showEarlier)}
+                >
+                  {showEarlier ? (
+                    <ChevronDown size={15} />
+                  ) : (
+                    <ChevronRight size={15} />
+                  )}
+                  Unfinished from earlier<span>{earlier.length}</span>
+                </button>
+                {showEarlier && earlier.map((t) => taskRow(t))}
+              </section>
+            )}
+            {view === "today" && sorted.length > 0 && (
+              <div className="focus-footer">
+                <span />
+                <Sun size={14} />
+                <span /> <p>You decide what deserves today.</p>
+              </div>
+            )}
+          </div>
+        )}
         <footer className="workspace-footer">
           <span>
             {view === "checkboxes"
@@ -1385,7 +1584,8 @@ function App() {
               <textarea
                 {...noTextSuggestions}
                 aria-label="Task title"
-                rows={2}
+                ref={titleRef}
+                rows={1}
                 value={selected.title}
                 onChange={(e) =>
                   updateTask(selected.id, { title: e.target.value })
@@ -1396,52 +1596,85 @@ function App() {
                 }}
               />
             </div>
-            <div className="date-fields">
-              <WorkDatesField
-                dates={workDates(selected)}
-                deadline={selected.deadline}
-                onChange={(dates) =>
-                  updateTask(selected.id, schedulePatch(dates))
-                }
-                today={today}
-              />
-              <DateField
-                label="Deadline"
-                value={selected.deadline}
-                icon={Flag}
-                onChange={(value) =>
-                  updateTask(selected.id, { deadline: value })
-                }
-                today={today}
+            <div className="task-properties">
+              <div className="date-fields">
+                <WorkDatesField
+                  dates={workDates(selected)}
+                  deadline={selected.deadline}
+                  onChange={(dates) =>
+                    updateTask(selected.id, schedulePatch(dates))
+                  }
+                  today={today}
+                />
+                <DateField
+                  label="Deadline"
+                  value={selected.deadline}
+                  icon={Flag}
+                  onChange={(value) =>
+                    updateTask(selected.id, { deadline: value })
+                  }
+                  today={today}
+                />
+              </div>
+              <div className="task-property-row">
+                <div className="status-field">
+                  <span>Status</span>
+                  <i
+                    style={{
+                      background: columns.find(
+                        (c) => c.id === selected.columnId,
+                      )?.color,
+                    }}
+                  />
+                  <select
+                    aria-label="Task status"
+                    value={selected.columnId}
+                    onChange={(e) =>
+                      updateTask(selected.id, { columnId: e.target.value })
+                    }
+                  >
+                    {columns.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <label
+                  className={`priority-field priority-${taskPriority(selected)}`}
+                >
+                  <Flag size={13} />
+                  <span className="visually-hidden">Priority</span>
+                  <select
+                    aria-label="Task priority"
+                    value={taskPriority(selected)}
+                    onChange={(event) =>
+                      updateTask(selected.id, {
+                        priority: Number(event.target.value) as 0 | 1 | 2 | 3,
+                      })
+                    }
+                  >
+                    {priorityLabels.map((label, value) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <TaskTags
+                tags={tags}
+                tagIds={selected.tagIds ?? []}
+                onChange={(tagIds) => updateTask(selected.id, { tagIds })}
+                onCreate={(draft) => createTag(draft, selected.id)}
               />
             </div>
-            <div className="status-field">
-              <span>Status</span>
-              <i
-                style={{
-                  background: columns.find((c) => c.id === selected.columnId)
-                    ?.color,
-                }}
-              />
-              <select
-                aria-label="Task status"
-                value={selected.columnId}
-                onChange={(e) =>
-                  updateTask(selected.id, { columnId: e.target.value })
-                }
-              >
-                {columns.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <TaskTags
-              tags={tags}
-              tagIds={selected.tagIds ?? []}
-              onChange={(tagIds) => updateTask(selected.id, { tagIds })}
-              onCreate={(draft) => createTag(draft, selected.id)}
+            <TaskCalendarLinks
+              task={selected}
+              tasks={state.tasks}
+              api={calendar}
+              onUpdateTask={updateTask}
+              onOpenTask={setSelectedId}
             />
             <div className="editor-separator" />
             <TaskEditor
@@ -1640,6 +1873,8 @@ function App() {
                 The JSON export includes notes and attachment references. To
                 back up attached files too, copy the whole workspace folder.
               </p>
+              <h3>Calendars</h3>
+              <CalendarSettings api={calendar} />
               <h3>Keyboard shortcuts</h3>
               <div className="shortcut-row">
                 <span>New task</span>
@@ -1652,6 +1887,10 @@ function App() {
               <div className="shortcut-row">
                 <span>Bold / italic in notes</span>
                 <kbd>⌘ B / ⌘ I</kbd>
+              </div>
+              <div className="shortcut-row">
+                <span>Note elements</span>
+                <kbd>⌘ /</kbd>
               </div>
               <div className="shortcut-row">
                 <span>Undo in notes</span>

@@ -2,7 +2,15 @@
 import { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import type { AppState, StorageInfo } from "../src/model";
 import { dateKey, emptyDoc } from "../src/model";
 import App from "../src/App";
@@ -59,6 +67,22 @@ vi.mock("../src/TaskEditor", () => ({
 beforeAll(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 });
+beforeEach(() => {
+  vi.mocked(nativeSend).mockImplementation((message) => {
+    if (message.action === "calendarStatus") {
+      window.dispatchEvent(
+        new CustomEvent("daymark-native-message", {
+          detail: {
+            type: "calendarStatus",
+            requestId: message.requestId,
+            status: "notDetermined",
+            calendars: [],
+          },
+        }),
+      );
+    }
+  });
+});
 afterEach(async () => {
   await act(async () => root?.unmount());
   root = undefined;
@@ -88,6 +112,13 @@ const label = <T extends HTMLElement = HTMLElement>(name: string) =>
 async function click(button: HTMLElement) {
   await act(async () => button.click());
 }
+// Reading calendar permission is allowed at startup; permission requests and
+// every workspace mutation must still be explicitly initiated by the user.
+const actionableNativeMessages = () =>
+  vi
+    .mocked(nativeSend)
+    .mock.calls.map(([message]) => message)
+    .filter((message) => message.action !== "calendarStatus");
 
 describe("iPhone workspace setup", () => {
   it("offers the existing Mac folder on first launch and finishes only when the folder is connected", async () => {
@@ -97,9 +128,11 @@ describe("iPhone workspace setup", () => {
     expect(document.activeElement).toBe(textButton("Choose workspace folder"));
     const before = structuredClone(latest);
     await click(textButton("Choose workspace folder"));
-    expect(nativeSend).toHaveBeenCalledExactlyOnceWith({
-      action: "chooseFolder",
-    });
+    expect(actionableNativeMessages()).toEqual([
+      {
+        action: "chooseFolder",
+      },
+    ]);
     expect(onboarding()).not.toBeNull();
     expect(needsIOSWorkspaceSetup()).toBe(true);
     await act(async () =>
@@ -115,7 +148,7 @@ describe("iPhone workspace setup", () => {
     await click(textButton("Continue on this device"));
     expect(onboarding()).toBeNull();
     expect(needsIOSWorkspaceSetup()).toBe(false);
-    expect(nativeSend).not.toHaveBeenCalled();
+    expect(actionableNativeMessages()).toEqual([]);
     expect(latest).toEqual(initial);
     await act(async () => root!.unmount());
     root = undefined;
@@ -139,7 +172,10 @@ describe("iPhone workspace setup", () => {
     expect(document.querySelectorAll('[role="alert"]')).toHaveLength(1);
     expect(needsIOSWorkspaceSetup()).toBe(true);
     await click(textButton("Choose workspace folder"));
-    expect(nativeSend).toHaveBeenCalledTimes(2);
+    expect(actionableNativeMessages()).toEqual([
+      { action: "chooseFolder" },
+      { action: "chooseFolder" },
+    ]);
     expect(onboarding()!.querySelector('[role="alert"]')).toBeNull();
     expect(needsIOSWorkspaceSetup()).toBe(true);
     expect(latest).toEqual(initial);
@@ -152,7 +188,7 @@ describe("iPhone workspace setup", () => {
       await mount("ios");
       expect(onboarding()).toBeNull();
       expect(needsIOSWorkspaceSetup()).toBe(false);
-      expect(nativeSend).not.toHaveBeenCalled();
+      expect(actionableNativeMessages()).toEqual([]);
     },
   );
 
@@ -162,7 +198,8 @@ describe("iPhone workspace setup", () => {
       await mount(platform);
       expect(onboarding()).toBeNull();
       expect(document.querySelector(".is-touch-device")).toBeNull();
-      expect(nativeSend).not.toHaveBeenCalled();
+      expect(actionableNativeMessages()).toEqual([]);
+      if (platform === undefined) expect(nativeSend).not.toHaveBeenCalled();
     },
   );
 });
@@ -214,6 +251,54 @@ describe("mobile workspace errors", () => {
     expect(element.querySelector(".saved-label.has-save-error")).toBeNull();
     expect(latest).toEqual(initialState);
   });
+});
+
+describe("optional calendar access", () => {
+  it.each(["ios", "macos"] as const)(
+    "only requests calendar access after Connect is chosen in %s Settings",
+    async (platform) => {
+      initialStorage = { kind: "folder" };
+      vi.mocked(nativeSend).mockImplementation((message) => {
+        if (
+          message.action === "calendarStatus" ||
+          message.action === "calendarConnect"
+        ) {
+          window.dispatchEvent(
+            new CustomEvent("daymark-native-message", {
+              detail: {
+                type: "calendarStatus",
+                requestId: message.requestId,
+                status:
+                  message.action === "calendarConnect"
+                    ? "denied"
+                    : "notDetermined",
+                calendars: [],
+              },
+            }),
+          );
+        }
+      });
+      await mount(platform);
+      const before = structuredClone(latest);
+      await click(label("Settings")!);
+      expect(textButton("Choose workspace folder")).toBeTruthy();
+      expect(textButton("Export task data")).toBeTruthy();
+      expect(textButton("Connect calendars")).toBeTruthy();
+      expect(actionableNativeMessages()).toEqual([]);
+      await click(textButton("Connect calendars"));
+      expect(actionableNativeMessages()).toEqual([
+        {
+          action: "calendarConnect",
+          requestId: expect.stringMatching(/^calendar:/),
+        },
+      ]);
+      expect(
+        document.querySelector(".calendar-settings")?.textContent,
+      ).toContain("Allow full calendar access");
+      expect(latest).toEqual(before);
+      expect(document.querySelector('[role="alert"]')).toBeNull();
+    },
+  );
 });
 
 describe("mobile keyboard dismissal", () => {

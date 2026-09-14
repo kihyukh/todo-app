@@ -13,11 +13,11 @@ if ! command -v xcodegen >/dev/null 2>&1; then
   exit 1
 fi
 if [ "${DAYMARK_SKIP_WEB_BUILD:-0}" != "1" ]; then
-  (cd "$TASK_ROOT" && VITE_APP_NAME="${DAYMARK_DISPLAY_NAME:-Daymark}" VITE_APP_VERSION="${DAYMARK_VERSION:-1.0.0}" npm run build)
+  (cd "$TASK_ROOT" && VITE_APP_NAME="${DAYMARK_DISPLAY_NAME:-GreenDay}" VITE_APP_VERSION="${DAYMARK_VERSION:-1.0.0}" npm run build)
 fi
 xcodegen generate --spec "$TASK_ROOT/native/project.yml"
 TASK_SETTINGS=(
-  "DAYMARK_DISPLAY_NAME=${DAYMARK_DISPLAY_NAME:-Daymark}"
+  "DAYMARK_DISPLAY_NAME=${DAYMARK_DISPLAY_NAME:-GreenDay}"
   "PRODUCT_BUNDLE_IDENTIFIER=${DAYMARK_IOS_BUNDLE_IDENTIFIER:-app.daymark.mobile}"
   "MARKETING_VERSION=${DAYMARK_VERSION:-1.0.0}"
   "CURRENT_PROJECT_VERSION=${DAYMARK_BUILD_NUMBER:-1}"

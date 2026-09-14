@@ -24,7 +24,7 @@
 }
 .note-prose .math-note[data-type="block-math"].is-editing {
   border-color: var(--note-accent);
-  background: #f7f9fd;
+  background: var(--sidebar, #f3f5f3);
 }
 .note-prose .math-note[data-type="inline-math"] {
   padding: 1px 2px;

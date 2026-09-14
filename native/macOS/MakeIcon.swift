@@ -12,7 +12,7 @@ func render(_ pixels: Int, name: String) throws {
     NSGraphicsContext.current = context
     context.shouldAntialias = true
     let shape = NSBezierPath(roundedRect: NSRect(x: size * 0.07, y: size * 0.07, width: size * 0.86, height: size * 0.86), xRadius: size * 0.19, yRadius: size * 0.19)
-    NSColor(deviceRed: 49 / 255, green: 95 / 255, blue: 213 / 255, alpha: 1).setFill()
+    NSColor(deviceRed: 38 / 255, green: 115 / 255, blue: 77 / 255, alpha: 1).setFill()
     shape.fill()
     let check = NSBezierPath()
     check.move(to: NSPoint(x: size * 0.28, y: size * 0.51))

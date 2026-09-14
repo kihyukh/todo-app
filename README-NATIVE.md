@@ -1,6 +1,6 @@
-# Daymark for Mac and iPhone
+# GreenDay for Mac and iPhone
 
-Daymark’s native shell runs the bundled web interface offline in WKWebView. It adds native image/PDF attachment pickers, Finder/Files folder selection, JSON export, standard Mac editing shortcuts, and file based storage in iCloud Drive. It does not use CloudKit or require a hosted server.
+GreenDay’s native shell runs the bundled web interface offline in WKWebView. It adds native attachment pickers, Finder/Files folder selection, JSON export, standard Mac editing shortcuts, file-based storage in iCloud Drive, and optional EventKit calendar access. It does not use CloudKit or require a hosted server. The display name and theme are GreenDay/green; internal `Daymark` paths, bridge names, and bundle identifiers remain stable so existing workspaces keep working.
 
 ## Mac
 
@@ -10,7 +10,11 @@ npm run build
 bash scripts/build-mac.sh
 ```
 
-The result is installed to `~/Applications/Daymark.app`, with a link at `build/Daymark.app`. Open either path in Finder. The script signs the app outside the repository because iCloud-managed Documents folders add Finder metadata that invalidates app signatures. Rebuilding replaces this development app while preserving all task data. This local build is ad hoc signed, with a minimum macOS version of 13, for the architecture of the Mac that builds it. An Apple Developer identity and notarization are needed for normal public distribution.
+The result is installed to `~/Applications/GreenDay.app`, with a symlink at `build/GreenDay.app`. Open the installed path in Finder. Runnable bundles are compiled and signed outside the repository, under `~/Library/Caches/GreenDay/Builds`, because iCloud-managed Documents folders can add Finder metadata that invalidates app signatures. Use `bash scripts/build-mac.sh --no-install` to retain the verified cache bundle without changing installed apps; the build symlink then points to that cache product. Only the symlink lives in the repository.
+
+Rebuilding preserves task data. Installation stages and verifies the replacement before moving the existing app, and keeps previous binaries under `~/Library/Caches/GreenDay/PreviousApps`. An older `~/Applications/Daymark.app` becomes a compatibility link only after the GreenDay installation succeeds; unrelated apps are never replaced. The cached app binaries are not workspace backups. This local build is ad hoc signed, with a minimum macOS version of 13, for the architecture of the Mac that builds it. Developer ID signing and notarization are needed for normal public distribution.
+
+Ad hoc rebuilds can change the app's signing identity and require calendar consent again; this occurred during the final development update. Approve the system prompt after choosing **Connect calendars**. Distribution still needs stable Apple signing; the development build does not weaken or bypass macOS permission checks.
 
 When the system iCloud Drive directory exists, the app saves to `~/Library/Mobile Documents/com~apple~CloudDocs/Daymark`. Otherwise it saves to `~/Library/Application Support/Daymark`. The in-app storage status reports the chosen location; iCloud Drive itself controls upload/download timing. **Choose Sync Folder** in the File menu or app settings lets you select a different folder. Existing tasks and attachments are merged/copied into that folder and the old folder is retained.
 
@@ -39,6 +43,8 @@ For a physical iPhone, sign into **Xcode → Settings → Apple Accounts**, choo
 
 The iPhone app initially uses its local Documents folder. Selecting an iCloud Drive folder through Files enables shared storage without a private CloudKit container or special iCloud entitlements. The folder must be available in the Files app, and iCloud Drive must be enabled on both devices.
 
+iPhone and iPad simulator builds and the unsigned device archive passed for the current GreenDay/calendar update. Live iPhone checks covered calendar permission, a fictional local event, task-event linking, and keyboard layout; the final archive contents were audited. The internal Xcode project, scheme, simulator bundle filename, and archive filename still use Daymark; the installed display name and icon are GreenDay. See [iOS validation](docs/IOS-VALIDATION.md) for remaining physical-device and provider checks.
+
 ### App Store preparation
 
 `npm run archive:ios` compiles an unsigned Release archive for a generic iOS device at `build/Daymark.xcarchive`. An unsigned archive is a build check, not an installable App Store package.
@@ -49,7 +55,7 @@ Release settings are configurable without moving the user's workspace:
 
 | Environment variable | Default |
 | --- | --- |
-| `DAYMARK_DISPLAY_NAME` | `Daymark` (working name) |
+| `DAYMARK_DISPLAY_NAME` | `GreenDay` |
 | `DAYMARK_VERSION` | `1.0.0` |
 | `DAYMARK_BUILD_NUMBER` | `1` (increment for every upload) |
 | `DAYMARK_IOS_BUNDLE_IDENTIFIER` | `app.daymark.mobile` |
@@ -57,13 +63,31 @@ Release settings are configurable without moving the user's workspace:
 
 The display name is also passed into the bundled interface. Existing workspace folder names, file formats, and storage keys stay stable. See [App Store delivery](docs/APP-STORE.md) for prepared listing copy, privacy/support pages, and the remaining account and release inputs. Physical-device iCloud delivery still needs verification before public release.
 
+## Calendars and task links
+
+Open **Settings → Calendars → Connect calendars** in the native app. GreenDay requests full event access only after this action; no permission prompt appears at startup. Full access is needed to read events. Read-only calendars remain visible, but writable calendars are required for creating, editing, or deleting events. Calendar failures appear separately from workspace-save errors.
+
+Accounts configured in Apple Calendar supply the data, including iCloud and Google. Add or enable the account in Apple Calendar or the device's calendar account settings, then refresh access in GreenDay. Account credentials and synchronization stay with the operating system and provider; there is no separate Google sign-in or GreenDay calendar server. The bridge observes EventKit changes and refreshes the displayed period. Provider transfers can take longer than a local save.
+
+The Calendar view offers Month, Week, and Day layouts with task work days and deadlines alongside events. **Link event** in task details connects an existing event; **Schedule work session** creates an event you review before saving. Event details also offer **Link task**. Links store identifiers, the original recurring occurrence, calendar labels/colors, and cached event title/times with the task. Linking or unlinking does not change the task schedule or delete the event. Updates and deletions apply to the selected occurrence, not future events in a recurring series.
+
+Calendar operations do not copy the full task note or attachment workspace into the event. A task's title can prefill a work-session event. Uninstalling GreenDay or deleting its workspace does not delete events already saved to a calendar provider. Revoke calendar access in the device's privacy settings if desired.
+
+See [the native calendar contract](native/CALENDAR.md) for request fields, permission compatibility, recurring identity, and the pure validation suite. Real permission/provider synchronization and event writes require a separate test calendar on a device; a passing build does not verify them.
+
+## Workspace layout and workflow
+
+The desktop uses compact rows and a green accent. Drag or keyboard-adjust the navigation/detail dividers; double-click or Home resets them. Width preferences remain local to the device. Priority (High/Medium/Low/None), custom board status, and task completion are separate. The day planner helps review upcoming deadlines and in-progress work without replacing other selected work dates.
+
+The note editor uses a left gutter instead of a fixed formatting bar. **+**, heading labels, the footer's **…**, and **⌘/** open the shared element menu. Text selections and Vim mode are retained; choosing another heading cancels an unfinished Vim command before moving its caret. Touch layouts retain usable controls and keyboard dismissal.
+
 ## Storage and conflict behavior
 
-`tasks`, `projects`, and `columns` contain one JSON file per record. Attachments are copied into `Attachments` under unique names. Atomic writes use Apple’s file coordination APIs. The app checks for changes every three seconds while active and asks iCloud to download placeholder record files.
+`tasks`, `projects`, `columns`, and `tags` contain one JSON file per record. Task records also hold priority and calendar-link metadata. Attachments are copied into `Attachments` under unique names. Atomic writes use Apple’s file coordination APIs. The app checks for changes every three seconds while active and asks iCloud to download placeholder record files.
 
 Records merge by `updatedAt`. For equal-time conflicts, a deletion tombstone wins, then canonical JSON byte ordering breaks remaining ties. Deletion tombstones are retained. Different task edits merge independently. Concurrent edits to the **same task** use the newer whole record; field-level collaborative editing is not provided. Previous and losing incoming record versions are retained under `Revisions`, deduplicated by content. Both conflict-copy files and unresolved iCloud file versions are included when loading. Saves refuse to overwrite unreadable records, and recheck the current record inside coordinated writes. Revision storage is intentionally not pruned automatically. Keep device clocks accurate.
 
-JSON export includes tasks, notes, projects, column definitions, and attachment references. To back up the attachment binaries and revision history too, copy the entire Daymark folder. Cross-device iCloud delivery and signed iPhone installation require real-device validation.
+JSON export includes tasks, notes, projects, tags, column definitions, calendar links, and attachment references. To back up attachment binaries and revision history too, copy the entire Daymark folder. A workspace export is not a backup of the connected calendar accounts. Cross-device iCloud delivery and signed iPhone installation require real-device validation.
 
 Run the native persistence checks without Xcode:
 
@@ -74,6 +98,8 @@ swiftc -swift-version 5 native/Shared/DaymarkStore.swift native/Tests/main.swift
 
 ## Web/native protocol
 
-Web code sends `window.webkit.messageHandlers.daymark.postMessage({ action, requestId, ... })`. Supported actions are `load`, `save`, `chooseFolder`, `attach`, `export`, and `openAttachment`. Responses call `window.daymarkNativeReceive(payload)` with `type: state`, `saved`, `attachment`, `exported`, `cancelled`, or `error`. State responses include `storage: { kind, path, message }`. Storage kinds are `icloud`, `local`, and `folder`.
+Web code sends `window.webkit.messageHandlers.daymark.postMessage({ action, requestId, ... })`. Workspace actions are `load`, `save`, `chooseFolder`, `attach`, `export`, and `openAttachment`. Their responses call `window.daymarkNativeReceive(payload)` with `type: state`, `saved`, `attachment`, `exported`, `cancelled`, or `error`. State responses include `storage: { kind, path, message }`. Storage kinds are `icloud`, `local`, and `folder`.
+
+Calendar actions are `calendarStatus`, `calendarConnect`, `calendarEvents`, `calendarSave`, and `calendarDelete`; responses use `calendarStatus`, `calendarEvents`, `calendarSaved`, `calendarDeleted`, or `error`, echoing `requestId`. An unsolicited `calendarChanged` notice asks the frontend to refresh. Calendar request IDs use the `calendar:` prefix; the frontend broadcasts native messages internally without treating calendar errors as failed task saves.
 
 The shell sets `window.__DAYMARK_NATIVE__ = true` and `window.__DAYMARK_PLATFORM__` to `macos` or `ios` before page scripts run. Mac File → New Task emits the `daymark-new-task` window event. Closing/quitting the Mac app emits `daymark-flush` with a unique `detail.requestId`; the UI must return that request ID on its immediate save. The app waits for that exact save to succeed, and errors offer to keep the app open. The iOS app also emits this event while resigning active, with a background task to finish the write. `daymark://app/` serves bundled assets and `daymark://attachment/` serves local attachments; external web links open in the system browser. The bridge only accepts messages from the app’s main frame.

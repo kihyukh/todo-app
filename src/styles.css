@@ -11,10 +11,10 @@
   --text: #303744;
   --secondary: #526071;
   --muted: #596579;
-  --blue: #315fd5;
+  --blue: #24704f;
   --accent: var(--blue);
-  --blue-hover: #234bbb;
-  --selected: #e8eefc;
+  --blue-hover: #185c3e;
+  --selected: #e6f1e9;
   --line: #dfe3e8;
   --border: var(--line);
   --control: #7b8798;
@@ -426,7 +426,7 @@ kbd {
 .task-row.selected {
   box-shadow: inset 3px 0 var(--blue);
   background: var(--selected);
-  border: 1px solid #b8c8ef;
+  border: 1px solid #b4d2c0;
   border-radius: 7px;
 }
 .task-row + .task-row {
@@ -448,7 +448,7 @@ kbd {
 }
 .task-check:hover {
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px #eaf0ff;
+  box-shadow: 0 0 0 3px #e6f1e9;
 }
 .task-check.checked {
   background: var(--blue);
@@ -699,8 +699,8 @@ kbd {
   color: var(--secondary);
 }
 .today-date .date-field-trigger {
-  background: #f4f7ff;
-  border-color: #b8c8ef;
+  background: #f0f7f2;
+  border-color: #b4d2c0;
   color: var(--blue);
 }
 .today-date .date-field-trigger strong {
@@ -840,7 +840,7 @@ kbd {
   margin: 20px 30px 0;
   padding: 15px;
   background: #f8faff;
-  border: 1px solid #b8c8ef;
+  border: 1px solid #b4d2c0;
   border-radius: 8px;
   max-height: 300px;
   overflow: auto;
@@ -998,8 +998,8 @@ kbd {
 }
 .board-column .task-row.selected {
   box-shadow: inset 3px 0 var(--blue);
-  border-color: #c7d6f5;
-  background: #f1f5ff;
+  border-color: #bfd7c7;
+  background: #f1f7f2;
 }
 .board-column .task-title {
   font-size: 12px;
@@ -2029,7 +2029,7 @@ kbd {
   margin-bottom: 23px;
   border-radius: 17px;
   color: var(--blue);
-  background: #eaf0ff;
+  background: #e6f1e9;
 }
 .ios-workspace-eyebrow {
   margin: 0 0 8px;

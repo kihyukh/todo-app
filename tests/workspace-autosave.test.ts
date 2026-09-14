@@ -78,6 +78,61 @@ afterEach(async () => {
 });
 
 describe("autosave scheduling", () => {
+  it.each(["saving", "saved", "failed"] as const)(
+    "delivers calendar messages without changing a workspace whose save is %s",
+    async (phase) => {
+      await advance(AUTOSAVE_DELAY_MS);
+      const pendingSave = saves()[0];
+      if (phase !== "saving") {
+        await act(() =>
+          window.daymarkNativeReceive?.({
+            type: phase === "saved" ? "saved" : "error",
+            requestId: pendingSave.requestId,
+            ...(phase === "failed"
+              ? { message: "Workspace folder is unavailable." }
+              : {}),
+          }),
+        );
+      }
+      const before = {
+        state: workspace.state,
+        storage: workspace.storage,
+        ready: workspace.ready,
+        saving: workspace.saving,
+        error: workspace.error,
+      };
+      expect(before.saving).toBe(phase === "saving");
+      expect(before.error).toBe(
+        phase === "failed" ? "Workspace folder is unavailable." : "",
+      );
+      const forwarded: unknown[] = [];
+      const receive = (event: Event) =>
+        forwarded.push((event as CustomEvent).detail);
+      window.addEventListener("daymark-native-message", receive);
+      const calendarError = {
+        type: "error",
+        requestId: "calendar:access-check",
+        message: "Calendar access is denied.",
+      };
+      const calendarChanged = { type: "calendarChanged" };
+      try {
+        for (const message of [calendarError, calendarChanged]) {
+          await act(() => window.daymarkNativeReceive?.(message));
+          expect(workspace.state).toBe(before.state);
+          expect(workspace.storage).toBe(before.storage);
+          expect(workspace.ready).toBe(before.ready);
+          expect(workspace.saving).toBe(before.saving);
+          expect(workspace.error).toBe(before.error);
+        }
+        expect(forwarded).toEqual([calendarError, calendarChanged]);
+        await advance(AUTOSAVE_DELAY_MS * 2);
+        expect(saves()).toEqual([pendingSave]);
+      } finally {
+        window.removeEventListener("daymark-native-message", receive);
+      }
+    },
+  );
+
   it("coalesces a burst of edits and does not send a native write per keystroke", async () => {
     await act(() => edit("2026-09-14T01:00:00.000Z"));
     await advance(AUTOSAVE_DELAY_MS - 1);

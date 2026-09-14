@@ -2,29 +2,10 @@
   --note-ink: var(--text, #303744);
   --note-muted: var(--secondary, #526071);
   --note-line: var(--border, #dfe3e8);
-  --note-accent: var(--accent, #315fd5);
+  --note-accent: var(--accent, #23764d);
   width: 100%;
   min-width: 0;
   color: var(--note-ink);
-}
-.vim-mode {
-  color: var(--ink);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  padding: 3px 6px;
-  border: 1px solid var(--control);
-  border-radius: 4px;
-}
-.vim-mode-insert {
-  color: var(--blue);
-  border-color: var(--blue);
-}
-.vim-mode-visual,
-.vim-mode-visual-line {
-  color: var(--warning);
-  border-color: var(--warning);
 }
 .note-tool {
   border: 0;
@@ -44,12 +25,12 @@
   flex-shrink: 0;
 }
 .note-tool:hover {
-  background: #f1f4f9;
+  background: var(--sidebar, #f3f5f3);
   color: var(--secondary);
 }
 .note-tool.is-active {
-  background: #edf2fe;
-  color: var(--blue);
+  background: var(--selected, #e5f1e9);
+  color: var(--accent, #23764d);
 }
 .note-tool:disabled {
   opacity: 0.3;
@@ -63,12 +44,13 @@
 }
 .note-editor-surface {
   position: relative;
-  padding-left: 32px;
+  margin-left: 0;
+  padding-left: 0;
 }
 .note-prose {
   outline: none;
   min-height: 200px;
-  padding: 12px 1px 8px;
+  padding: 12px 0 8px;
   font-size: 14px;
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -105,13 +87,13 @@
 }
 .note-prose a {
   cursor: text;
-  color: var(--blue);
+  color: var(--accent, #23764d);
   text-decoration-color: currentColor;
   text-underline-offset: 3px;
   cursor: pointer;
 }
 .note-prose a:hover {
-  color: var(--blue);
+  color: var(--accent, #23764d);
 }
 .note-prose ul,
 .note-prose ol {
@@ -168,8 +150,8 @@
   position: relative;
 }
 .note-prose ul[data-type="taskList"] input[type="checkbox"]:checked {
-  background: var(--blue);
-  border-color: var(--blue);
+  background: var(--accent, #23764d);
+  border-color: var(--accent, #23764d);
 }
 .note-prose ul[data-type="taskList"] input[type="checkbox"]:checked::after {
   content: "";
@@ -193,14 +175,14 @@
   font-size: 0.91em;
   font-family: "SFMono-Regular", Menlo, monospace;
   color: var(--ink);
-  background: #f1f4f9;
+  background: var(--sidebar, #f3f5f3);
   padding: 2px 5px;
   border-radius: 4px;
 }
 .note-prose pre {
   padding: 10px 12px;
-  border: 1px solid #e8edf5;
-  background: #f7f9fc;
+  border: 1px solid var(--border, #dce3de);
+  background: var(--sidebar, #f3f5f3);
   border-radius: 7px;
   overflow: auto;
   margin: 9px 0;
@@ -216,7 +198,7 @@
 .note-prose blockquote {
   margin: 9px 0;
   padding: 2px 0 2px 15px;
-  border-left: 2px solid #bdcce4;
+  border-left: 2px solid var(--control, #84918a);
   color: var(--secondary);
 }
 .note-prose blockquote p:last-child {
@@ -246,7 +228,7 @@
   border: 1px dashed var(--note-accent);
   border-radius: 4px;
   color: var(--note-accent);
-  background: #f0f4ff;
+  background: var(--selected, #e5f1e9);
   font-size: 12px;
   line-height: 1.4;
   vertical-align: middle;
@@ -275,13 +257,13 @@
 .note-prose td,
 .note-prose th {
   min-width: 60px;
-  border: 1px solid #e4eaf4;
+  border: 1px solid var(--border, #dce3de);
   padding: 7px 10px;
   vertical-align: top;
   position: relative;
 }
 .note-prose th {
-  background: #f5f7fb;
+  background: var(--sidebar, #f3f5f3);
   font-weight: 600;
   text-align: left;
 }
@@ -290,7 +272,7 @@
   margin: 0;
 }
 .note-prose .selectedCell::after {
-  background: #a7bee830;
+  background: var(--selected, #e5f1e9);
   content: "";
   position: absolute;
   inset: 0;
@@ -317,12 +299,12 @@
   height: 23px;
 }
 .note-popover {
-  border: 1px solid #dfe6f1;
+  border: 1px solid var(--border, #dce3de);
   background: #fff;
   border-radius: 9px;
   padding: 13px;
   margin-top: 12px;
-  box-shadow: 0 5px 20px #40527908;
+  box-shadow: 0 5px 20px #18332608;
 }
 .note-popover-heading {
   display: flex;
@@ -348,7 +330,7 @@
   display: block;
   width: 100%;
   resize: vertical;
-  border: 1px solid #e4eaf3;
+  border: 1px solid var(--border, #dce3de);
   border-radius: 5px;
   background: #fff;
   padding: 10px;
@@ -362,8 +344,8 @@
 
 .link-popover input:focus,
 .note-source-panel textarea:focus {
-  border-color: #9db3e1;
-  box-shadow: 0 0 0 2px #94abe812;
+  border-color: var(--accent, #23764d);
+  box-shadow: 0 0 0 2px var(--selected, #e5f1e9);
 }
 .note-popover-footer {
   display: flex;
@@ -385,12 +367,12 @@
   padding: 7px 11px;
   border-radius: 5px;
   color: #fff;
-  background: var(--blue);
+  background: var(--accent, #23764d);
   cursor: pointer;
   white-space: nowrap;
 }
 .task-note-editor button.note-apply:hover {
-  background: var(--blue-hover);
+  background: var(--accent-hover, #1c623f);
 }
 .task-note-editor button.note-apply:disabled {
   opacity: 0.45;
@@ -403,7 +385,7 @@
 .link-popover input {
   flex: 1;
   width: 0;
-  border: 1px solid #e1e8f3;
+  border: 1px solid var(--border, #dce3de);
   border-radius: 5px;
   padding: 8px;
   font-size: 12px;
@@ -450,7 +432,7 @@
 .note-source-panel textarea {
   min-height: 310px;
   font-size: 11px;
-  background: #fafcff;
+  background: var(--sidebar, #f3f5f3);
 }
 .note-source-actions {
   display: flex;
@@ -473,11 +455,11 @@
 }
 .note-table-actions button {
   font-size: 11px;
-  border: 1px solid #e4eaf4;
+  border: 1px solid var(--border, #dce3de);
   border-radius: 4px;
   padding: 5px 7px;
   color: var(--secondary);
-  background: #fafcff;
+  background: var(--sidebar, #f3f5f3);
   cursor: pointer;
 }
 @media (max-width: 600px) {
@@ -504,9 +486,6 @@
 .is-touch-editor .note-tool svg {
   width: 18px;
   height: 18px;
-}
-.is-touch-editor .note-editor-surface {
-  padding-left: 44px;
 }
 .is-touch-editor .note-prose {
   font-size: 16px;
@@ -544,10 +523,10 @@
   width: min(300px, calc(100vw - 24px));
   z-index: 90;
   padding: 8px;
-  border: 1px solid #bdc9de;
+  border: 1px solid var(--border, #dce3de);
   border-radius: 12px;
   background: #fff;
-  box-shadow: 0 5px 24px #203b622e;
+  box-shadow: 0 5px 24px #18332626;
 }
 .touch-link-actions > span {
   display: block;
@@ -555,7 +534,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #53627b;
+  color: var(--secondary, #536159);
   font-size: 12px;
 }
 .touch-link-actions > div {
@@ -572,15 +551,15 @@
   min-height: 44px;
   border-radius: 6px;
   font-size: 14px;
-  color: var(--blue);
-  background: #f0f4fc;
+  color: var(--accent, #23764d);
+  background: var(--selected, #e5f1e9);
 }
 .touch-link-actions button:not(:last-child) {
   flex: 1;
 }
 .touch-link-actions button:last-child {
   background: none;
-  color: #60718b;
+  color: var(--secondary, #536159);
 }
 @media (max-width: 600px) {
   .is-touch-editor .link-popover {
@@ -593,8 +572,8 @@
     max-height: calc(100dvh - 88px);
     overflow-y: auto;
     margin-top: 0;
-    border-color: #bdc9de;
-    box-shadow: 0 5px 24px #203b622e;
+    border-color: var(--border, #dce3de);
+    box-shadow: 0 5px 24px #18332626;
   }
   .is-touch-editor .note-popover-heading {
     margin-bottom: 5px;

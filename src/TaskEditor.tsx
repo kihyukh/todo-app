@@ -32,7 +32,6 @@ import {
 } from "./note-links";
 import { noTextSuggestions } from "./editor-preferences";
 import { VimEditor } from "./vim-editor";
-import type { VimMode } from "./vim-editor";
 import { NoteInteractions, NoteListKeymap } from "./note-interactions";
 import { NoteHeading } from "./note-heading";
 import NoteGutter from "./NoteGutter";
@@ -116,7 +115,6 @@ export default function TaskEditor({
   const menuFallback = useRef<HTMLButtonElement>(null);
   const [source, setSource] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
-  const [vimMode, setVimMode] = useState<VimMode>("normal");
   const onChangeRef = useRef(onChange);
   const onPendingRef = useRef(onPendingChange);
   const editorRef = useRef<Editor | null>(null);
@@ -197,7 +195,7 @@ export default function TaskEditor({
       extensions: [
         StarterKit.configure({
           listKeymap: false,
-          dropcursor: { color: "#315fd5", width: 2 },
+          dropcursor: { color: "var(--accent, #23764d)", width: 2 },
           heading: false,
           link: {
             openOnClick: false,
@@ -236,7 +234,6 @@ export default function TaskEditor({
         }),
         VimEditor.configure({
           enabled: vimEnabled,
-          onModeChange: (mode) => setVimMode(mode ?? "normal"),
         }),
       ],
       content: content ?? EMPTY_NOTE,
@@ -786,16 +783,7 @@ export default function TaskEditor({
         }}
       />
       <div className="note-editor-footnote">
-        {vimEnabled && source === null ? (
-          <span
-            className={`vim-mode vim-mode-${vimMode}`}
-            aria-label="Vim mode status"
-          >
-            Vim · {vimMode.replace("-", " ")}
-          </span>
-        ) : (
-          <span>{editorHint}</span>
-        )}
+        <span>{editorHint}</span>
         <div>
           {source === null && (
             <button

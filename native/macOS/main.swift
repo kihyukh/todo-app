@@ -15,7 +15,7 @@ final class DaymarkAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             let webView = bridge.makeWebView(root: resources.appendingPathComponent("Web"))
             webView.setValue(false, forKey: "drawsBackground")
             window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1420, height: 920), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-            window.title = "Daymark"
+            window.title = "GreenDay"
             window.titlebarAppearsTransparent = true
             window.backgroundColor = NSColor(calibratedRed: 243 / 255, green: 244 / 255, blue: 246 / 255, alpha: 1)
             window.minSize = NSSize(width: 860, height: 620)
@@ -32,7 +32,7 @@ final class DaymarkAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             NSApp.activate(ignoringOtherApps: true)
         } catch {
             let alert = NSAlert(error: error)
-            alert.messageText = "Daymark could not open its data folder"
+            alert.messageText = "GreenDay could not open its data folder"
             alert.runModal()
             NSApp.terminate(nil)
         }
@@ -64,7 +64,7 @@ final class DaymarkAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
                     alert.messageText = "Your latest changes could not be saved"
                     alert.informativeText = error.localizedDescription
                     alert.alertStyle = .warning
-                    alert.addButton(withTitle: "Keep Daymark Open")
+                    alert.addButton(withTitle: "Keep GreenDay Open")
                     alert.addButton(withTitle: "Quit Anyway")
                     alert.beginSheetModal(for: self.window) { response in
                         sender.reply(toApplicationShouldTerminate: response == .alertSecondButtonReturn)
@@ -81,11 +81,11 @@ final class DaymarkAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         menu.addItem(appItem)
         let appMenu = NSMenu()
         appItem.submenu = appMenu
-        appMenu.addItem(withTitle: "About Daymark", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: "About GreenDay", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Hide Daymark", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: "Hide GreenDay", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Quit Daymark", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: "Quit GreenDay", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
         let fileItem = NSMenuItem()
         menu.addItem(fileItem)
@@ -125,8 +125,8 @@ final class DaymarkAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
 
     private func chooseFolder(_ requestID: Any?) {
         let panel = NSOpenPanel()
-        panel.title = "Choose Daymark’s sync folder"
-        panel.message = "Choose or create a Daymark folder in iCloud Drive. Use the same folder on iPhone. Existing tasks are copied into it."
+        panel.title = "Choose GreenDay’s sync folder"
+        panel.message = "Choose your existing workspace folder in iCloud Drive, including a folder named Daymark. Use the same folder on iPhone. Existing tasks are copied into it."
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
@@ -167,8 +167,8 @@ final class DaymarkAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
 
     private func export(_ state: [String: Any]?, requestID: Any?) {
         let panel = NSSavePanel()
-        panel.title = "Export Daymark tasks"
-        panel.nameFieldStringValue = "Daymark-export.json"
+        panel.title = "Export GreenDay tasks"
+        panel.nameFieldStringValue = "GreenDay-export.json"
         panel.allowedContentTypes = [.json]
         panel.beginSheetModal(for: window) { [weak self] response in
             guard let self else { return }

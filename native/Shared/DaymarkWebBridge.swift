@@ -58,8 +58,13 @@ final class DaymarkWebBridge: NSObject, WKScriptMessageHandler, WKNavigationDele
     private var flushCompletion: ((Result<Void, Error>) -> Void)?
     private var flushTimeout: DispatchWorkItem?
     private var flushRequestID: String?
+    private let calendars = DaymarkCalendar()
 
-    init(store: DaymarkStore) { self.store = store }
+    init(store: DaymarkStore) {
+        self.store = store
+        super.init()
+        calendars.onChange = { [weak self] in self?.send(["type": "calendarChanged"]) }
+    }
     deinit { timer?.invalidate() }
 
     func makeWebView(root: URL) -> WKWebView {
@@ -99,6 +104,13 @@ final class DaymarkWebBridge: NSObject, WKScriptMessageHandler, WKNavigationDele
             case "chooseFolder": chooseFolder?(requestID)
             case "attach": attach?(requestID)
             case "export": export?(body["state"] as? [String: Any], requestID)
+            case "calendarStatus", "calendarConnect", "calendarEvents", "calendarSave", "calendarDelete":
+                calendars.handle(action, body: body) { [weak self] result in
+                    switch result {
+                    case .success(let value): self?.send(value, requestID: requestID)
+                    case .failure(let error): self?.sendError(error.localizedDescription, requestID: requestID)
+                    }
+                }
             case "openAttachment":
                 let attachment = body["attachment"] as? [String: Any]
                 let raw = attachment?["url"] as? String ?? body["url"] as? String ?? body["attachment"] as? String
@@ -165,7 +177,7 @@ final class DaymarkWebBridge: NSObject, WKScriptMessageHandler, WKNavigationDele
         let requestID = "native-flush-" + UUID().uuidString
         flushRequestID = requestID
         let timeout = DispatchWorkItem { [weak self] in
-            let error = NSError(domain: "DaymarkStorage", code: 2, userInfo: [NSLocalizedDescriptionKey: "The editor did not confirm that your latest changes were saved. Please keep Daymark open and try again."])
+            let error = NSError(domain: "DaymarkStorage", code: 2, userInfo: [NSLocalizedDescriptionKey: "The editor did not confirm that your latest changes were saved. Please keep GreenDay open and try again."])
             self?.finishFlush(.failure(error))
         }
         flushTimeout = timeout

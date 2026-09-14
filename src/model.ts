@@ -1,3 +1,5 @@
+import type { CalendarEventLink } from "./calendar-model";
+
 export type NoteNode = {
   type: string;
   attrs?: Record<string, any>;
@@ -27,6 +29,8 @@ export type Task = {
   updatedAt: string;
   attachments: Attachment[];
   tagIds?: string[];
+  priority?: 0 | 1 | 2 | 3;
+  calendarLinks?: CalendarEventLink[];
   example?: boolean;
 };
 export type NamedRecord = {

@@ -193,6 +193,38 @@ function select(transaction: Transaction, position: number) {
   );
 }
 
+/** A pointer move can paint the native caret before selectionchange reaches
+ * ProseMirror. Entering Insert must use that caret, not restore an older line. */
+function insertionCaret(view: EditorView): number {
+  const selection = view.state.selection;
+  if (
+    !(selection instanceof TextSelection) ||
+    !selection.empty ||
+    !view.hasFocus()
+  )
+    return selection.head;
+  const native = view.dom.ownerDocument.getSelection();
+  const node = native?.focusNode;
+  if (!native?.isCollapsed || !node || !view.dom.contains(node))
+    return selection.head;
+  const element = node instanceof Element ? node : node.parentElement;
+  if (
+    element?.closest(
+      "input, textarea, select, .math-note, .note-image, [contenteditable='false']",
+    )
+  )
+    return selection.head;
+  try {
+    const position = view.posAtDOM(node, native.focusOffset);
+    return view.state.doc.resolve(position).parent.isTextblock
+      ? position
+      : selection.head;
+  } catch {
+    // A replaced NodeView may no longer map to the current document.
+    return selection.head;
+  }
+}
+
 function setMode(view: EditorView, mode: VimMode) {
   const old = vimPluginKey.getState(view.state)!;
   if (
@@ -887,15 +919,25 @@ function handleKey(view: EditorView, event: KeyboardEvent): boolean {
     case "a":
     case "I":
     case "A": {
-      let insertion = position;
-      if (key === "a") insertion = nextCharacter(line, position);
+      const caret = insertionCaret(view);
+      const insertionLine = currentLine(all, caret) ?? line;
+      let insertion = caret;
+      if (key === "a") insertion = nextCharacter(insertionLine, caret);
       if (key === "I")
-        insertion = line.from + Math.max(0, line.text.search(/\S/u));
-      if (key === "A") insertion = line.to;
+        insertion =
+          insertionLine.from + Math.max(0, insertionLine.text.search(/\S/u));
+      if (key === "A") insertion = insertionLine.to;
+      const transaction = closeHistory(view.state.tr);
+      // Keeping an unchanged selection also retains its stored formatting marks.
+      if (
+        !view.state.selection.empty ||
+        insertion !== view.state.selection.head
+      )
+        select(transaction, insertion);
       update(
         view,
         reset({ mode: "insert", anchor: null, head: null }),
-        select(closeHistory(view.state.tr), insertion),
+        transaction,
       );
       return true;
     }

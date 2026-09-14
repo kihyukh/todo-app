@@ -20,7 +20,7 @@ import { noTextSuggestions } from "./editor-preferences";
 import "./task-tags.css";
 
 export const TAG_COLORS = [
-  "#315fd5",
+  "#24704f",
   "#8a4caa",
   "#26826b",
   "#ad721f",

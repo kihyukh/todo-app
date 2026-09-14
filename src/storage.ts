@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createInitialState, mergeState, uid } from "./model";
 import type { AppState, Attachment, StorageInfo } from "./model";
+import { APP_NAME } from "./brand";
 
 export const AUTOSAVE_DELAY_MS = 800;
 
@@ -119,6 +120,14 @@ export function useWorkspace() {
       };
     }
     window.daymarkNativeReceive = (event: any) => {
+      window.dispatchEvent(
+        new CustomEvent("daymark-native-message", { detail: event }),
+      );
+      if (
+        String(event.requestId ?? "").startsWith("calendar:") ||
+        String(event.type ?? "").startsWith("calendar")
+      )
+        return;
       if (!mounted) return;
       if (event.storage)
         setStorage((old) =>
@@ -171,7 +180,7 @@ export function useWorkspace() {
         .catch(() => {
           if (mounted)
             setError(
-              "Your workspace could not be opened. Please restart Daymark.",
+              `Your workspace could not be opened. Please restart ${APP_NAME}.`,
             );
         });
     return () => {

@@ -455,6 +455,20 @@ describe("imported file attachments", () => {
     const native = vi.spyOn(storage, "isNative").mockReturnValue(true);
     const send = vi.mocked(storage.nativeSend);
     send.mockClear();
+    send.mockImplementation((message) => {
+      if (message.action === "calendarStatus") {
+        window.dispatchEvent(
+          new CustomEvent("daymark-native-message", {
+            detail: {
+              type: "calendarStatus",
+              requestId: message.requestId,
+              status: "notDetermined",
+              calendars: [],
+            },
+          }),
+        );
+      }
+    });
     const attachment = {
       id: "handout",
       name: "강의 자료.hwp",
@@ -481,14 +495,20 @@ describe("imported file attachments", () => {
         "Open this file in its default app.",
       );
       await click(buttonText("Open file", preview));
-      expect(send).toHaveBeenCalledExactlyOnceWith({
-        action: "openAttachment",
-        attachment,
-      });
+      expect(
+        send.mock.calls
+          .map(([message]) => message)
+          .filter((message) => message.action !== "calendarStatus"),
+      ).toEqual([
+        {
+          action: "openAttachment",
+          attachment,
+        },
+      ]);
       expect(latest.tasks[0].attachments).toEqual([attachment]);
     } finally {
       native.mockRestore();
-      send.mockClear();
+      send.mockReset();
     }
   });
 });

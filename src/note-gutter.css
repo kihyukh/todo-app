@@ -1,9 +1,9 @@
 .note-gutter {
-  --note-gutter-width: 32px;
+  --note-gutter-width: 24px;
   --note-gutter-button-size: 24px;
   position: absolute;
   top: 0;
-  left: 0;
+  left: -28px;
   bottom: 0;
   width: var(--note-gutter-width);
   pointer-events: none;
@@ -24,7 +24,7 @@
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: #627087;
+  color: var(--secondary, #536159);
   pointer-events: auto;
   cursor: pointer;
   transition:
@@ -40,6 +40,9 @@
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.2px;
+}
+.note-gutter.has-open-menu .note-gutter-heading {
+  visibility: hidden;
 }
 .note-gutter-paragraph {
   transform: translateY(-50%);
@@ -57,19 +60,18 @@
 .note-gutter-button:hover,
 .note-gutter-button:focus-visible {
   opacity: 1;
-  color: #315fd5;
-  background: #e8eefc;
+  color: var(--accent, #23764d);
+  background: var(--selected, #e5f1e9);
 }
 .note-gutter-button:focus-visible {
-  outline: 2px solid #315fd5;
+  outline: 2px solid var(--accent, #23764d);
   outline-offset: 1px;
 }
 .note-gutter.is-touch {
-  --note-gutter-width: 44px;
-  --note-gutter-button-size: 44px;
+  left: -24px;
 }
 .note-gutter.is-touch .note-gutter-heading {
-  color: #526071;
+  color: var(--secondary, #536159);
 }
 .note-gutter.is-touch .note-gutter-paragraph {
   opacity: 0.6;

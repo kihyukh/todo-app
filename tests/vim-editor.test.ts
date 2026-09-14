@@ -7,6 +7,7 @@ import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
 import { VimEditor, vimPluginKey } from "../src/vim-editor";
 import { NaturalBlockMath, NaturalInlineMath } from "../src/math-editor";
+import { NoteImage } from "../src/image-editor";
 
 const editors: Editor[] = [];
 beforeAll(() => {
@@ -34,6 +35,7 @@ function createEditor(content: string[] | JSONContent[], enabled = true) {
       TaskItem.configure({ nested: true }),
       NaturalBlockMath,
       NaturalInlineMath,
+      NoteImage.configure({ allowBase64: true }),
       VimEditor.configure({ enabled, onModeChange }),
     ],
     content: {
@@ -121,6 +123,171 @@ function paragraphs(editor: Editor) {
 }
 
 describe("optional Vim note editor", () => {
+  it.each([
+    {
+      name: "wrapped paragraph",
+      blocks: [
+        paragraph("Earlier line"),
+        paragraph(
+          "A long paragraph that wraps across several visual rows without a hard break.",
+        ),
+      ],
+      selector: "p:last-child",
+      offset: 38,
+    },
+    {
+      name: "empty paragraph",
+      blocks: [paragraph("Earlier line"), paragraph("")],
+      selector: "p:last-child",
+      offset: 0,
+    },
+    {
+      name: "heading",
+      blocks: [
+        paragraph("Earlier line"),
+        {
+          type: "heading",
+          attrs: { level: 2 },
+          content: [{ type: "text", text: "Heading with details" }],
+        },
+        paragraph("After"),
+      ],
+      selector: "h2",
+      offset: 9,
+    },
+    {
+      name: "bullet item",
+      blocks: [
+        paragraph("Earlier line"),
+        {
+          type: "bulletList",
+          content: [
+            { type: "listItem", content: [paragraph("First item")] },
+            { type: "listItem", content: [paragraph("Second item")] },
+          ],
+        },
+      ],
+      selector: "li:last-child p",
+      offset: 4,
+    },
+    {
+      name: "checkbox item",
+      blocks: [
+        paragraph("Earlier line"),
+        {
+          type: "taskList",
+          content: [
+            {
+              type: "taskItem",
+              attrs: { checked: false },
+              content: [paragraph("Next step")],
+            },
+          ],
+        },
+      ],
+      selector: "li p",
+      offset: 4,
+    },
+    {
+      name: "paragraph after display math",
+      blocks: [
+        paragraph("Earlier line"),
+        { type: "blockMath", attrs: { latex: "x^2" } },
+        paragraph("After math"),
+      ],
+      selector: "p:last-child",
+      offset: 4,
+    },
+    {
+      name: "paragraph after an image",
+      blocks: [
+        paragraph("Earlier line"),
+        {
+          type: "image",
+          attrs: { src: "data:image/png;base64,YQ==", alt: "Preserve image" },
+        },
+        paragraph("After image"),
+      ],
+      selector: "p:last-child",
+      offset: 4,
+    },
+  ])(
+    "enters Insert at the native caret in a $name before selectionchange reaches the editor",
+    ({ blocks, selector, offset }) => {
+      const { editor } = createEditor(blocks);
+      const before = editor.getJSON();
+      const target = editor.view.dom.querySelector<HTMLElement>(selector)!;
+      const node =
+        target.firstChild instanceof Text ? target.firstChild : target;
+      const expected = editor.view.posAtDOM(node, offset);
+      // WebKit can deliver the next key before its queued selectionchange event.
+      // The visible caret is already here, while ProseMirror still has the old line.
+      document.getSelection()!.collapse(node, offset);
+      expect(editor.state.selection.head).not.toBe(expected);
+      expect(key(editor, "i")).toBe(true);
+      expect(mode(editor)).toBe("insert");
+      expect(editor.state.selection.head).toBe(expected);
+      expect(editor.getJSON()).toEqual(before);
+      type(editor, "!");
+      expect(editor.state.selection.head).toBe(expected + 1);
+      expect(editor.state.selection.$from.parent.textContent).toContain("!");
+      expect(editor.state.doc.firstChild?.textContent).toBe("Earlier line");
+    },
+  );
+
+  it.each([
+    ["i", 5],
+    ["a", 6],
+    ["I", 2],
+    ["A", 13],
+  ] as const)(
+    "resolves %s against the current native line rather than the previous editor selection",
+    (command, offset) => {
+      const { editor } = createEditor(["Earlier line", "  second line"]);
+      const target = editor.view.dom.querySelector("p:last-child")!.firstChild!;
+      const start = editor.view.posAtDOM(target, 0);
+      document.getSelection()!.collapse(target, 5);
+      key(editor, command);
+      expect(mode(editor)).toBe("insert");
+      expect(editor.state.selection.head).toBe(start + offset);
+    },
+  );
+
+  it.each(["before", "after"])(
+    "keeps Insert on the %s side of inline math while a native caret change is pending",
+    (side) => {
+      const { editor } = createEditor([
+        paragraph("Earlier line"),
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "Before " },
+            { type: "inlineMath", attrs: { latex: "x^2" } },
+            { type: "text", text: " after" },
+          ],
+        },
+      ]);
+      const math =
+        editor.view.dom.querySelector<HTMLElement>(".math-note-inline")!;
+      const parent = math.parentElement!;
+      const index =
+        [...parent.childNodes].indexOf(math) + (side === "after" ? 1 : 0);
+      const position = editor.view.posAtDOM(parent, index);
+      document.getSelection()!.collapse(parent, index);
+      key(editor, "i");
+      expect(editor.state.selection.head).toBe(position);
+      type(editor, "!");
+      const content = editor.getJSON().content?.[1].content!;
+      expect(
+        content.find((node) => node.type === "inlineMath")?.attrs?.latex,
+      ).toBe("x^2");
+      expect(content[side === "before" ? 0 : 2].text).toBe(
+        side === "before" ? "Before !" : "! after",
+      );
+      expect(editor.state.doc.firstChild?.textContent).toBe("Earlier line");
+    },
+  );
+
   it("defaults off and toggles modes without changing note content", async () => {
     const { editor, onModeChange } = createEditor(["hello"], false);
     await Promise.resolve();

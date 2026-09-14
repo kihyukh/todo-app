@@ -4,11 +4,11 @@ This records the implementation assessment, not answers already submitted to App
 
 ## App Privacy
 
-Proposed answer: **No, we do not collect data from this app.** The app has no developer-operated service or analytics endpoint. Tasks, notes, images, and selected files remain in the user’s local workspace or chosen file-provider folder. The developer cannot access a user’s private iCloud Drive through this app. User-entered external links and remote images are addressed explicitly in the policy draft.
+Proposed answer: **No, we do not collect data from this app.** The app has no developer-operated service or analytics endpoint. Tasks, notes, images, and selected files remain in the user’s local workspace or chosen file-provider folder. The developer cannot access a user’s private iCloud Drive through this app. Calendar access uses EventKit with explicit permission; calendar credentials stay with the system. Event reads remain in memory, while linked event titles, dates, and identifiers are saved in the user’s task workspace. Event edits are sent to the calendar provider through Apple Calendar. User-entered external links and remote images are addressed explicitly in the policy draft.
 
 This conclusion is based on the current code. Apple distinguishes on-device processing from collection and says developers are not responsible for disclosing data collected by Apple itself. Any data the publisher actually receives from an Apple service must be assessed separately. A privacy policy URL is required even when no data is collected. [Apple privacy guidance](https://developer.apple.com/app-store/app-privacy-details/), [App Store Connect privacy fields](https://developer.apple.com/help/app-store-connect/manage-app-information/manage-app-privacy)
 
-Do not promise “no network requests”: user-chosen iCloud/file-provider syncing, remote note images, external links, and TestFlight services can use the network. Optional support correspondence can contain the contact details and information the user chooses to send. Do not request an entire private workspace to investigate a bug.
+Do not promise “no network requests”: user-chosen iCloud/file-provider and calendar-account syncing, remote note images, external links, and TestFlight services can use the network. Optional support correspondence can contain the contact details and information the user chooses to send. Do not request an entire private workspace to investigate a bug.
 
 ## Privacy manifest
 

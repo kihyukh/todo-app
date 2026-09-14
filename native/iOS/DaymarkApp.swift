@@ -31,7 +31,7 @@ final class DaymarkViewController: UIViewController, UIDocumentPickerDelegate, Q
     private var flushQueue: [(Result<Void, Error>) -> Void] = []
     private var pendingSaveError: String?
     private var displayName: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Daymark"
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "GreenDay"
     }
 
     deinit { NotificationCenter.default.removeObserver(self) }

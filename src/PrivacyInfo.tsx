@@ -19,6 +19,16 @@ export function PrivacyInfo() {
         workspace and cannot access your private iCloud Drive through the app.
       </p>
 
+      <h4>Calendars</h4>
+      <p>
+        Calendar access is optional. With your permission, {APP_NAME} reads
+        calendars connected to Apple Calendar, including iCloud and Google
+        accounts. Events you create or edit are saved through Apple Calendar
+        and synced by the calendar provider. Linked event names, dates, and
+        identifiers are stored with your tasks so those links can follow your
+        workspace across devices. Calendar credentials stay with the system.
+      </p>
+
       <h4>Links and images</h4>
       <p>
         Links open in your system browser or the relevant app. A remotely hosted

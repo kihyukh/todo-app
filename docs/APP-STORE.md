@@ -1,6 +1,6 @@
 # App Store and TestFlight delivery
 
-Prepared against Apple’s documentation on 14 September 2026. **Daymark is the working name; the public name and publisher are not yet selected.** Nothing in this folder creates an App Store record, accepts an agreement, uploads a build, or publishes a website.
+Prepared against Apple’s documentation on 14 September 2026. **The chosen app name is GreenDay; the publisher and signing team are still needed.** Nothing in this folder creates an App Store record, accepts an agreement, uploads a build, or publishes a website.
 
 See [iPhone build validation](IOS-VALIDATION.md) for executed checks and the remaining simulator, hardware, and account checks.
 
@@ -8,7 +8,7 @@ See [iPhone build validation](IOS-VALIDATION.md) for executed checks and the rem
 
 | Input | Where it is used |
 | --- | --- |
-| Final app name and Apple Developer team | Signing, the App Store record, screenshots, policy pages |
+| Apple Developer team and GreenDay name availability | Signing, the App Store record, screenshots, policy pages |
 | Publisher/copyright owner | Store listing and privacy policy |
 | Public support email and hosting location | Support page and publicly accessible privacy policy URL |
 | Private review contact: name, email, international-format phone | App Review and TestFlight contact fields; do not commit these details |
