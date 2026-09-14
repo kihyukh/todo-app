@@ -6,6 +6,7 @@ import TaskItem from "@tiptap/extension-task-item";
 import { BlockMath, InlineMath } from "@tiptap/extension-mathematics";
 import Image from "@tiptap/extension-image";
 import { TableKit } from "@tiptap/extension-table";
+import { schedulePatch } from "../model";
 import type {
   AppState,
   Attachment,
@@ -179,7 +180,7 @@ export function convertTickTick(
   plan: TickTickMigrationPlan,
 ): { state: AppState; attachments: { id: string; path: string }[] } {
   if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(plan.today) ||
+    schedulePatch([plan.today]).doDate !== plan.today ||
     !Number.isFinite(Date.parse(plan.importedAt))
   )
     throw new Error("A valid migration date is required");
@@ -310,17 +311,17 @@ export function convertTickTick(
       source.endDate && source.startDate
         ? sourceDay(source.startDate, zone)
         : null;
+    const doDate =
+      isOpen && (mapping.today || source.tagsRaw?.split(",").includes("today"))
+        ? plan.today
+        : rangeStart;
     const task = {
       id: `ticktick-${source.id}`,
       title: source.title,
       notes,
       projectId: mapping.projectId,
       columnId: mapping.columnId,
-      doDate:
-        isOpen &&
-        (mapping.today || source.tagsRaw?.split(",").includes("today"))
-          ? plan.today
-          : rangeStart,
+      ...schedulePatch(doDate ? [doDate] : []),
       deadline,
       completedAt:
         source.status === 2

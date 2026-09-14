@@ -1,11 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   activeTasks,
+  agendaEntries,
   createInitialState,
   emptyDoc,
+  hasMissedWork,
+  isScheduledOn,
   isToday,
   mergeState,
+  nextWorkDate,
+  schedulePatch,
   scheduleToday,
+  toggleWorkDate,
+  workDates,
 } from "../src/model";
 import type { AppState, NamedRecord, Task } from "../src/model";
 
@@ -58,7 +65,9 @@ describe("daily planning", () => {
 
     const scheduled = scheduleToday(original, today);
 
-    expect(scheduled.doDate).toBe(today);
+    expect(scheduled.doDates).toEqual(["2026-09-10", today]);
+    expect(scheduled.doDate).toBe("2026-09-10");
+    expect(isToday(scheduled, today)).toBe(true);
     expect(scheduled.deadline).toBe("2026-10-14");
     expect(scheduled.completedAt).toBeNull();
     expect(scheduled.updatedAt).toBe(later);
@@ -99,7 +108,238 @@ describe("daily planning", () => {
   });
 });
 
+describe("multiple work dates", () => {
+  it("reads legacy dates without migrating or mutating task records", () => {
+    const legacy = task("legacy", { doDate: today });
+    expect(workDates(legacy)).toEqual([today]);
+    expect(isScheduledOn(legacy, today)).toBe(true);
+    expect(workDates(task("unscheduled"))).toEqual([]);
+    expect(legacy).not.toHaveProperty("doDates");
+    expect(legacy.updatedAt).toBe(stamp);
+  });
+
+  it("treats an explicit empty array as authoritative over a stale legacy date", () => {
+    const cleared = task("cleared", { doDate: today, doDates: [] });
+    expect(workDates(cleared)).toEqual([]);
+    expect(isToday(cleared, today)).toBe(false);
+    expect(nextWorkDate(cleared, today)).toBeNull();
+    expect(schedulePatch([])).toEqual({ doDates: [], doDate: null });
+  });
+
+  it("canonicalizes date order and duplicates without changing the source array", () => {
+    const dates = ["2026-09-21", today, "2026-09-17", today];
+    const original = [...dates];
+    const expected = [today, "2026-09-17", "2026-09-21"];
+    const multi = task("multi", { doDate: "2026-08-01", doDates: dates });
+    expect(workDates(multi)).toEqual(expected);
+    expect(schedulePatch(dates)).toEqual({ doDates: expected, doDate: today });
+    expect(dates).toEqual(original);
+    expect(workDates(multi)).not.toBe(dates);
+  });
+
+  it("accepts real local calendar dates and rejects rollover dates and timestamps", () => {
+    const dates = [
+      "2024-02-29",
+      "2000-02-29",
+      "2026-02-28",
+      "2026-03-08",
+      "2026-02-29",
+      "1900-02-29",
+      "2026-04-31",
+      "2026-09-00",
+      "2026-13-01",
+      "0000-01-01",
+      "2026-9-14",
+      "2026-09-14T00:00:00Z",
+      " 2026-09-14",
+      "2026-09-14\n",
+      "2026-09-14\r",
+      "not a date",
+    ];
+    expect(schedulePatch(dates).doDates).toEqual([
+      "2000-02-29",
+      "2024-02-29",
+      "2026-02-28",
+      "2026-03-08",
+    ]);
+    expect(workDates(task("invalid-legacy", { doDate: "2026-02-29" }))).toEqual(
+      [],
+    );
+  });
+
+  it("uses membership for Today and the next present or future work date", () => {
+    const multi = task("multi", {
+      doDate: "2026-09-10",
+      doDates: ["2026-09-10", today, "2026-09-17", "2026-09-21"],
+    });
+    expect(isToday(multi, today)).toBe(true);
+    expect(nextWorkDate(multi, today)).toBe(today);
+    expect(nextWorkDate(multi, "2026-09-15")).toBe("2026-09-17");
+    expect(nextWorkDate(multi, "2026-09-22")).toBeNull();
+    expect(isToday({ ...multi, completedAt: stamp }, today)).toBe(false);
+    expect(isToday({ ...multi, deletedAt: stamp }, today)).toBe(false);
+  });
+
+  it("adds and removes only the requested day, preserving the deadline and other days", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(later));
+    const original = task("paper", {
+      doDate: "2026-09-17",
+      doDates: ["2026-09-17", "2026-09-21"],
+      deadline: "2026-10-14",
+    });
+    const added = toggleWorkDate(original, today);
+    expect(added.doDates).toEqual([today, "2026-09-17", "2026-09-21"]);
+    expect(added.doDate).toBe(today);
+    expect(added.updatedAt).toBe(later);
+    const removed = toggleWorkDate(added, today);
+    expect(removed.doDates).toEqual(original.doDates);
+    expect(removed.doDate).toBe("2026-09-17");
+    expect(removed.deadline).toBe("2026-10-14");
+    expect(original.updatedAt).toBe(stamp);
+    expect(original.doDates).toEqual(["2026-09-17", "2026-09-21"]);
+    expect(toggleWorkDate(original, "2026-02-29")).toBe(original);
+  });
+
+  it("removes the last legacy date without allowing it to reappear on read", () => {
+    const removed = toggleWorkDate(task("legacy", { doDate: today }), today);
+    expect(removed.doDates).toEqual([]);
+    expect(removed.doDate).toBeNull();
+    expect(workDates(removed)).toEqual([]);
+  });
+
+  it("adding Today repeatedly retains earlier and later dates without duplicates", () => {
+    const original = task("paper", {
+      doDate: "2026-09-10",
+      doDates: ["2026-09-10", "2026-09-17"],
+      deadline: "2026-10-14",
+    });
+    const planned = scheduleToday(scheduleToday(original, today), today);
+    expect(planned.doDates).toEqual(["2026-09-10", today, "2026-09-17"]);
+    expect(planned.doDate).toBe("2026-09-10");
+    expect(planned.deadline).toBe(original.deadline);
+    expect(scheduleToday(original, "invalid")).toBe(original);
+  });
+
+  it("only flags active tasks whose entire work schedule has passed", () => {
+    const missed = task("missed", { doDates: ["2026-09-10", "2026-09-13"] });
+    expect(hasMissedWork(missed, today)).toBe(true);
+    expect(hasMissedWork(task("legacy", { doDate: "2026-09-13" }), today)).toBe(
+      true,
+    );
+    expect(
+      hasMissedWork(
+        task("ongoing", { doDates: ["2026-09-10", "2026-09-17"] }),
+        today,
+      ),
+    ).toBe(false);
+    expect(
+      hasMissedWork(task("today", { doDates: ["2026-09-10", today] }), today),
+    ).toBe(false);
+    expect(
+      hasMissedWork(task("deadline-only", { deadline: "2026-09-10" }), today),
+    ).toBe(false);
+    expect(hasMissedWork({ ...missed, completedAt: stamp }, today)).toBe(false);
+    expect(hasMissedWork({ ...missed, deletedAt: stamp }, today)).toBe(false);
+  });
+});
+
+describe("agenda occurrences", () => {
+  it("repeats a task for nonconsecutive work days and combines a coincident deadline", () => {
+    const paper = task("paper", {
+      doDate: "2026-09-10",
+      doDates: ["2026-09-21", "2026-09-10", today, "2026-09-17", today],
+      deadline: "2026-09-21",
+    });
+    const entries = agendaEntries([paper], today);
+    expect(
+      entries.map(({ date, work, deadline }) => ({ date, work, deadline })),
+    ).toEqual([
+      { date: today, work: true, deadline: false },
+      { date: "2026-09-17", work: true, deadline: false },
+      { date: "2026-09-21", work: true, deadline: true },
+    ]);
+    expect(entries.every((entry) => entry.task === paper)).toBe(true);
+  });
+
+  it("shows independent deadlines and sorts dates before stable task order", () => {
+    const tasks = [
+      task("z", { doDates: ["2026-09-17"], deadline: "2026-09-15" }),
+      task("b", { doDate: "2026-09-17" }),
+      task("a", { deadline: "2026-09-17" }),
+      task("older", {
+        doDates: ["2026-09-17"],
+        createdAt: "2026-09-13T02:00:00.000Z",
+      }),
+      task("past", { doDate: "2026-09-12", deadline: "2026-09-13" }),
+      task("invalid", { deadline: "2026-09-31" }),
+      task("empty", { doDate: today, doDates: [] }),
+    ];
+    expect(
+      agendaEntries(tasks, today).map(({ task, date, work, deadline }) => [
+        task.id,
+        date,
+        work,
+        deadline,
+      ]),
+    ).toEqual([
+      ["z", "2026-09-15", false, true],
+      ["older", "2026-09-17", true, false],
+      ["a", "2026-09-17", false, true],
+      ["b", "2026-09-17", true, false],
+      ["z", "2026-09-17", true, false],
+    ]);
+  });
+});
+
 describe("workspace synchronization", () => {
+  it("round-trips complete work-date arrays with last-write-wins additions and removals", () => {
+    const stale = workspace({
+      tasks: [
+        task("paper", {
+          ...schedulePatch([today, "2026-09-17", "2026-09-21"]),
+          deadline: "2026-10-14",
+        }),
+      ],
+    });
+    const changed = workspace({
+      tasks: [
+        task("paper", {
+          ...schedulePatch(["2026-09-17", "2026-09-24"]),
+          deadline: "2026-10-14",
+          updatedAt: later,
+        }),
+      ],
+    });
+    const imported = JSON.parse(JSON.stringify(changed)) as AppState;
+    for (const merged of [
+      mergeState(stale, imported),
+      mergeState(imported, stale),
+    ]) {
+      expect(merged.tasks[0].doDates).toEqual(["2026-09-17", "2026-09-24"]);
+      expect(merged.tasks[0].doDate).toBe("2026-09-17");
+      expect(merged.tasks[0].deadline).toBe("2026-10-14");
+      expect(workDates(merged.tasks[0])).not.toContain(today);
+    }
+  });
+
+  it("retains an explicitly cleared schedule against older legacy data", () => {
+    const stale = workspace({ tasks: [task("paper", { doDate: today })] });
+    const cleared = workspace({
+      tasks: [
+        task("paper", {
+          ...schedulePatch([]),
+          updatedAt: later,
+        }),
+      ],
+    });
+    const result = mergeState(cleared, stale);
+    expect(result).toEqual(mergeState(stale, cleared));
+    expect(workDates(result.tasks[0])).toEqual([]);
+    expect(result.tasks[0].doDate).toBeNull();
+    expect(result.tasks[0].doDates).toEqual([]);
+  });
+
   it("merges newer changes without losing other tasks, projects, or board columns", () => {
     const local = workspace({
       tasks: [task("paper"), task("local-only")],

@@ -43,6 +43,8 @@ with tempfile.TemporaryDirectory(prefix="daymark-migration-checks-") as temporar
     staged = {"schemaVersion": 1, "projects": [], "columns": [],
               "tags": [{"id": "tag-reading", "name": "Reading", "color": "#315fd5", "group": "action", "updatedAt": stamp}],
               "tasks": [task("import-stable-id", tagIds=["tag-reading"],
+                             doDates=["2026-09-14", "2026-09-17", "2026-09-25"],
+                             doDate="2026-09-14", deadline="2026-09-30",
                              attachments=[{"id": "stable-attachment-id", "name": "Synthetic paper.pdf", "mime": "application/pdf", "size": 0, "url": placeholder}],
                              notes={"type": "doc", "content": [{"type": "image", "attrs": {"src": placeholder}}]})]}
     write(staged_file, staged)
@@ -60,6 +62,8 @@ with tempfile.TemporaryDirectory(prefix="daymark-migration-checks-") as temporar
     imported = saved["tasks"][0]
     attachment = imported["attachments"][0]
     check(imported["id"] == "import-stable-id", "Migration must preserve supplied deterministic record IDs")
+    check(imported["doDates"] == ["2026-09-14", "2026-09-17", "2026-09-25"], "Independent noncontiguous work dates must survive import and export without filling gaps")
+    check(imported["doDate"] == "2026-09-14" and imported["deadline"] == "2026-09-30", "Migration must preserve the legacy date alias and independent deadline")
     check(attachment["id"] == "stable-attachment-id" and attachment["name"] == "Synthetic paper.pdf", "Attachment IDs and display names must remain stable")
     check(attachment["size"] == source.stat().st_size and attachment["mime"] == "application/pdf", "Attachment metadata must describe stored bytes")
     check(imported["notes"]["content"][0]["attrs"]["src"] == attachment["url"], "Notes and metadata must share the resolved local URL")
@@ -76,13 +80,15 @@ with tempfile.TemporaryDirectory(prefix="daymark-migration-checks-") as temporar
     imported["updatedAt"] = "2026-09-15T01:00:00.000Z"
     write(folder / "tasks" / "import-stable-id.json", imported)
     staged["tasks"][0]["updatedAt"] = "2030-01-01T00:00:00.000Z"
-    staged["tasks"].append(task("second-stable-id"))
+    staged["tasks"].append(task("second-stable-id", doDate="2024-02-29"))
     write(staged_file, staged)
     before = invoke(*common)
     check(before["records"]["tasks"]["skippedExistingIds"] == ["import-stable-id"], "Existing differing task IDs must be explicitly reported")
     third = invoke(*common, "--apply", "--backup", backup_parent)
     after = invoke("--folder", folder, "--export")
     check(len(after["tasks"]) == 2, "New migration records must coexist with existing tasks")
+    legacy = next(t for t in after["tasks"] if t["id"] == "second-stable-id")
+    check("doDates" not in legacy and legacy["doDate"] == "2024-02-29", "Old backups without an array must retain valid legacy leap-day schedules")
     check(next(t for t in after["tasks"] if t["id"] == imported["id"]) == imported, "Even a newer staged record must not overwrite user edits")
     check(third["attachmentsAdded"] == 0, "Skipped existing records must not import unused attachments")
     unsafe = invoke(*common, "--apply", "--backup", folder / "bad-backup", ok=False)
@@ -95,7 +101,43 @@ with tempfile.TemporaryDirectory(prefix="daymark-migration-checks-") as temporar
     write(staged_file, {**staged, "tasks": [task("missing-source", attachments=staged["tasks"][0]["attachments"])]})
     invoke("--folder", folder, "--state", staged_file, ok=False)
     check(invoke("--folder", folder, "--export") == after, "Unresolved attachments must be rejected before writes")
+
+    # Reject malformed schedules before backup or writes, even with --apply.
+    # Calendar validation must not normalize impossible dates into another month.
+    invalid_schedules = [
+        None, "2026-09-14", {"date": "2026-09-14"}, [None], [20260914],
+        ["2026-09-14", "2026-09-14"], ["2026-09-17", "2026-09-14"],
+        ["2026-02-29"], ["2024-02-30"], ["1900-02-29"], ["2026-04-31"],
+        ["2026-13-01"], ["2026-00-01"], ["2026-09-00"], ["0000-01-01"],
+        ["2026-9-14"], ["2026-09-14T00:00:00Z"], ["2026-09-14\n"],
+    ]
+    backups_before = set(backup_parent.iterdir())
+    for dates in invalid_schedules:
+        write(staged_file, {**staged, "tasks": [task("invalid-schedule", doDates=dates)]})
+        error = invoke(*common, "--apply", "--backup", backup_parent, ok=False)
+        check("doDates" in error["error"] and not error["workspaceMayHaveChanged"], "Invalid date arrays must be diagnosed before changes")
+    for field in ("doDate", "deadline"):
+        write(staged_file, {**staged, "tasks": [task("invalid-single-date", **{field: "2026-02-30"})]})
+        error = invoke(*common, "--apply", "--backup", backup_parent, ok=False)
+        check(field in error["error"] and not error["workspaceMayHaveChanged"], "Impossible legacy and deadline dates must also be rejected")
+    check(set(backup_parent.iterdir()) == backups_before, "Invalid date inputs must not create needless backup directories")
+    check(invoke("--folder", folder, "--export") == after, "Rejected schedules must leave all tasks and attachments unchanged")
+
+    valid_schedules = [
+        task("cleared-schedule", doDates=[], doDate=None),
+        task("leap-schedule", doDates=["2000-02-29", "2024-02-29", "2026-03-31"], doDate="2000-02-29"),
+        task("stale-legacy-alias", doDates=[], doDate="2026-09-14"),
+    ]
+    write(staged_file, {**staged, "tasks": valid_schedules})
+    date_import = invoke(*common, "--apply", "--backup", backup_parent)
+    with_dates = invoke("--folder", folder, "--export")
+    for original in valid_schedules:
+        check(next(t for t in with_dates["tasks"] if t["id"] == original["id"]) == original,
+              "Valid date arrays, including explicit empty arrays, must round-trip without rewriting supplied records")
+    date_backup = Path(date_import["backupPath"])
+    check(invoke("--folder", date_backup, "--export") == after,
+          "The pre-import backup must retain the exact prior workspace for recovery")
     fresh = base / "export-only"
     exported = invoke("--folder", fresh, "--export")
     check(not fresh.exists() and exported["tasks"] == [], "Exporting a missing workspace must not create it")
-print(f"Daymark migration: {checks} synthetic validation, backup, attachment, idempotence, and edit-preservation checks passed.")
+print(f"Daymark migration: {checks} synthetic date-validation, backup, attachment, idempotence, and edit-preservation checks passed.")

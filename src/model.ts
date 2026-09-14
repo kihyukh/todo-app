@@ -19,6 +19,7 @@ export type Task = {
   projectId: string;
   columnId: string;
   doDate: string | null;
+  doDates?: string[];
   deadline: string | null;
   completedAt: string | null;
   deletedAt: string | null;
@@ -85,11 +86,111 @@ export function dateLabel(value: string | null, relative = true): string {
 export function activeTasks(state: AppState) {
   return state.tasks.filter((t) => !t.deletedAt && !t.completedAt);
 }
+function isCalendarDate(value: unknown): value is string {
+  if (
+    typeof value !== "string" ||
+    value.length !== 10 ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(value)
+  )
+    return false;
+  const [year, month, day] = value.split("-").map(Number);
+  if (year < 1 || month < 1 || month > 12 || day < 1) return false;
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= days[month - 1];
+}
+function normalizedWorkDates(dates: readonly string[]): string[] {
+  return [...new Set(dates.filter(isCalendarDate))].sort();
+}
+/** An explicit empty schedule must not restore a stale legacy doDate. */
+export function workDates(task: Pick<Task, "doDate" | "doDates">): string[] {
+  return normalizedWorkDates(
+    task.doDates === undefined
+      ? task.doDate
+        ? [task.doDate]
+        : []
+      : Array.isArray(task.doDates)
+        ? task.doDates
+        : [],
+  );
+}
+/** Keep a single-date projection for older readers of exported task records. */
+export function schedulePatch(dates: readonly string[]): {
+  doDates: string[];
+  doDate: string | null;
+} {
+  const doDates = normalizedWorkDates(dates);
+  return { doDates, doDate: doDates[0] ?? null };
+}
+export function isScheduledOn(task: Task, date: string): boolean {
+  return workDates(task).includes(date);
+}
+export function nextWorkDate(task: Task, today = dateKey()): string | null {
+  return workDates(task).find((date) => date >= today) ?? null;
+}
 export function isToday(task: Task, today = dateKey()) {
-  return !task.deletedAt && !task.completedAt && task.doDate === today;
+  return !task.deletedAt && !task.completedAt && isScheduledOn(task, today);
+}
+export function toggleWorkDate(task: Task, date: string): Task {
+  if (!isCalendarDate(date)) return task;
+  const dates = workDates(task);
+  return {
+    ...task,
+    ...schedulePatch(
+      dates.includes(date)
+        ? dates.filter((value) => value !== date)
+        : [...dates, date],
+    ),
+    updatedAt: now(),
+  };
 }
 export function scheduleToday(task: Task, today = dateKey()): Task {
-  return { ...task, doDate: today, updatedAt: now() };
+  if (!isCalendarDate(today)) return task;
+  return {
+    ...task,
+    ...schedulePatch([...workDates(task), today]),
+    updatedAt: now(),
+  };
+}
+export function hasMissedWork(task: Task, today = dateKey()): boolean {
+  if (task.completedAt || task.deletedAt) return false;
+  const dates = workDates(task);
+  return dates.length > 0 && dates.every((date) => date < today);
+}
+export type AgendaEntry = {
+  date: string;
+  task: Task;
+  work: boolean;
+  deadline: boolean;
+};
+/** Expand the caller's task list into occurrences; work and deadlines stay separate. */
+export function agendaEntries(
+  tasks: Task[],
+  fromDate = dateKey(),
+): AgendaEntry[] {
+  const entries = new Map<string, AgendaEntry>();
+  for (const task of tasks) {
+    for (const date of workDates(task)) {
+      if (date >= fromDate)
+        entries.set(`${task.id}\0${date}`, {
+          date,
+          task,
+          work: true,
+          deadline: false,
+        });
+    }
+    if (isCalendarDate(task.deadline) && task.deadline >= fromDate) {
+      const key = `${task.id}\0${task.deadline}`;
+      const work = entries.get(key)?.work ?? false;
+      entries.set(key, { date: task.deadline, task, work, deadline: true });
+    }
+  }
+  return [...entries.values()].sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      a.task.createdAt.localeCompare(b.task.createdAt) ||
+      a.task.id.localeCompare(b.task.id),
+  );
 }
 export function mergeState(a: AppState, b: AppState): AppState {
   function canonical(value: any): string {

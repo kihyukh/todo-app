@@ -72,6 +72,16 @@ func validTimestamp(_ value: Any?) -> Bool {
     formatter.formatOptions = [.withInternetDateTime]
     return formatter.date(from: value) != nil
 }
+func validDay(_ value: Any?) -> Bool {
+    guard let value = value as? String, value.utf8.count == 10,
+          value.range(of: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", options: .regularExpression) != nil else { return false }
+    let parts = value.split(separator: "-").compactMap { Int($0) }
+    guard parts.count == 3, parts[0] >= 1, (1...12).contains(parts[1]) else { return false }
+    let year = parts[0]
+    let leapYear = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+    let days = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    return (1...days[parts[1] - 1]).contains(parts[2])
+}
 func validateState(_ object: Any) throws -> [String: Any] {
     guard let state = object as? [String: Any], state["schemaVersion"] as? Int == 1 else {
         try fail("Staged state must be a schemaVersion 1 workspace")
@@ -105,8 +115,15 @@ func validateState(_ object: Any) throws -> [String: Any] {
                 for field in ["doDate", "deadline"] {
                     guard let value = record[field] else { try fail("Task \(id) needs \(field)") }
                     if value is NSNull { continue }
-                    guard let date = value as? String, date.range(of: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", options: .regularExpression) != nil,
-                          validTimestamp(date + "T00:00:00Z") else { try fail("Task \(id) has invalid \(field)") }
+                    guard validDay(value) else { try fail("Task \(id) has invalid \(field)") }
+                }
+                // Old backups omit this field. When present, its independent
+                // dates are authoritative; doDate is only a legacy alias.
+                if let value = record["doDates"] {
+                    guard let dates = value as? [String], dates.allSatisfy({ validDay($0) }),
+                          dates == dates.sorted(), Set(dates).count == dates.count else {
+                        try fail("Task \(id) doDates must be an array of sorted, unique valid dates")
+                    }
                 }
                 if let completed = record["completedAt"], !(completed is NSNull), !validTimestamp(completed) {
                     try fail("Task \(id) has invalid completedAt")

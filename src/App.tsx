@@ -36,6 +36,7 @@ import {
   Hash,
 } from "lucide-react";
 import TaskEditor from "./TaskEditor";
+import WorkDatesField from "./WorkDatesField";
 import { PrivacyInfo } from "./PrivacyInfo";
 import { APP_NAME, APP_VERSION } from "./brand";
 import {
@@ -60,12 +61,18 @@ import {
 import { extractCheckboxes, toggleCheckbox, plainText } from "./editor-utils";
 import {
   activeTasks,
+  agendaEntries,
   addDays,
   dateKey,
   dateLabel,
   emptyDoc,
+  hasMissedWork,
+  isScheduledOn,
+  nextWorkDate,
   now,
+  schedulePatch,
   uid,
+  workDates,
 } from "./model";
 import type { Attachment, Task, TagRecord } from "./model";
 import { isNative, nativeSend, useWorkspace } from "./storage";
@@ -202,10 +209,10 @@ function App() {
     if (view === "completed") {
       if (!t.completedAt) return false;
     } else if (view !== "trash" && t.completedAt) return false;
-    if (view === "today" && t.doDate !== today) return false;
+    if (view === "today" && !isScheduledOn(t, today)) return false;
     if (
       view === "upcoming" &&
-      !((t.doDate && t.doDate > today) || (t.deadline && t.deadline >= today))
+      !(nextWorkDate(t, today) || (t.deadline && t.deadline >= today))
     )
       return false;
     if (view === "inbox" && t.projectId) return false;
@@ -222,18 +229,18 @@ function App() {
         .includes(query.toLowerCase())
     );
   });
+  const nextTaskDate = (task: Task) =>
+    [nextWorkDate(task, today), task.deadline]
+      .filter((value): value is string => !!value && value >= today)
+      .sort()[0] ?? "9999";
   const sorted = [...visible].sort((a, b) =>
     view === "upcoming"
-      ? (a.doDate && a.doDate >= today
-          ? a.doDate
-          : (a.deadline ?? "9999")
-        ).localeCompare(
-          b.doDate && b.doDate >= today ? b.doDate : (b.deadline ?? "9999"),
-        )
+      ? nextTaskDate(a).localeCompare(nextTaskDate(b))
       : a.createdAt.localeCompare(b.createdAt),
   );
-  const earlier = active.filter((t) => t.doDate && t.doDate < today);
-  const todayCount = active.filter((t) => t.doDate === today).length;
+  const upcoming = view === "upcoming" ? agendaEntries(visible, today) : [];
+  const earlier = active.filter((t) => hasMissedWork(t, today));
+  const todayCount = active.filter((t) => isScheduledOn(t, today)).length;
   const completedToday = state.tasks.filter(
     (t) =>
       !t.deletedAt &&
@@ -415,7 +422,7 @@ function App() {
       projectId: view.startsWith("project:") ? view.slice(8) : "",
       tagIds: selectedTag ? [selectedTag.id] : [],
       columnId: columnId ?? columns[0]?.id ?? "next",
-      doDate: view === "today" ? today : null,
+      ...schedulePatch(view === "today" ? [today] : []),
       deadline: null,
       completedAt: null,
       deletedAt: null,
@@ -550,10 +557,18 @@ function App() {
       ),
     }));
   }
-  function taskRow(task: Task, compact = false) {
+  function taskRow(
+    task: Task,
+    compact = false,
+    occurrence?: { work: boolean; deadline: boolean },
+  ) {
     const checks = extractCheckboxes(task.notes),
       done = checks.filter((c) => c.checked).length;
     const project = projects.find((p) => p.id === task.projectId);
+    const dates = workDates(task);
+    const planned = isScheduledOn(task, today);
+    const nextDate = nextWorkDate(task, today) ?? dates[dates.length - 1];
+    const otherDates = dates.length - 1;
     return (
       <div
         key={task.id}
@@ -614,22 +629,57 @@ function App() {
           </IconButton>
         ) : (
           view !== "today" &&
-          task.doDate && (
-            <span className="row-do-date">
-              <Sun size={12} />
-              {dateLabel(task.doDate)}
+          (occurrence || nextDate) && (
+            <span
+              className={`row-do-date ${occurrence?.deadline ? "row-deadline-day" : ""}`}
+              title={
+                occurrence
+                  ? occurrence.work && occurrence.deadline
+                    ? "Scheduled work day and deadline"
+                    : occurrence.work
+                      ? "Scheduled work day"
+                      : "Final deadline"
+                  : `Work on ${dates.map((date) => dateLabel(date, false)).join(", ")}`
+              }
+            >
+              {occurrence?.deadline && !occurrence.work ? (
+                <Flag size={12} />
+              ) : (
+                <CalendarDays size={12} />
+              )}
+              {occurrence ? (
+                occurrence.work && occurrence.deadline ? (
+                  "Work · Due"
+                ) : occurrence.work ? (
+                  "Work day"
+                ) : (
+                  "Deadline"
+                )
+              ) : (
+                <>
+                  {dateLabel(nextDate ?? null)}
+                  {otherDates > 0 && (
+                    <span className="work-date-count">+{otherDates}</span>
+                  )}
+                </>
+              )}
             </span>
           )
         )}
         {!task.deletedAt && (
           <button
-            className={`plan-task ${task.doDate === today ? "planned" : ""}`}
-            title={task.doDate === today ? "Remove from Today" : "Do today"}
-            aria-label={`${task.doDate === today ? "Remove from Today" : "Do today"}: ${task.title}`}
+            className={`plan-task ${planned ? "planned" : ""}`}
+            title={planned ? "Remove from Today" : "Do today"}
+            aria-label={`${planned ? "Remove from Today" : "Do today"}: ${task.title}`}
             onClick={() =>
-              updateTask(task.id, {
-                doDate: task.doDate === today ? null : today,
-              })
+              updateTask(
+                task.id,
+                schedulePatch(
+                  planned
+                    ? dates.filter((date) => date !== today)
+                    : [...dates, today],
+                ),
+              )
             }
           >
             <Sun size={15} />
@@ -928,16 +978,18 @@ function App() {
                 <X size={15} />
               </button>
             </div>
-            <p>Adding to Today keeps its deadline unchanged.</p>
-            {active.filter((t) => t.doDate !== today).length ? (
+            <p>
+              Adding Today keeps other work days and the deadline unchanged.
+            </p>
+            {active.filter((t) => !isScheduledOn(t, today)).length ? (
               active
-                .filter((t) => t.doDate !== today)
+                .filter((t) => !isScheduledOn(t, today))
                 .map((t) => (
                   <button
                     key={t.id}
                     className="planning-row"
                     onClick={() => {
-                      updateTask(t.id, { doDate: today });
+                      updateTask(t.id, schedulePatch([...workDates(t), today]));
                       setToast("Added to Today");
                     }}
                   >
@@ -1129,16 +1181,12 @@ function App() {
               )}
               {view === "upcoming"
                 ? Object.entries(
-                    sorted.reduce(
-                      (groups, task) => {
-                        const key =
-                          task.doDate && task.doDate >= today
-                            ? task.doDate
-                            : (task.deadline ?? "No date");
-                        (groups[key] ??= []).push(task);
+                    upcoming.reduce(
+                      (groups, entry) => {
+                        (groups[entry.date] ??= []).push(entry);
                         return groups;
                       },
-                      {} as Record<string, Task[]>,
+                      {} as Record<string, typeof upcoming>,
                     ),
                   )
                     .sort(([a], [b]) => a.localeCompare(b))
@@ -1148,7 +1196,9 @@ function App() {
                           {dateLabel(date)}
                           <span>{tasks.length}</span>
                         </div>
-                        {tasks.map((t) => taskRow(t))}
+                        {tasks.map((entry) =>
+                          taskRow(entry.task, false, entry),
+                        )}
                       </section>
                     ))
                 : sorted.map((t) => taskRow(t))}
@@ -1347,11 +1397,12 @@ function App() {
               />
             </div>
             <div className="date-fields">
-              <DateField
-                label="Do date"
-                value={selected.doDate}
-                icon={Sun}
-                onChange={(value) => updateTask(selected.id, { doDate: value })}
+              <WorkDatesField
+                dates={workDates(selected)}
+                deadline={selected.deadline}
+                onChange={(dates) =>
+                  updateTask(selected.id, schedulePatch(dates))
+                }
                 today={today}
               />
               <DateField
@@ -1624,7 +1675,7 @@ function App() {
               </div>
               <h3>Make it yours</h3>
               <p className="muted">
-                The example tasks show how do dates, deadlines, and rich notes
+                The example tasks show how work days, deadlines, and rich notes
                 work together.
               </p>
               <button

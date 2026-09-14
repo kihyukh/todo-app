@@ -82,6 +82,53 @@ check((removedTagsResult["tags"] as? [[String: Any]])?.first?["deletedAt"] as? S
 check(((removedTagsResult["tasks"] as? [[String: Any]])?.first?["tagIds"] as? [String])?.isEmpty == true, "An offline task must not restore removed tag assignments")
 try check(fm.contentsOfDirectory(atPath: tagDirectory.appendingPathComponent("Revisions/tags/tag-reading").path).count >= 1, "Tag changes must preserve revision records")
 
+// Independent work days stay ordinary JSON data across saves, exports, and
+// file-provider updates. An empty array is an intentional cleared schedule.
+let dateDirectory = directory.appendingPathComponent("WorkDateRoundTrip", isDirectory: true)
+let dateStore = try DaymarkStore(folder: dateDirectory)
+var datedTask = task("Legacy schedule", "2026-09-14T01:00:00.000Z")
+datedTask["doDate"] = "2026-09-14"
+datedTask["deadline"] = "2026-09-30"
+try dateStore.save(state(datedTask))
+let legacyDates = (try dateStore.load()!["tasks"] as! [[String: Any]])[0]
+check(legacyDates["doDates"] == nil && legacyDates["doDate"] as? String == "2026-09-14", "A legacy single-date record must load without inventing an array")
+let plannedDays = ["2026-09-14", "2026-09-17", "2026-09-25"]
+datedTask["doDates"] = plannedDays
+datedTask["updatedAt"] = "2026-09-14T02:00:00.000Z"
+try dateStore.save(state(datedTask))
+let dateFile = dateDirectory.appendingPathComponent("tasks/test-task.json")
+let onDiskDates = try JSONSerialization.jsonObject(with: Data(contentsOf: dateFile)) as! [String: Any]
+check(onDiskDates["doDates"] as? [String] == plannedDays, "Every independent work day must be saved to the task file without filling gaps")
+let secondDateStore = try DaymarkStore(folder: dateDirectory)
+let restoredDates = try secondDateStore.load()!
+let exportedDates = try JSONSerialization.jsonObject(with: DaymarkStore.json(restoredDates)) as! [String: Any]
+let exportedDatedTask = (exportedDates["tasks"] as! [[String: Any]])[0]
+check(exportedDatedTask["doDates"] as? [String] == plannedDays, "All work dates must survive a new store and JSON export")
+check(exportedDatedTask["doDate"] as? String == "2026-09-14" && exportedDatedTask["deadline"] as? String == "2026-09-30", "Multiple work days must not rewrite the legacy alias or deadline")
+var remoteDatedTask = datedTask
+let remoteDays = ["2026-09-14", "2026-09-18", "2026-09-25"]
+remoteDatedTask["doDates"] = remoteDays
+remoteDatedTask["updatedAt"] = "2026-09-14T04:00:00.000Z"
+try secondDateStore.save(state(remoteDatedTask))
+var offlineDatedTask = datedTask
+let offlineDays = ["2026-09-14", "2026-09-17", "2026-09-26"]
+offlineDatedTask["doDates"] = offlineDays
+offlineDatedTask["updatedAt"] = "2026-09-14T03:00:00.000Z"
+try dateStore.save(state(offlineDatedTask))
+let reconciledDates = (try dateStore.load()!["tasks"] as! [[String: Any]])[0]
+check(reconciledDates["doDates"] as? [String] == remoteDays, "A newer file-provider record must retain its complete date array when an older offline edit arrives")
+let dateRevisionFiles = try fm.contentsOfDirectory(at: dateDirectory.appendingPathComponent("Revisions/tasks/test-task"), includingPropertiesForKeys: nil)
+let dateRevisions = try dateRevisionFiles.map { try JSONSerialization.jsonObject(with: Data(contentsOf: $0)) as! [String: Any] }
+check(dateRevisions.contains { $0["doDates"] as? [String] == offlineDays }, "A losing offline date selection must remain recoverable in revisions")
+remoteDatedTask["doDates"] = [String]()
+remoteDatedTask["doDate"] = NSNull()
+remoteDatedTask["updatedAt"] = "2026-09-14T05:00:00.000Z"
+try secondDateStore.save(state(remoteDatedTask))
+try dateStore.save(state(datedTask))
+let clearedDates = (try dateStore.load()!["tasks"] as! [[String: Any]])[0]
+check(clearedDates["doDates"] as? [String] == [] && clearedDates["doDate"] is NSNull, "Clearing every work date must survive reload and an older client snapshot")
+check(clearedDates["deadline"] as? String == "2026-09-30", "Clearing work dates must preserve the absolute deadline")
+
 let image = directory.appendingPathComponent("sample.png")
 let bytes = Data([137, 80, 78, 71, 13, 10, 26, 10])
 try bytes.write(to: image)
@@ -133,4 +180,4 @@ check(operationsOnWorker, "Persistence IO must execute outside the UI thread")
 check(completionsOnMain, "Storage callbacks must return to the UI thread")
 check(completionOrder == [1, 2, 3], "Queued saves and reads must finish in order")
 check((lastState?["tasks"] as? [[String: Any]])?.first?["title"] as? String == "Latest queued edit", "A read after queued saves must contain the latest edit")
-print("Daymark native store: \(checks) persistence, tag, conflict, attachment, and background IO checks passed.")
+print("Daymark native store: \(checks) persistence, work-date, tag, conflict, attachment, and background IO checks passed.")

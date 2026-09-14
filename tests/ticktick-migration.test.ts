@@ -108,6 +108,7 @@ describe("TickTick task migration", () => {
     ).state.tasks[0];
     expect(converted.deadline).toBe("2026-09-14");
     expect(converted.doDate).toBeNull();
+    expect(converted.doDates).toEqual([]);
     expect(converted.projectId).toBe("work");
     expect(converted.columnId).toBe("progress");
     expect(converted.tagIds).toEqual(["research"]);
@@ -126,6 +127,7 @@ describe("TickTick task migration", () => {
       plan(),
     ).state.tasks[0];
     expect(converted.doDate).toBe("2026-09-14");
+    expect(converted.doDates).toEqual(["2026-09-14"]);
     expect(converted.deadline).toBe("2026-09-17");
   });
 
@@ -153,6 +155,13 @@ describe("TickTick task migration", () => {
       null,
       "2026-09-14",
       null,
+    ]);
+    expect(state.tasks.map((item) => item.doDates)).toEqual([
+      ["2026-09-14"],
+      [],
+      [],
+      ["2026-09-14"],
+      [],
     ]);
     expect(state.tasks[4].projectId).toBe("personal");
     expect(activeTasks(state).map((item) => item.id)).toEqual([
@@ -185,6 +194,46 @@ describe("TickTick task migration", () => {
     expect(state.tasks[1].deletedAt).toBe("2026-09-12T01:02:03Z");
     expect(state.tasks[2].projectId).toBe("");
     expect(state.tasks[2].createdAt).toBe("2025-01-01T01:02:03Z");
+  });
+
+  it("maps a completed range to one work date without filling the days between", () => {
+    const converted = convertTickTick(
+      [
+        task({
+          status: 2,
+          projectId: "source-today",
+          startDate: "2026-09-13T15:00:00Z",
+          endDate: "2026-09-25T15:00:00Z",
+        }),
+      ],
+      [],
+      [],
+      plan(),
+    ).state.tasks[0];
+    expect(converted.doDates).toEqual(["2026-09-14"]);
+    expect(converted.doDate).toBe(converted.doDates![0]);
+    expect(converted.deadline).toBe("2026-09-26");
+  });
+
+  it("rejects impossible migration work dates instead of silently dropping them", () => {
+    for (const today of [
+      "2026-02-29",
+      "2024-02-30",
+      "2026-04-31",
+      "2026-13-01",
+    ]) {
+      expect(() =>
+        convertTickTick([task()], [], [], { ...plan(), today }),
+      ).toThrow(/valid migration date/);
+    }
+    const converted = convertTickTick(
+      [task({ projectId: "source-today" })],
+      [],
+      [],
+      { ...plan(), today: "2024-02-29" },
+    ).state.tasks[0];
+    expect(converted.doDates).toEqual(["2024-02-29"]);
+    expect(converted.doDate).toBe("2024-02-29");
   });
 
   it("orders checklist items and preserves both checked source statuses", () => {

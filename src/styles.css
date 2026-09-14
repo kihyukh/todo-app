@@ -526,6 +526,18 @@ kbd {
   white-space: nowrap;
   margin-top: 4px;
 }
+.row-do-date .work-date-count {
+  padding: 2px 5px;
+  margin-left: 2px;
+  border-radius: 4px;
+  background: #edf1f8;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 600;
+}
+.row-do-date.row-deadline-day {
+  color: var(--warning);
+}
 .focus-footer {
   text-align: center;
   margin-top: 44px;

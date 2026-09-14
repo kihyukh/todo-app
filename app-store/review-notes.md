@@ -8,7 +8,7 @@ __APP_NAME__ is a personal task and note app. No sign-in, demo account, subscrip
 
 Suggested walkthrough:
 
-1. Create “Review a paper.” Set its deadline to a future date, then set its do date to Today. Today shows the task without changing its deadline.
+1. Create “Review a paper.” Set its deadline to a future date, then open Work on and select Today plus two nonconsecutive future days. The calendar stays open while selecting; Done closes it. Today shows the task without changing its deadline. Upcoming shows each selected work day and the deadline; removing Today leaves the other dates intact.
 2. Open the task and write a short note. Add a checkbox with the note toolbar. Open the “Open checkboxes” view and check that item; its original note updates.
 3. Enter `$x^2$` for inline math. Enter `$$` on a new line and press Return for display math. Tap an equation to edit its LaTeX. With a hardware keyboard, arrow keys enter and leave equation source. Optional Vim mode is in Settings → Editor.
 4. Use “Insert image” or “Attach an image or PDF” and choose a test file using the system picker. Close and reopen the task. Background and reopen the app to check persistence.

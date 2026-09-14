@@ -14,6 +14,14 @@ The result is installed to `~/Applications/Daymark.app`, with a link at `build/D
 
 When the system iCloud Drive directory exists, the app saves to `~/Library/Mobile Documents/com~apple~CloudDocs/Daymark`. Otherwise it saves to `~/Library/Application Support/Daymark`. The in-app storage status reports the chosen location; iCloud Drive itself controls upload/download timing. **Choose Sync Folder** in the File menu or app settings lets you select a different folder. Existing tasks and attachments are merged/copied into that folder and the old folder is retained.
 
+## Work days and deadlines
+
+The task's **Work on** field opens a calendar where each selected day is independent. Click or tap several dates, including dates in different months; click a selected day again or remove its chip to unschedule only that day. Today and Tomorrow are additive shortcuts. Done closes the picker, and changes save automatically.
+
+Today includes a task whenever today is one of its work days. The sun button and the day planner add or remove Today without replacing the rest of the schedule. Upcoming shows every work day and the separate deadline; if both fall on one day, they share one entry. Completing a task finishes the entire task, not a single work session. Earlier work is suggested for replanning only when no current or future work days remain.
+
+Task records support `doDates`, a sorted array of unique `YYYY-MM-DD` dates. Existing records with only `doDate` are read as a one-day schedule without rewriting timestamps. Edits retain `doDate` as the first selected day (or null) for legacy exports; an explicit empty `doDates` array stays empty. Use the updated app on both devices to edit the complete schedule. The existing whole-task conflict policy applies to schedule changes too.
+
 ## iPhone / iPad
 
 The iOS app uses the same editor, storage format, and attachments as Mac. Its native shell adds keyboard-aware layout, Files import, PDF/image previews, sharing, and a background save when leaving the app. Touch editing has an explicit keyboard dismissal control and touch-friendly note tools. A first-launch introduction connects the existing Mac workspace or starts locally.
