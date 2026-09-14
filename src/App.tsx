@@ -238,13 +238,36 @@ function App() {
   const openItems = useMemo(
     () =>
       state.tasks
-        .filter((t) => !t.deletedAt)
+        .filter((t) => !t.deletedAt && !t.completedAt)
         .flatMap((task) =>
           extractCheckboxes(task.notes)
             .filter((c) => !c.checked)
             .map((check) => ({ task, ...check })),
         ),
     [state.tasks],
+  );
+  const checkboxQuery = query.trim().toLowerCase();
+  const checkboxGroups = useMemo(() => {
+    const groups = new Map<string, { task: Task; items: typeof openItems }>();
+    for (const item of openItems) {
+      if (checkboxQuery) {
+        const searchable = `${item.text} ${item.task.title} ${taskTags(
+          item.task,
+          state,
+        )
+          .map((tag) => tag.name)
+          .join(" ")}`.toLowerCase();
+        if (!searchable.includes(checkboxQuery)) continue;
+      }
+      const group = groups.get(item.task.id);
+      if (group) group.items.push(item);
+      else groups.set(item.task.id, { task: item.task, items: [item] });
+    }
+    return [...groups.values()];
+  }, [openItems, checkboxQuery, state.tags]);
+  const shownCheckboxes = checkboxGroups.reduce(
+    (count, group) => count + group.items.length,
+    0,
   );
   const title = view.startsWith("tag:")
     ? (selectedTag?.name ?? "Tag")
@@ -888,18 +911,25 @@ function App() {
           <input
             {...noTextSuggestions}
             ref={searchRef}
-            aria-label="Search tasks"
+            aria-label={
+              view === "checkboxes" ? "Search checkboxes" : "Search tasks"
+            }
             placeholder={
-              view === "completed"
-                ? "Search completed tasks"
-                : view === "trash"
-                  ? "Search Trash"
-                  : "Search tasks"
+              view === "checkboxes"
+                ? "Search checkboxes"
+                : view === "completed"
+                  ? "Search completed tasks"
+                  : view === "trash"
+                    ? "Search Trash"
+                    : "Search tasks"
             }
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
-              if (e.target.value && view !== "completed" && view !== "trash")
+              if (
+                e.target.value &&
+                !["completed", "trash", "checkboxes"].includes(view)
+              )
                 setView("all");
             }}
           />
@@ -1266,64 +1296,50 @@ function App() {
             {view === "checkboxes" ? (
               <>
                 <p className="view-description">
-                  The small steps, gathered from your task notes.
+                  Unfinished steps from active tasks, grouped by task.
                 </p>
-                {openItems.length === 0 ? (
+                {shownCheckboxes === 0 ? (
                   <Empty
                     icon={CheckCheck}
-                    title="All the small things, done"
-                    body="Unchecked items in your task notes will appear here."
+                    title={
+                      checkboxQuery
+                        ? "No matching checkboxes"
+                        : "No open checkboxes"
+                    }
+                    body={
+                      checkboxQuery
+                        ? "Try a step, task name, or tag."
+                        : "No unchecked steps in active tasks. Reopening a task brings its unfinished steps back."
+                    }
                   />
                 ) : (
-                  state.tasks
-                    .filter(
-                      (task) =>
-                        !task.deletedAt &&
-                        openItems.some((item) => item.task.id === task.id),
-                    )
-                    .map((task) => (
-                      <section className="checkbox-group" key={task.id}>
-                        <button
-                          className="parent-task"
-                          onClick={() => setSelectedId(task.id)}
-                        >
-                          <span>
-                            {task.title}
-                            {task.completedAt && (
-                              <small className="completed-parent">
-                                Completed task
-                              </small>
-                            )}
-                          </span>
-                          <ArrowUpRight size={14} />
-                        </button>
-                        {openItems
-                          .filter((c) => c.task.id === task.id)
-                          .map((c) => (
-                            <div
-                              className="open-check-row"
-                              key={c.path.join(".")}
-                            >
-                              <button
-                                className="task-check"
-                                aria-label={`Check ${c.text}`}
-                                onClick={() =>
-                                  updateTask(task.id, {
-                                    notes: toggleCheckbox(
-                                      task.notes,
-                                      c.path,
-                                      true,
-                                    ),
-                                  })
-                                }
-                              />
-                              <button onClick={() => setSelectedId(task.id)}>
-                                {c.text || "Untitled checkbox"}
-                              </button>
-                            </div>
-                          ))}
-                      </section>
-                    ))
+                  checkboxGroups.map(({ task, items }) => (
+                    <section className="checkbox-group" key={task.id}>
+                      <button
+                        className="parent-task"
+                        onClick={() => setSelectedId(task.id)}
+                      >
+                        <span>{task.title}</span>
+                        <ArrowUpRight size={14} />
+                      </button>
+                      {items.map((c) => (
+                        <div className="open-check-row" key={c.path.join(".")}>
+                          <button
+                            className="task-check"
+                            aria-label={`Check ${c.text}`}
+                            onClick={() =>
+                              updateTask(task.id, {
+                                notes: toggleCheckbox(task.notes, c.path, true),
+                              })
+                            }
+                          />
+                          <button onClick={() => setSelectedId(task.id)}>
+                            {c.text || "Untitled checkbox"}
+                          </button>
+                        </div>
+                      ))}
+                    </section>
+                  ))
                 )}
               </>
             ) : mode === "board" && !["completed", "trash"].includes(view) ? (
@@ -1499,7 +1515,7 @@ function App() {
         <footer className="workspace-footer">
           <span>
             {view === "checkboxes"
-              ? `${openItems.length} open checkboxes`
+              ? `${checkboxQuery ? `${shownCheckboxes} of ` : ""}${openItems.length} open ${openItems.length === 1 ? "checkbox" : "checkboxes"}`
               : `${visible.length} ${visible.length === 1 ? "task" : "tasks"}`}
           </span>
           <button onClick={() => setSettings(true)}>

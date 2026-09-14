@@ -35,13 +35,19 @@ These results establish build and local interaction behavior. They do not establ
 - On the updated iPhone simulator, completing a fictional task showed the animated checkmark, pulse, and completion receipt. The task was reopened afterward. Month and Day views showed the coral linked-task count; opening the existing fictional event displayed its linked task. No personal task or calendar record was modified for these checks.
 - The installed Mac app retained its existing workspace. The development signature change requires renewed calendar consent; the system prompt was left for the user. Sound generation and blocked-audio recovery passed automated tests, but native speaker output, volume, silent-mode behavior, and physical-device playback still need listening checks.
 
-## Current slash-menu update
+## Previous slash-menu update
 
 - **495 frontend tests passed**, including 26 slash state tests and 28 integration tests using the actual task editor. Coverage includes input-only activation, filtering, keyboard selection, nested lists, one-step undo, Vim and IME behavior, image selection/cancellation, synced content, and switching tasks.
 - The web build, installed Mac app, iPhone/iPad simulator build, and unsigned device Release archive succeeded. All **62 bundled web files** matched across those outputs, with no workspace or development directories bundled. Native code and bundle identity are unchanged.
 - Browser checks confirmed checklist, heading, and equation insertion by slash search, Enter/Tab/mouse selection, continuing at the insertion point, and correct math rendering. The popup stays aligned with the slash while filtering.
 - The iPhone simulator check used the actual software keyboard to enter `/`. The popup appeared above the keyboard, tapping Checklist inserted a checkbox while retaining the keyboard, and subsequent typing continued in the checkbox. Done dismissed the keyboard. The fictional test note remains in the simulator.
 - The installed Mac app retained its existing workspace and showed the updated note hint. Its previous task view was restored without changing any personal task or calendar records. This development build can require renewed calendar consent; calendar access was not requested during these editor checks.
+
+## Current Open checkboxes update
+
+- **501 frontend tests passed**, including six new App integration tests for completed/trashed task exclusion, immediate counts, completion/Undo/reopening without note or schedule mutations, nested checkbox paths, incoming synced changes, search by step/title/tag, and filtered versus unfiltered empty states.
+- Browser checks used a fictional task to verify that its unchecked steps disappear when the parent is completed, remain unchanged inside its note, and reappear when reopened. Search remains in the checkbox pane and shows matching counts while the navigation count stays unfiltered.
+- This update changes the shared interface only. The Mac, simulator, and unsigned device archive builds succeeded. All 62 bundled web files match across these outputs, with no workspace or development directories bundled. The installed Mac app retained its workspace and showed matching active-step counts in its navigation and checkbox pane. Existing physical-device and provider-delivery limits below still apply.
 
 ## Still needed before distribution
 
