@@ -132,12 +132,19 @@ final class DaymarkAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
         panel.prompt = "Use Folder"
-        panel.directoryURL = bridge.store.folder
-        panel.beginSheetModal(for: window) { [weak self] response in
+        bridge.store.perform({ self.bridge.store.folder }) { [weak self] result in
             guard let self else { return }
-            guard response == .OK, let url = panel.url else { self.bridge.send(["type": "cancelled"], requestID: requestID); return }
-            do { try self.bridge.store.chooseFolder(url); try self.bridge.sendState(requestID: requestID) }
-            catch { self.bridge.sendError(error.localizedDescription, requestID: requestID) }
+            if case .success(let folder) = result { panel.directoryURL = folder }
+            panel.beginSheetModal(for: self.window) { [weak self] response in
+                guard let self else { return }
+                guard response == .OK, let url = panel.url else { self.bridge.send(["type": "cancelled"], requestID: requestID); return }
+                self.bridge.store.perform({ try self.bridge.store.chooseFolder(url) }) { result in
+                    switch result {
+                    case .success: self.bridge.sendState(requestID: requestID)
+                    case .failure(let error): self.bridge.sendError(error.localizedDescription, requestID: requestID)
+                    }
+                }
+            }
         }
     }
 
@@ -149,8 +156,12 @@ final class DaymarkAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         panel.beginSheetModal(for: window) { [weak self] response in
             guard let self else { return }
             guard response == .OK, let url = panel.url else { self.bridge.send(["type": "cancelled"], requestID: requestID); return }
-            do { self.bridge.send(["type": "attachment", "attachment": try self.bridge.store.addAttachment(url)], requestID: requestID) }
-            catch { self.bridge.sendError(error.localizedDescription, requestID: requestID) }
+            self.bridge.store.perform({ try self.bridge.store.addAttachment(url) }) { result in
+                switch result {
+                case .success(let attachment): self.bridge.send(["type": "attachment", "attachment": attachment], requestID: requestID)
+                case .failure(let error): self.bridge.sendError(error.localizedDescription, requestID: requestID)
+                }
+            }
         }
     }
 
@@ -162,12 +173,16 @@ final class DaymarkAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
         panel.beginSheetModal(for: window) { [weak self] response in
             guard let self else { return }
             guard response == .OK, let url = panel.url else { self.bridge.send(["type": "cancelled"], requestID: requestID); return }
-            do {
+            self.bridge.store.perform({
                 let value = try state ?? self.bridge.store.load() ?? ["schemaVersion": 1, "tasks": [], "projects": [], "columns": []]
                 let data = try JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
                 try data.write(to: url, options: .atomic)
-                self.bridge.send(["type": "exported", "path": url.path], requestID: requestID)
-            } catch { self.bridge.sendError(error.localizedDescription, requestID: requestID) }
+            }) { result in
+                switch result {
+                case .success: self.bridge.send(["type": "exported", "path": url.path], requestID: requestID)
+                case .failure(let error): self.bridge.sendError(error.localizedDescription, requestID: requestID)
+                }
+            }
         }
     }
 }

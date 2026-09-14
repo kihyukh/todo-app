@@ -1,0 +1,15 @@
+.note-prose[data-vim-mode="normal"]:focus {
+  caret-color: transparent;
+}
+.note-prose:focus .vim-block-cursor {
+  background: #315fd5;
+  color: #fff;
+  border-radius: 1px;
+}
+.note-prose:focus .vim-empty-cursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.15em;
+  vertical-align: -0.15em;
+  background: #315fd5;
+}

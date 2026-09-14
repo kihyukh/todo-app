@@ -1135,6 +1135,69 @@ kbd {
   color: var(--secondary);
   margin: 23px 0 13px;
 }
+.editor-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 0;
+  cursor: pointer;
+}
+.editor-setting > span {
+  display: grid;
+  gap: 5px;
+}
+.editor-setting strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 550;
+}
+.editor-setting span span,
+.vim-setting-help {
+  color: var(--secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.editor-setting input[role="switch"] {
+  appearance: none;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 20px;
+  border-radius: 12px;
+  background: var(--control);
+  border: 2px solid var(--control);
+  padding: 0;
+  cursor: pointer;
+}
+.editor-setting input[role="switch"]::before {
+  content: "";
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+}
+.editor-setting input[role="switch"]:checked {
+  background: var(--blue);
+  border-color: var(--blue);
+}
+.editor-setting input[role="switch"]:checked::before {
+  transform: translateX(14px);
+}
+.editor-setting input[role="switch"]:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+}
+.vim-setting-help {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  background: var(--selected);
+  border-radius: 6px;
+}
+.vim-setting-help kbd {
+  color: var(--ink);
+  white-space: nowrap;
+}
 .storage-card {
   display: flex;
   gap: 15px;

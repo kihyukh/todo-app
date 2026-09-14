@@ -27,6 +27,12 @@ The visual direction uses charcoal text, readable slate metadata, a cool gray si
 
 Task notes use 14px body text at 1.45 line height, 5px paragraph gaps, and 2px checklist item gaps for compact reading. Equation editing follows the local source/render behavior of [Obsidian Live Preview](https://help.obsidian.md/Live%2Bpreview%2Bupdate): selecting the equation reveals editable LaTeX in place, leaving it restores the rendered equation. Display math also shows a live preview below the active source. The separate equation popup and toolbar button have been removed.
 
+Typing stays in ProseMirror. The app holds an immutable document snapshot and serializes it after a 350ms pause, or every 2 seconds during continuous typing. Toolbar buttons subscribe only to changes in formatting and undo availability. Storage waits 800ms for changes to settle; native file-provider reads, writes, and polling share a serial background queue. Before task switches, focus leaves the editor, or the app quits, the final draft is published; native shutdown still waits for confirmation that it was saved. Older save replies cannot label a newer edit as saved.
+
+Autocomplete and automatic correction are disabled per editable surface and in the native WebKit configuration, without changing system preferences. This uses the public [inline-predictions setting](https://developer.apple.com/documentation/webkit/wkwebviewconfiguration/allowsinlinepredictions) and WebKit's [writing suggestions attribute](https://webkit.org/blog/15865/webkit-features-in-safari-18-0/#html).
+
+Vim mode is optional and remembers its setting on each device. It edits rich notes directly with Normal, Insert, characterwise Visual, and linewise Visual modes. The small mode indicator is shown only when enabled. Paragraphs and checklist items are logical lines rather than visual wraps. This supports common motions, counts, operators, yank/paste, and undo; it is not a full Vim runtime with Ex commands, macros, or plugins. Math and Markdown source fields retain their existing direct text editing behavior.
+
 ## Implementation references
 
 [Tiptap mathematics](https://tiptap.dev/docs/editor/extensions/nodes/mathematics) and [Markdown examples](https://tiptap.dev/docs/editor/markdown/examples) informed the editor integration. [Apple's directory-access documentation](https://developer.apple.com/documentation/uikit/providing-access-to-directories) informed iOS folder selection and persistent security-scoped access.

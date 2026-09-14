@@ -47,6 +47,11 @@ import {
 } from "./model";
 import type { Attachment, Task } from "./model";
 import { isNative, nativeSend, useWorkspace } from "./storage";
+import {
+  noTextSuggestions,
+  readVimPreference,
+  writeVimPreference,
+} from "./editor-preferences";
 
 type View =
   | "today"
@@ -104,6 +109,8 @@ function App() {
   const [query, setQuery] = useState("");
   const [sidebar, setSidebar] = useState(false);
   const [settings, setSettings] = useState(false);
+  const [vimEnabled, setVimEnabled] = useState(readVimPreference);
+  const [notePending, setNotePending] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [newTitle, setNewTitle] = useState("");
   const [plan, setPlan] = useState(false);
@@ -194,6 +201,9 @@ function App() {
       dateKey(new Date(t.completedAt)) === today,
   ).length;
   useEffect(() => {
+    writeVimPreference(vimEnabled);
+  }, [vimEnabled]);
+  useEffect(() => {
     const timer = setInterval(() => setToday(dateKey()), 30000);
     return () => clearInterval(timer);
   }, []);
@@ -205,6 +215,7 @@ function App() {
   }, [toast]);
   useEffect(() => {
     function key(e: KeyboardEvent) {
+      if (e.defaultPrevented) return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         searchRef.current?.focus();
@@ -538,6 +549,7 @@ function App() {
         <div className="search">
           <Search size={15} />
           <input
+            {...noTextSuggestions}
             ref={searchRef}
             aria-label="Search tasks"
             placeholder="Search tasks"
@@ -767,6 +779,7 @@ function App() {
           <form className="quick-add" onSubmit={(e) => addTask(e)}>
             <Plus size={18} />
             <input
+              {...noTextSuggestions}
               ref={quickRef}
               aria-label="New task title"
               value={newTitle}
@@ -1062,7 +1075,11 @@ function App() {
             </div>
             <div className="detail-actions">
               <span className="saved-label">
-                {error ? "Not saved" : saving ? "Saving…" : "Saved"}
+                {error
+                  ? "Not saved"
+                  : saving || notePending
+                    ? "Saving…"
+                    : "Saved"}
               </span>
               <div className="menu-anchor">
                 <IconButton
@@ -1132,6 +1149,7 @@ function App() {
                 {selected.completedAt && <Check size={14} />}
               </button>
               <textarea
+                {...noTextSuggestions}
                 aria-label="Task title"
                 rows={2}
                 value={selected.title}
@@ -1186,10 +1204,13 @@ function App() {
             </div>
             <div className="editor-separator" />
             <TaskEditor
+              key={selected.id}
               taskId={selected.id}
               content={selected.notes}
               onChange={(notes) => updateTask(selected.id, { notes })}
+              onPendingChange={setNotePending}
               onAttach={attach}
+              vimEnabled={vimEnabled}
             />
             {selected.attachments.length > 0 && (
               <section className="attachments">
@@ -1282,6 +1303,29 @@ function App() {
               </IconButton>
             </header>
             <div className="settings-content">
+              <h3>Editor</h3>
+              <label className="editor-setting" htmlFor="vim-mode-toggle">
+                <span>
+                  <strong>Vim mode</strong>
+                  <span>Navigate and edit notes with Vim keys.</span>
+                </span>
+                <input
+                  id="vim-mode-toggle"
+                  type="checkbox"
+                  role="switch"
+                  aria-label="Vim mode"
+                  checked={vimEnabled}
+                  onChange={(event) => setVimEnabled(event.target.checked)}
+                />
+              </label>
+              {vimEnabled && (
+                <p className="vim-setting-help">
+                  <kbd>i</kbd> to write · <kbd>Esc</kbd> for Normal mode ·{" "}
+                  <kbd>v</kbd> to select. Move with <kbd>h j k l</kbd> or{" "}
+                  <kbd>w b</kbd>. Use <kbd>dd</kbd> to cut a line, <kbd>yy</kbd>{" "}
+                  to copy, <kbd>p</kbd> to paste, and <kbd>u</kbd> to undo.
+                </p>
+              )}
               <h3>Storage & sync</h3>
               <div className="storage-card">
                 {storage.kind === "icloud" ? (
@@ -1393,6 +1437,7 @@ function App() {
             </header>
             <input
               autoFocus
+              {...noTextSuggestions}
               aria-label="Name"
               placeholder={
                 dialog.kind === "project"

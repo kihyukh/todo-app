@@ -10,8 +10,10 @@ func task(_ title: String, _ updatedAt: String, deleted: String? = nil) -> [Stri
 }
 func state(_ value: [String: Any]) -> [String: Any] { ["schemaVersion": 1, "tasks": [value], "projects": [], "columns": []] }
 func current() throws -> [String: Any] { (try store.load()!["tasks"] as! [[String: Any]])[0] }
+var checks = 0
 func check(_ value: @autoclosure () throws -> Bool, _ message: String) rethrows {
     if try !value() { fatalError(message) }
+    checks += 1
 }
 
 try check(store.load() == nil, "Fresh store should be empty")
@@ -49,4 +51,47 @@ let url = URL(string: attachment["url"] as! String)!
 try check(store.attachmentData(url) == bytes, "Attachment bytes must round-trip")
 check(attachment["mime"] as? String == "image/png", "Attachment MIME should match")
 check(store.attachmentURL(URL(string: "daymark://attachment/subdirectory/file.pdf")!) == nil, "Attachment path traversal must be rejected")
-print("Daymark native store: 11 persistence, conflict, tombstone, and attachment checks passed.")
+
+// Model a file provider waiting for iCloud while the UI continues to handle input.
+let workerStarted = DispatchSemaphore(value: 0)
+let releaseWorker = DispatchSemaphore(value: 0)
+var completionOrder: [Int] = []
+var uiResponded = false
+var operationsOnWorker = true
+var completionsOnMain = true
+var lastState: [String: Any]?
+store.perform({
+    operationsOnWorker = !Thread.isMainThread
+    workerStarted.signal()
+    guard releaseWorker.wait(timeout: .now() + 3) == .success else { throw CocoaError(.fileWriteUnknown) }
+    return try store.save(state(task("First queued edit", "2026-09-14T06:00:00.000Z")))
+}) { result in
+    if case .failure(let error) = result { fatalError(error.localizedDescription) }
+    completionsOnMain = completionsOnMain && Thread.isMainThread
+    completionOrder.append(1)
+}
+check(workerStarted.wait(timeout: .now() + 3) == .success, "Asynchronous storage must start without the main run loop")
+store.perform({ try store.save(state(task("Latest queued edit", "2026-09-14T07:00:00.000Z"))) }) { result in
+    if case .failure(let error) = result { fatalError(error.localizedDescription) }
+    completionsOnMain = completionsOnMain && Thread.isMainThread
+    completionOrder.append(2)
+}
+store.perform({ try store.load() }) { result in
+    do { lastState = try result.get() } catch { fatalError(error.localizedDescription) }
+    completionsOnMain = completionsOnMain && Thread.isMainThread
+    completionOrder.append(3)
+}
+DispatchQueue.main.async {
+    uiResponded = true
+    releaseWorker.signal()
+}
+let deadline = Date().addingTimeInterval(5)
+while completionOrder.count < 3 && Date() < deadline {
+    RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+}
+check(uiResponded, "The main queue must stay responsive while file coordination waits")
+check(operationsOnWorker, "Persistence IO must execute outside the UI thread")
+check(completionsOnMain, "Storage callbacks must return to the UI thread")
+check(completionOrder == [1, 2, 3], "Queued saves and reads must finish in order")
+check((lastState?["tasks"] as? [[String: Any]])?.first?["title"] as? String == "Latest queued edit", "A read after queued saves must contain the latest edit")
+print("Daymark native store: \(checks) persistence, conflict, attachment, and background IO checks passed.")

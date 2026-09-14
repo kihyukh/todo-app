@@ -7,6 +7,25 @@
   min-width: 0;
   color: var(--note-ink);
 }
+.vim-mode {
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  padding: 3px 6px;
+  border: 1px solid var(--control);
+  border-radius: 4px;
+}
+.vim-mode-insert {
+  color: var(--blue);
+  border-color: var(--blue);
+}
+.vim-mode-visual,
+.vim-mode-visual-line {
+  color: var(--warning);
+  border-color: var(--warning);
+}
 .note-toolbar {
   display: flex;
   align-items: center;

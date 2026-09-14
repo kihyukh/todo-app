@@ -2,6 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { createInitialState, mergeState, uid } from "./model";
 import type { AppState, Attachment, StorageInfo } from "./model";
 
+export const AUTOSAVE_DELAY_MS = 800;
+
+function mergeIfChanged(local: AppState, remote: AppState): AppState {
+  const merged = mergeState(local, remote);
+  return JSON.stringify(local) === JSON.stringify(merged) ? local : merged;
+}
+
 declare global {
   interface Window {
     webkit?: {
@@ -76,6 +83,11 @@ export function useWorkspace() {
   const [storage, setStorage] = useState<StorageInfo>({ kind: "local" });
   const [saving, setSaving] = useState(false);
   const loaded = useRef(false);
+  const stateRef = useRef(state);
+  const readyRef = useRef(ready);
+  stateRef.current = state;
+  readyRef.current = ready;
+  const nativeSaves = useRef(new Map<string, AppState>());
   const broadcast = useRef<BroadcastChannel | null>(null);
   const attachments = useRef(new Map<string, (a: Attachment) => void>());
   useEffect(() => {
@@ -87,36 +99,43 @@ export function useWorkspace() {
         readBrowser()
           .then((remote) => {
             if (mounted && loaded.current && remote)
-              setState((old) => {
-                const merged = mergeState(old, remote);
-                return JSON.stringify(old) === JSON.stringify(merged)
-                  ? old
-                  : merged;
-              });
+              setState((old) => mergeIfChanged(old, remote));
           })
           .catch(() => {});
       };
     }
     window.daymarkNativeReceive = (event: any) => {
       if (!mounted) return;
-      if (event.storage) setStorage(event.storage);
+      if (event.storage)
+        setStorage((old) =>
+          JSON.stringify(old) === JSON.stringify(event.storage)
+            ? old
+            : event.storage,
+        );
       if (event.type === "state") {
         const wasLoaded = loaded.current;
         setState((old) =>
           wasLoaded
             ? event.state
-              ? mergeState(old, event.state)
+              ? mergeIfChanged(old, event.state)
               : old
             : (event.state ?? createInitialState()),
         );
         loaded.current = true;
         setReady(true);
       } else if (event.type === "saved") {
-        setSaving(false);
-        setError("");
+        const saved = nativeSaves.current.get(event.requestId);
+        nativeSaves.current.delete(event.requestId);
+        // A completed older write must not label newer unsaved edits as saved.
+        if (saved === stateRef.current) {
+          setSaving(false);
+          setError("");
+        }
       } else if (event.type === "error") {
         setError(event.message);
-        setSaving(false);
+        const failed = nativeSaves.current.get(event.requestId);
+        nativeSaves.current.delete(event.requestId);
+        if (!failed || failed === stateRef.current) setSaving(false);
         attachments.current.delete(event.requestId);
       } else if (event.type === "cancelled") {
         attachments.current.delete(event.requestId);
@@ -147,43 +166,47 @@ export function useWorkspace() {
       broadcast.current = null;
     };
   }, []);
+  const saveSnapshot = (snapshot: AppState, requestId = uid()) => {
+    if (isNative()) {
+      nativeSaves.current.set(requestId, snapshot);
+      nativeSend({ action: "save", state: snapshot, requestId });
+    } else {
+      void writeBrowser(snapshot)
+        .then((result) => {
+          setState((old) => mergeIfChanged(old, result.state));
+          if (result.changed) broadcast.current?.postMessage({ changed: true });
+          if (snapshot === stateRef.current) {
+            setSaving(false);
+            setError("");
+          }
+        })
+        .catch(() => {
+          if (snapshot === stateRef.current) setSaving(false);
+          setError(
+            "Changes could not be saved. Export a backup before closing this window.",
+          );
+        });
+    }
+  };
+  const saveRef = useRef(saveSnapshot);
+  saveRef.current = saveSnapshot;
   useEffect(() => {
     if (!ready) return;
     setSaving(true);
     const timer = setTimeout(() => {
-      if (isNative()) nativeSend({ action: "save", state });
-      else
-        writeBrowser(state)
-          .then((result) => {
-            setState((old) => {
-              const merged = mergeState(old, result.state);
-              return JSON.stringify(old) === JSON.stringify(merged)
-                ? old
-                : merged;
-            });
-            if (result.changed)
-              broadcast.current?.postMessage({ changed: true });
-            setSaving(false);
-            setError("");
-          })
-          .catch(() => {
-            setSaving(false);
-            setError(
-              "Changes could not be saved. Export a backup before closing this window.",
-            );
-          });
-    }, 150);
+      saveRef.current(state);
+    }, AUTOSAVE_DELAY_MS);
     return () => clearTimeout(timer);
   }, [state, ready]);
-  // A closing native window must receive the latest edit even before the short save debounce.
+  // The editor flushes its draft in the event's capture phase. Read the fresh
+  // workspace after that flush, without waiting for the normal autosave pause.
   useEffect(() => {
     const flush = (event: Event) => {
-      if (ready && isNative())
-        nativeSend({
-          action: "save",
-          state,
-          requestId: (event as CustomEvent).detail?.requestId,
-        });
+      if (readyRef.current)
+        saveRef.current(
+          stateRef.current,
+          (event as CustomEvent).detail?.requestId,
+        );
     };
     window.addEventListener("pagehide", flush);
     window.addEventListener("daymark-flush", flush);
@@ -191,7 +214,7 @@ export function useWorkspace() {
       window.removeEventListener("pagehide", flush);
       window.removeEventListener("daymark-flush", flush);
     };
-  }, [state, ready]);
+  }, []);
   function attachNative(callback: (a: Attachment) => void) {
     const requestId = uid();
     attachments.current.set(requestId, callback);

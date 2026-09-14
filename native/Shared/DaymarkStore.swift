@@ -5,16 +5,20 @@ import CryptoKit
 /// updatedAt resolves edits to the same record; prior versions remain in Revisions.
 final class DaymarkStore {
     static let collections = ["tasks", "projects", "columns"]
-    private(set) var folder: URL
-    private(set) var kind: String
+    private var folderURL: URL
+    private var storageKind: String
+    private let queue = DispatchQueue(label: "app.daymark.storage", qos: .utility)
+    private let queueKey = DispatchSpecificKey<Bool>()
+    var folder: URL { serialized { folderURL } }
+    var kind: String { serialized { storageKind } }
     private var scopedURL: URL?
     private let manager = FileManager.default
     private let bookmarkKey = "DaymarkStorageBookmark"
 
     init(folder explicitFolder: URL? = nil) throws {
         if let explicitFolder {
-            folder = explicitFolder
-            kind = "folder"
+            folderURL = explicitFolder
+            storageKind = "folder"
         } else if let data = UserDefaults.standard.data(forKey: bookmarkKey) {
             var stale = false
             #if os(macOS)
@@ -25,22 +29,37 @@ final class DaymarkStore {
             if let selected = try? URL(resolvingBookmarkData: data, options: options, relativeTo: nil, bookmarkDataIsStale: &stale) {
                 _ = selected.startAccessingSecurityScopedResource()
                 scopedURL = selected
-                folder = selected
-                kind = "folder"
+                folderURL = selected
+                storageKind = "folder"
             } else {
                 let fallback = Self.defaultLocation()
-                folder = fallback.0
-                kind = fallback.1
+                folderURL = fallback.0
+                storageKind = fallback.1
             }
         } else {
             let fallback = Self.defaultLocation()
-            folder = fallback.0
-            kind = fallback.1
+            folderURL = fallback.0
+            storageKind = fallback.1
         }
+        queue.setSpecific(key: queueKey, value: true)
         try prepareFolder()
     }
 
     deinit { scopedURL?.stopAccessingSecurityScopedResource() }
+
+    /// All store access shares one queue, including folder switches and attachment reads.
+    /// The UI calls perform so file-provider coordination never blocks keystrokes.
+    func perform<Value>(_ operation: @escaping () throws -> Value, completion: @escaping (Result<Value, Error>) -> Void) {
+        queue.async {
+            let result = Result { try operation() }
+            DispatchQueue.main.async { completion(result) }
+        }
+    }
+
+    private func serialized<Value>(_ operation: () throws -> Value) rethrows -> Value {
+        if DispatchQueue.getSpecific(key: queueKey) == true { return try operation() }
+        return try queue.sync(execute: operation)
+    }
 
     private static func defaultLocation() -> (URL, String) {
         #if os(macOS)
@@ -57,13 +76,15 @@ final class DaymarkStore {
     }
 
     var storageInfo: [String: Any] {
-        let message: String
-        switch kind {
-        case "icloud": message = "Saved in iCloud Drive. iCloud transfers changes between your devices."
-        case "folder": message = "Saved in your selected folder. Select this same Daymark folder on your other devices."
-        default: message = "Saved on this device. Choose a folder in iCloud Drive to sync between devices."
+        serialized {
+            let message: String
+            switch kind {
+            case "icloud": message = "Saved in iCloud Drive. iCloud transfers changes between your devices."
+            case "folder": message = "Saved in your selected folder. Select this same Daymark folder on your other devices."
+            default: message = "Saved on this device. Choose a folder in iCloud Drive to sync between devices."
+            }
+            return ["kind": kind, "path": folder.path, "message": message]
         }
-        return ["kind": kind, "path": folder.path, "message": message]
     }
 
     private func prepareFolder() throws {
@@ -74,74 +95,80 @@ final class DaymarkStore {
 
     /// Merge current records into the chosen folder before switching storage.
     func chooseFolder(_ url: URL) throws {
-        let current = try load()
-        let oldFolder = folder
-        let oldKind = kind
-        let access = url.startAccessingSecurityScopedResource()
-        let oldScope = scopedURL
-        folder = url
-        kind = "folder"
-        do {
-            try prepareFolder()
-            if let current { _ = try save(current) }
-            let oldAttachments = oldFolder.appendingPathComponent("Attachments")
-            for source in (try? manager.contentsOfDirectory(at: oldAttachments, includingPropertiesForKeys: nil)) ?? [] {
-                let target = folder.appendingPathComponent("Attachments").appendingPathComponent(source.lastPathComponent)
-                if !manager.fileExists(atPath: target.path) { try coordinatedWrite(try Data(contentsOf: source), to: target) }
+        try serialized {
+            let current = try load()
+            let oldFolder = folder
+            let oldKind = kind
+            let access = url.startAccessingSecurityScopedResource()
+            let oldScope = scopedURL
+            folderURL = url
+            storageKind = "folder"
+            do {
+                try prepareFolder()
+                if let current { _ = try save(current) }
+                let oldAttachments = oldFolder.appendingPathComponent("Attachments")
+                for source in (try? manager.contentsOfDirectory(at: oldAttachments, includingPropertiesForKeys: nil)) ?? [] {
+                    let target = folder.appendingPathComponent("Attachments").appendingPathComponent(source.lastPathComponent)
+                    if !manager.fileExists(atPath: target.path) { try coordinatedWrite(try Data(contentsOf: source), to: target) }
+                }
+                #if os(macOS)
+                let bookmarkOptions: URL.BookmarkCreationOptions = [.withSecurityScope]
+                #else
+                let bookmarkOptions: URL.BookmarkCreationOptions = [.minimalBookmark]
+                #endif
+                let bookmark = try url.bookmarkData(options: bookmarkOptions, includingResourceValuesForKeys: nil, relativeTo: nil)
+                UserDefaults.standard.set(bookmark, forKey: bookmarkKey)
+                oldScope?.stopAccessingSecurityScopedResource()
+                scopedURL = access ? url : nil
+            } catch {
+                folderURL = oldFolder
+                storageKind = oldKind
+                if access { url.stopAccessingSecurityScopedResource() }
+                throw error
             }
-            #if os(macOS)
-            let bookmarkOptions: URL.BookmarkCreationOptions = [.withSecurityScope]
-            #else
-            let bookmarkOptions: URL.BookmarkCreationOptions = [.minimalBookmark]
-            #endif
-            let bookmark = try url.bookmarkData(options: bookmarkOptions, includingResourceValuesForKeys: nil, relativeTo: nil)
-            UserDefaults.standard.set(bookmark, forKey: bookmarkKey)
-            oldScope?.stopAccessingSecurityScopedResource()
-            scopedURL = access ? url : nil
-        } catch {
-            folder = oldFolder
-            kind = oldKind
-            if access { url.stopAccessingSecurityScopedResource() }
-            throw error
         }
     }
 
     func load() throws -> [String: Any]? {
-        var result: [String: Any] = ["schemaVersion": 1]
-        var count = 0
-        for collection in Self.collections {
-            let records = try readRecords(collection)
-            result[collection] = records.values.sorted { ($0["id"] as? String ?? "") < ($1["id"] as? String ?? "") }
-            count += records.count
+        try serialized {
+            var result: [String: Any] = ["schemaVersion": 1]
+            var count = 0
+            for collection in Self.collections {
+                let records = try readRecords(collection)
+                result[collection] = records.values.sorted { ($0["id"] as? String ?? "") < ($1["id"] as? String ?? "") }
+                count += records.count
+            }
+            return count == 0 ? nil : result
         }
-        return count == 0 ? nil : result
     }
 
     @discardableResult
     func save(_ state: [String: Any]) throws -> [String: Any]? {
-        for collection in Self.collections {
-            let incoming = state[collection] as? [[String: Any]] ?? []
-            // Never overwrite an existing record whose current contents are unavailable.
-            // iCloud placeholders and malformed files must be resolved before this save.
-            var current = try readRecords(collection, strict: true)
-            for record in incoming {
-                guard let id = record["id"] as? String, Self.safeFilename(id) else { continue }
-                let data = try Self.json(record)
-                if let existing = current[id] {
-                    let oldData = try Self.json(existing)
-                    if oldData == data { continue }
-                    if !Self.prefers(record, over: existing) {
-                        try archive(data, collection: collection, id: id)
-                        continue
+        try serialized {
+            for collection in Self.collections {
+                let incoming = state[collection] as? [[String: Any]] ?? []
+                // Never overwrite an existing record whose current contents are unavailable.
+                // iCloud placeholders and malformed files must be resolved before this save.
+                var current = try readRecords(collection, strict: true)
+                for record in incoming {
+                    guard let id = record["id"] as? String, Self.safeFilename(id) else { continue }
+                    let data = try Self.json(record)
+                    if let existing = current[id] {
+                        let oldData = try Self.json(existing)
+                        if oldData == data { continue }
+                        if !Self.prefers(record, over: existing) {
+                            try archive(data, collection: collection, id: id)
+                            continue
+                        }
+                        try archive(oldData, collection: collection, id: id)
                     }
-                    try archive(oldData, collection: collection, id: id)
+                    let destination = folder.appendingPathComponent(collection).appendingPathComponent(id + ".json")
+                    try coordinatedRecordWrite(data, record: record, collection: collection, id: id, to: destination)
+                    current[id] = record
                 }
-                let destination = folder.appendingPathComponent(collection).appendingPathComponent(id + ".json")
-                try coordinatedRecordWrite(data, record: record, collection: collection, id: id, to: destination)
-                current[id] = record
             }
+            return try load()
         }
-        return try load()
     }
 
     private func readRecords(_ collection: String, strict: Bool = false) throws -> [String: [String: Any]] {
@@ -263,26 +290,32 @@ final class DaymarkStore {
     }
 
     func addAttachment(_ source: URL) throws -> [String: Any] {
-        let access = source.startAccessingSecurityScopedResource()
-        defer { if access { source.stopAccessingSecurityScopedResource() } }
-        let data = try coordinatedRead(source)
-        let id = UUID().uuidString.lowercased()
-        let ext = source.pathExtension.lowercased().filter { $0.isLetter || $0.isNumber }
-        let filename = ext.isEmpty ? id : id + "." + ext
-        try coordinatedWrite(data, to: folder.appendingPathComponent("Attachments").appendingPathComponent(filename))
-        return ["id": id, "name": source.lastPathComponent, "mime": Self.mimeType(ext), "size": data.count, "url": "daymark://attachment/" + filename]
+        try serialized {
+            let access = source.startAccessingSecurityScopedResource()
+            defer { if access { source.stopAccessingSecurityScopedResource() } }
+            let data = try coordinatedRead(source)
+            let id = UUID().uuidString.lowercased()
+            let ext = source.pathExtension.lowercased().filter { $0.isLetter || $0.isNumber }
+            let filename = ext.isEmpty ? id : id + "." + ext
+            try coordinatedWrite(data, to: folder.appendingPathComponent("Attachments").appendingPathComponent(filename))
+            return ["id": id, "name": source.lastPathComponent, "mime": Self.mimeType(ext), "size": data.count, "url": "daymark://attachment/" + filename]
+        }
     }
 
     func attachmentURL(_ url: URL) -> URL? {
-        guard url.scheme == "daymark", url.host == "attachment" else { return nil }
-        let filename = url.lastPathComponent
-        guard Self.safeFilename(filename), url.path == "/" + filename else { return nil }
-        return folder.appendingPathComponent("Attachments").appendingPathComponent(filename)
+        serialized {
+            guard url.scheme == "daymark", url.host == "attachment" else { return nil }
+            let filename = url.lastPathComponent
+            guard Self.safeFilename(filename), url.path == "/" + filename else { return nil }
+            return folder.appendingPathComponent("Attachments").appendingPathComponent(filename)
+        }
     }
 
     func attachmentData(_ url: URL) throws -> Data {
-        guard let file = attachmentURL(url) else { throw CocoaError(.fileReadInvalidFileName) }
-        return try coordinatedRead(file)
+        try serialized {
+            guard let file = attachmentURL(url) else { throw CocoaError(.fileReadInvalidFileName) }
+            return try coordinatedRead(file)
+        }
     }
 
     static func mimeType(_ ext: String) -> String {

@@ -91,14 +91,25 @@ final class DaymarkViewController: UIViewController, UIDocumentPickerDelegate, Q
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         guard let url = urls.first else { return }
-        do {
-            switch pickerAction {
-            case "chooseFolder": try bridge.store.chooseFolder(url); try bridge.sendState(requestID: pendingRequestID)
-            case "attach": bridge.send(["type": "attachment", "attachment": try bridge.store.addAttachment(url)], requestID: pendingRequestID)
-            case "export": bridge.send(["type": "exported", "path": url.path], requestID: pendingRequestID)
-            default: break
+        let requestID = pendingRequestID
+        switch pickerAction {
+        case "chooseFolder":
+            bridge.store.perform({ try self.bridge.store.chooseFolder(url) }) { result in
+                switch result {
+                case .success: self.bridge.sendState(requestID: requestID)
+                case .failure(let error): self.bridge.sendError(error.localizedDescription, requestID: requestID)
+                }
             }
-        } catch { bridge.sendError(error.localizedDescription, requestID: pendingRequestID) }
+        case "attach":
+            bridge.store.perform({ try self.bridge.store.addAttachment(url) }) { result in
+                switch result {
+                case .success(let attachment): self.bridge.send(["type": "attachment", "attachment": attachment], requestID: requestID)
+                case .failure(let error): self.bridge.sendError(error.localizedDescription, requestID: requestID)
+                }
+            }
+        case "export": bridge.send(["type": "exported", "path": url.path], requestID: requestID)
+        default: break
+        }
         pendingRequestID = nil
     }
 
@@ -108,16 +119,22 @@ final class DaymarkViewController: UIViewController, UIDocumentPickerDelegate, Q
     }
 
     private func export(_ state: [String: Any]?, requestID: Any?) {
-        do {
-            let value = try state ?? bridge.store.load() ?? ["schemaVersion": 1, "tasks": [], "projects": [], "columns": []]
+        bridge.store.perform({
+            let value = try state ?? self.bridge.store.load() ?? ["schemaVersion": 1, "tasks": [], "projects": [], "columns": []]
             let url = FileManager.default.temporaryDirectory.appendingPathComponent("Daymark-export.json")
             try JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys]).write(to: url, options: .atomic)
-            pickerAction = "export"
-            pendingRequestID = requestID
-            let picker = UIDocumentPickerViewController(forExporting: [url], asCopy: true)
-            picker.delegate = self
-            present(picker, animated: true)
-        } catch { bridge.sendError(error.localizedDescription, requestID: requestID) }
+            return url
+        }) { result in
+            switch result {
+            case .success(let url):
+                self.pickerAction = "export"
+                self.pendingRequestID = requestID
+                let picker = UIDocumentPickerViewController(forExporting: [url], asCopy: true)
+                picker.delegate = self
+                self.present(picker, animated: true)
+            case .failure(let error): self.bridge.sendError(error.localizedDescription, requestID: requestID)
+            }
+        }
     }
 
     func numberOfPreviewItems(in controller: QLPreviewController) -> Int { previewURL == nil ? 0 : 1 }

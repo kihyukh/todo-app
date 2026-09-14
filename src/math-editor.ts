@@ -41,6 +41,7 @@ const mathNodeView =
     input.setAttribute("autocomplete", "off");
     input.setAttribute("autocorrect", "off");
     input.setAttribute("spellcheck", "false");
+    input.setAttribute("writingsuggestions", "false");
     if (input instanceof HTMLTextAreaElement) input.rows = 1;
     else input.type = "text";
     source.append(opening, input, closing);

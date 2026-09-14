@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { EditorContent, useEditor } from "@tiptap/react";
+import { flushSync } from "react-dom";
+import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import type { Editor, JSONContent } from "@tiptap/core";
+import { undoDepth, redoDepth } from "@tiptap/pm/history";
 import type { NoteNode } from "./model";
 import StarterKit from "@tiptap/starter-kit";
 import TaskList from "@tiptap/extension-task-list";
@@ -11,6 +13,10 @@ import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "@tiptap/markdown";
+import { createNotePublisher } from "./note-publisher";
+import { noTextSuggestions } from "./editor-preferences";
+import { VimEditor } from "./vim-editor";
+import type { VimMode } from "./vim-editor";
 import {
   Bold,
   Italic,
@@ -47,7 +53,9 @@ interface TaskEditorProps {
   taskId: string;
   content: NoteNode;
   onChange: (json: NoteNode) => void;
+  onPendingChange: (pending: boolean) => void;
   onAttach: () => void;
+  vimEnabled: boolean;
 }
 
 function ToolButton({
@@ -99,19 +107,44 @@ export default function TaskEditor({
   taskId,
   content,
   onChange,
+  onPendingChange,
   onAttach,
+  vimEnabled,
 }: TaskEditorProps) {
   const [linkDraft, setLinkDraft] = useState<LinkDraft | null>(null);
   const [source, setSource] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
-  const [, refreshToolbar] = useState(0);
+  const [vimMode, setVimMode] = useState<VimMode>("normal");
   const onChangeRef = useRef(onChange);
+  const onPendingRef = useRef(onPendingChange);
   const editorRef = useRef<Editor | null>(null);
   const taskIdRef = useRef(taskId);
   const receivedContent = useRef(content);
   const imageInput = useRef<HTMLInputElement>(null);
   onChangeRef.current = onChange;
+  onPendingRef.current = onPendingChange;
   taskIdRef.current = taskId;
+  const [publisher] = useState(() =>
+    createNotePublisher<NoteNode>(
+      (next) => {
+        receivedContent.current = next;
+        onChangeRef.current(next);
+      },
+      (pending) => onPendingRef.current(pending),
+    ),
+  );
+
+  useLayoutEffect(() => {
+    // Capture before storage's handler reads the workspace for native quit.
+    const flushBeforeSave = () => flushSync(() => publisher.flush());
+    window.addEventListener("daymark-flush", flushBeforeSave, true);
+    window.addEventListener("pagehide", flushBeforeSave, true);
+    return () => {
+      publisher.flush();
+      window.removeEventListener("daymark-flush", flushBeforeSave, true);
+      window.removeEventListener("pagehide", flushBeforeSave, true);
+    };
+  }, [publisher]);
 
   const insertImages = async (files: File[], position?: number) => {
     const destinationTaskId = taskIdRef.current;
@@ -196,16 +229,25 @@ export default function TaskEditor({
           markedOptions: { gfm: true },
           indentation: { style: "space", size: 2 },
         }),
+        VimEditor.configure({
+          enabled: vimEnabled,
+          onModeChange: (mode) => setVimMode(mode ?? "normal"),
+        }),
       ],
       content: content ?? EMPTY_NOTE,
       immediatelyRender: true,
+      shouldRerenderOnTransaction: false,
       editorProps: {
         attributes: {
           class: "note-prose",
           "aria-label": "Task notes",
           role: "textbox",
           "aria-multiline": "true",
-          spellcheck: "true",
+          spellcheck: "false",
+          autocomplete: "off",
+          autocorrect: "off",
+          autocapitalize: "off",
+          writingsuggestions: "false",
         },
         handlePaste: (_view, event) => {
           const images = Array.from(event.clipboardData?.files ?? []).filter(
@@ -252,19 +294,38 @@ export default function TaskEditor({
         editorRef.current = instance;
       },
       onUpdate: ({ editor: instance }) => {
-        const next = instance.getJSON() as NoteNode;
-        receivedContent.current = next;
-        onChangeRef.current(next);
-        refreshToolbar((value) => value + 1);
-      },
-      onSelectionUpdate: () => refreshToolbar((value) => value + 1),
-      onTransaction: ({ transaction }) => {
-        if (transaction.getMeta("history$"))
-          refreshToolbar((value) => value + 1);
+        // ProseMirror documents are immutable, so holding the current document is
+        // cheap. Large notes/images are serialized once per batch, not per key.
+        const document = instance.state.doc;
+        publisher.schedule(() => document.toJSON() as NoteNode);
       },
     },
     [taskId],
   );
+
+  const toolbar = useEditorState({
+    editor,
+    selector: ({ editor: current }) =>
+      current
+        ? {
+            bold: current.isActive("bold"),
+            italic: current.isActive("italic"),
+            heading: current.isActive("heading"),
+            taskList: current.isActive("taskList"),
+            bulletList: current.isActive("bulletList"),
+            codeBlock: current.isActive("codeBlock"),
+            link: current.isActive("link"),
+            table: current.isActive("table"),
+            canUndo: undoDepth(current.state) > 0,
+            canRedo: redoDepth(current.state) > 0,
+          }
+        : null,
+  });
+
+  useEffect(() => {
+    if (editor && !editor.isDestroyed)
+      editor.commands.setVimEnabled(vimEnabled);
+  }, [editor, vimEnabled]);
 
   // A new editor per task keeps undo history scoped to that task. External checkbox
   // changes still update the visible note without replacing it on each keystroke.
@@ -279,6 +340,11 @@ export default function TaskEditor({
   useEffect(() => {
     if (!editor || editor.isDestroyed || receivedContent.current === content)
       return;
+    // Never replace a local draft with an older echo arriving from storage.
+    if (publisher.pending) {
+      publisher.flush();
+      return;
+    }
     receivedContent.current = content;
     if (
       JSON.stringify(editor.getJSON()) === JSON.stringify(content ?? EMPTY_NOTE)
@@ -291,8 +357,7 @@ export default function TaskEditor({
       from: Math.min(from, end),
       to: Math.min(to, end),
     });
-    refreshToolbar((value) => value + 1);
-  }, [content, editor]);
+  }, [content, editor, publisher]);
 
   if (!editor) return null;
 
@@ -334,6 +399,10 @@ export default function TaskEditor({
   return (
     <div
       className="task-note-editor"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+          publisher.flush();
+      }}
       onKeyDown={(event) => {
         if (event.key === "Escape" && linkDraft) {
           setLinkDraft(null);
@@ -346,7 +415,7 @@ export default function TaskEditor({
         <div className="note-toolbar-main">
           <ToolButton
             label="Bold (⌘B)"
-            active={editor.isActive("bold")}
+            active={toolbar?.bold}
             disabled={source !== null}
             onClick={() => editor.chain().focus().toggleBold().run()}
           >
@@ -354,7 +423,7 @@ export default function TaskEditor({
           </ToolButton>
           <ToolButton
             label="Italic (⌘I)"
-            active={editor.isActive("italic")}
+            active={toolbar?.italic}
             disabled={source !== null}
             onClick={() => editor.chain().focus().toggleItalic().run()}
           >
@@ -362,7 +431,7 @@ export default function TaskEditor({
           </ToolButton>
           <ToolButton
             label="Heading"
-            active={editor.isActive("heading")}
+            active={toolbar?.heading}
             disabled={source !== null}
             onClick={() =>
               editor.chain().focus().toggleHeading({ level: 2 }).run()
@@ -373,7 +442,7 @@ export default function TaskEditor({
           <span className="note-tool-divider" />
           <ToolButton
             label="Checklist (⌘⇧9)"
-            active={editor.isActive("taskList")}
+            active={toolbar?.taskList}
             disabled={source !== null}
             onClick={() => editor.chain().focus().toggleTaskList().run()}
           >
@@ -381,7 +450,7 @@ export default function TaskEditor({
           </ToolButton>
           <ToolButton
             label="Bullet list"
-            active={editor.isActive("bulletList")}
+            active={toolbar?.bulletList}
             disabled={source !== null}
             onClick={() => editor.chain().focus().toggleBulletList().run()}
           >
@@ -389,7 +458,7 @@ export default function TaskEditor({
           </ToolButton>
           <ToolButton
             label="Code block"
-            active={editor.isActive("codeBlock")}
+            active={toolbar?.codeBlock}
             disabled={source !== null}
             onClick={() => editor.chain().focus().toggleCodeBlock().run()}
           >
@@ -398,7 +467,7 @@ export default function TaskEditor({
           <span className="note-tool-divider" />
           <ToolButton
             label="Add or edit link"
-            active={editor.isActive("link")}
+            active={toolbar?.link}
             disabled={source !== null}
             onClick={() => {
               const { from, to } = editor.state.selection;
@@ -487,6 +556,7 @@ export default function TaskEditor({
             }}
           >
             <input
+              {...noTextSuggestions}
               autoFocus
               type="text"
               aria-label="Link URL"
@@ -527,10 +597,10 @@ export default function TaskEditor({
             MARKDOWN <span>Changes apply when you save</span>
           </div>
           <textarea
+            {...noTextSuggestions}
             value={source}
             onChange={(event) => setSource(event.target.value)}
             aria-label="Markdown source"
-            spellCheck={false}
             onKeyDown={(event) => {
               if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
                 event.preventDefault();
@@ -579,25 +649,34 @@ export default function TaskEditor({
         }}
       />
       <div className="note-editor-footnote">
-        <span>Markdown &amp; LaTeX supported</span>
+        {vimEnabled && source === null ? (
+          <span
+            className={`vim-mode vim-mode-${vimMode}`}
+            aria-label="Vim mode status"
+          >
+            Vim · {vimMode.replace("-", " ")}
+          </span>
+        ) : (
+          <span>Markdown &amp; LaTeX supported</span>
+        )}
         <div>
           <ToolButton
             label="Undo (⌘Z)"
-            disabled={source !== null || !editor.can().undo()}
+            disabled={source !== null || !toolbar?.canUndo}
             onClick={() => editor.chain().focus().undo().run()}
           >
             <Undo2 size={13} />
           </ToolButton>
           <ToolButton
             label="Redo (⌘⇧Z)"
-            disabled={source !== null || !editor.can().redo()}
+            disabled={source !== null || !toolbar?.canRedo}
             onClick={() => editor.chain().focus().redo().run()}
           >
             <Redo2 size={13} />
           </ToolButton>
         </div>
       </div>
-      {editor.isActive("table") && source === null && (
+      {toolbar?.table && source === null && (
         <div className="note-table-actions">
           <button
             type="button"
