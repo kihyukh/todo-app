@@ -23,7 +23,23 @@ Checkboxes stay inside notes. The aggregate view indexes the same document nodes
 
 Status columns can be changed without affecting completion or scheduling. Completion has its own control and archive view.
 
-The visual direction uses charcoal text, readable slate metadata, a cool gray sidebar, and cobalt selection states. A left selection indicator reinforces the active task or view. Do dates use cobalt; deadline flags use dark amber and overdue dates use red. Meaningful text remains readable on both white and selected surfaces.
+The visual direction uses dark charcoal-green text, readable muted metadata, a quiet gray-green sidebar, and forest-green selection states. A left selection indicator reinforces the active task or view. Work dates use green; deadline markers remain distinct, and overdue dates use red. Meaningful text remains readable on both white and selected surfaces.
+
+## Task details and dates
+
+The user's supplied TickTick screenshots informed this revision: small date controls in a quiet top bar, with most of the detail pane given to the title and note. Completion, work dates, deadline, and priority sit in the header. List, status, tags, and the link-event action share a compact metadata area below the title. A task with no linked events does not reserve an empty Calendar section. Saving status sits in the footer. The title and note share the same left edge; the editor's existing gutter remains usable.
+
+Both date controls open one calendar with **Work days** and **Deadline** tabs. Work days select individual dates, including across months; the deadline selects one final date. Quick choices offer Today, Tomorrow, and Next week. Circular day selection, restrained colors, and clear month navigation follow the supplied calendar reference. Selected work days stay visible as removable chips. The deadline has its own marker and work after the deadline remains possible with a quiet explanation.
+
+Changes stay in a local draft until **Save**, which commits both fields together. **Cancel**, Escape, the close button, or clicking outside discards the draft. Clear affects only the active tab. Switching tasks or receiving changed schedule data closes a stale draft, preventing it from overwriting a newer schedule. Keyboard arrows navigate days, Page Up/Down changes months, and Tab remains within the picker. On iPhone the picker becomes a sheet sized to the visible screen.
+
+## Dragging tasks
+
+Dragging makes the same task easier to organize without creating a duplicate. Dropping between rows sets their order in the current All tasks, Inbox, list, or tag view. Order is stored per task and per view, so it survives native file reloads and does not affect other views. Until a view is rearranged, its existing priority ordering remains in use. A small **Manual order** footer action restores automatic priority order. Today and Upcoming preserve their scheduling order, and searching disables rearrangement to avoid moving tasks relative to invisible results.
+
+A sidebar list drop changes the task's list. A tag drop adds only that tag, preserving its list and other tags. Inbox clears the list assignment. Board drops change status. The destination is highlighted with an explicit move/add cue, and a receipt offers Undo. Undo restores only the affected field when it still matches that operation, preserving intervening note edits, schedule changes, and other tags. Completed or trashed tasks cannot be dragged. External text and file drops do not become task moves.
+
+Grab handles appear on hover or keyboard focus, keeping resting rows quiet. Alt + Up/Down on the handle moves a task without a mouse. The detail pane's list and tag controls remain the direct alternative, particularly on touch devices; touch dragging is not part of the validated interaction set.
 
 Task notes use 14px body text at 1.45 line height, 5px paragraph gaps, and 2px checklist item gaps for compact reading. Equation editing follows the local source/render behavior of [Obsidian Live Preview](https://help.obsidian.md/Live%2Bpreview%2Bupdate): selecting the equation reveals editable LaTeX in place, leaving it restores the rendered equation. Display math also shows a live preview below the active source. The separate equation popup and toolbar button have been removed.
 

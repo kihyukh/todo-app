@@ -30,6 +30,8 @@ export type Task = {
   attachments: Attachment[];
   tagIds?: string[];
   priority?: 0 | 1 | 2 | 3;
+  /** Independent manual positions for All tasks, Inbox, and each list/tag view. */
+  manualOrder?: Record<string, number>;
   calendarLinks?: CalendarEventLink[];
   example?: boolean;
 };

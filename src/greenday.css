@@ -153,62 +153,6 @@
 .task-properties {
   margin-top: 15px;
 }
-.task-properties .date-fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  margin: 0;
-  max-width: none;
-}
-.task-properties .date-field {
-  flex: 0 1 auto;
-  max-width: 100%;
-}
-.task-properties .date-field-trigger {
-  width: auto;
-  max-width: 100%;
-  min-height: 32px;
-  padding: 6px 8px;
-  gap: 6px;
-  border-color: #e0e7e1;
-  background: #f8faf8;
-  border-radius: 6px;
-}
-.task-properties .date-field-trigger > svg {
-  width: 13px;
-  height: 13px;
-}
-.task-properties .date-field-trigger > span {
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-  flex: initial;
-}
-.task-properties .date-field-trigger small {
-  font-size: 11px;
-  color: var(--secondary);
-  white-space: nowrap;
-}
-.task-properties .date-field-trigger strong {
-  font-size: 12px;
-  font-weight: 550;
-  color: var(--ink);
-  gap: 4px;
-}
-.task-properties .date-field-trigger:hover {
-  background: #eff5f0;
-  border-color: #bbd0c1;
-}
-.task-properties .today-date .date-field-trigger {
-  background: #edf6ef;
-  border-color: #b4d2c0;
-}
-.task-properties .today-date .date-field-trigger strong {
-  color: var(--accent);
-}
-.task-properties .overdue-date .date-field-trigger strong {
-  color: var(--danger);
-}
 .task-property-row {
   display: flex;
   flex-wrap: wrap;
@@ -396,15 +340,6 @@
   .task-title-editor textarea {
     font-size: 21px;
     min-height: 30px;
-  }
-  .task-properties .date-field-trigger {
-    min-height: 38px;
-  }
-  .task-properties .date-field-trigger small {
-    font-size: 11px;
-  }
-  .task-properties .date-field-trigger strong {
-    font-size: 12px;
   }
   .task-properties .status-field select,
   .priority-field select {

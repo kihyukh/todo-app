@@ -4,6 +4,7 @@ import App from "./App";
 import { APP_NAME } from "./brand";
 import "./styles.css";
 import "./greenday.css";
+import "./task-detail.css";
 document.title = APP_NAME;
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

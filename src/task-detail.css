@@ -1,0 +1,288 @@
+/* The note is the primary surface; task controls share a quiet header. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.detail {
+  container: task-detail / inline-size;
+}
+.detail .detail-top {
+  height: 56px;
+  min-height: 56px;
+  padding: 0 20px;
+  gap: 12px;
+  border-bottom-color: var(--line);
+}
+.detail-top > .task-check.large {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+.detail-top .detail-actions {
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.detail-top .priority-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  padding: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.detail-top .priority-field:hover {
+  background: var(--accent-soft);
+}
+.detail-top .priority-field:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.detail-top .priority-field select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  padding: 0;
+}
+.detail .detail-scroll {
+  padding: 24px 32px 28px;
+}
+.detail .task-title-editor textarea {
+  font-size: 23px;
+  font-weight: 650;
+  letter-spacing: -0.45px;
+  line-height: 1.35;
+  min-height: 32px;
+}
+.detail .task-properties {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 14px;
+  margin: 9px 0 13px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #edf0ed;
+}
+.detail .task-properties .detail-project,
+.detail .task-properties .task-property-row,
+.detail .task-properties .status-field {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  min-width: 0;
+  min-height: 28px;
+  flex: 0 1 auto;
+}
+.detail .task-properties .detail-project i,
+.detail .task-properties .status-field i {
+  flex: 0 0 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.detail .task-properties select {
+  max-width: 160px;
+  min-height: 28px;
+  font-size: 12px;
+  padding: 3px 0;
+  color: var(--secondary);
+  cursor: pointer;
+}
+.detail .task-properties select:hover {
+  color: var(--ink);
+}
+.detail .task-properties select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.detail .task-properties .task-tags-field {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  gap: 0;
+}
+.detail .task-properties .task-tags-label {
+  display: none;
+}
+.detail .task-properties .task-tags-values {
+  gap: 5px;
+}
+.detail .task-properties .tag-chip {
+  border: 0;
+  border-radius: 5px;
+  padding: 5px 6px;
+  background: color-mix(in srgb, var(--tag-color) 9%, white);
+  color: var(--text);
+}
+.detail .task-properties .tag-add {
+  min-height: 28px;
+  padding: 4px;
+  color: var(--muted);
+}
+.detail .task-properties .task-tags-field:has(.tag-chip) .tag-add {
+  width: 28px;
+  justify-content: center;
+  gap: 0;
+  font-size: 0;
+}
+.detail .task-properties .tag-popover {
+  left: auto;
+  right: 0;
+  width: 280px;
+  max-width: calc(100cqw - 64px);
+}
+.detail .task-calendar-links.is-compact {
+  flex: 1 0 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 3px 0 0;
+  border: 0;
+}
+.detail .task-calendar-links.is-compact.is-empty {
+  flex: 0 0 auto;
+  padding: 0;
+}
+.task-calendar-links.is-compact.is-empty .calendar-section-heading h3 {
+  display: none;
+}
+.detail .task-calendar-links.is-compact .calendar-section-heading {
+  margin: 0;
+  min-height: 28px;
+}
+.detail .task-calendar-links.is-compact .calendar-section-heading h3 {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--secondary);
+}
+.detail .task-calendar-links.is-compact .calendar-section-heading button {
+  padding: 4px 0;
+  min-height: 28px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.detail .task-calendar-link {
+  padding: 7px 0;
+}
+.detail .note-prose {
+  padding-top: 4px;
+}
+.detail .detail-footer {
+  min-height: 34px;
+  padding: 0 24px;
+  border-top-color: #edf0ed;
+  font-size: 10px;
+  gap: 12px;
+}
+.detail .detail-footer .saved-label {
+  display: inline;
+  font-size: 10px;
+  margin: 0;
+}
+.detail .detail-footer > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@container task-detail (max-width: 430px) {
+  .detail .detail-top {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 88px;
+    padding: 8px 18px;
+    gap: 2px 10px;
+  }
+  .detail-top .task-schedule-field {
+    order: 3;
+    flex: 1 0 100%;
+  }
+  .detail .detail-scroll {
+    padding-left: 28px;
+    padding-right: 24px;
+  }
+  .detail .task-properties {
+    gap: 4px 12px;
+  }
+}
+@media (max-width: 600px) {
+  .detail .detail-top {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 96px;
+    padding: max(8px, env(safe-area-inset-top)) 18px 8px;
+    gap: 2px 12px;
+  }
+  .detail .detail-top .task-schedule-field {
+    order: 3;
+    flex: 1 0 100%;
+  }
+  .detail .detail-actions > .icon-button:last-child {
+    display: none;
+  }
+  .detail .detail-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .detail .detail-scroll {
+    padding: 20px 26px 28px;
+  }
+  .detail .task-title-editor textarea {
+    font-size: 22px;
+  }
+  .detail .task-properties select,
+  .detail .task-properties .tag-add,
+  .detail .task-calendar-links.is-compact .calendar-section-heading button {
+    min-height: 36px;
+  }
+  .detail .task-properties .tag-popover {
+    max-width: none;
+  }
+  .is-touch-device .detail .task-properties .tag-popover {
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+  .detail .detail-footer {
+    min-height: calc(34px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+@media (min-width: 601px) and (max-width: 920px) {
+  .detail .detail-actions > .icon-button:last-child {
+    display: none;
+  }
+}
+.is-touch-device .detail .detail-top .priority-field,
+.is-touch-device .detail .detail-top .icon-button {
+  width: 44px;
+  height: 44px;
+}
+.is-touch-device .detail .task-properties select,
+.is-touch-device .detail .task-properties .tag-add,
+.is-touch-device
+  .detail
+  .task-calendar-links.is-compact
+  .calendar-section-heading
+  button {
+  min-height: 44px;
+}

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import type { CSSProperties, FormEvent } from "react";
+import type { CSSProperties, FormEvent, HTMLAttributes } from "react";
 import {
   Check,
   ChevronDown,
@@ -261,12 +261,14 @@ export function TagSidebar({
   selectedId,
   onSelect,
   onCreate,
+  dropProps,
 }: {
   tags: TagRecord[];
   counts: Map<string, number>;
   selectedId?: string;
   onSelect: (id: string) => void;
   onCreate: () => void;
+  dropProps?: (id: string) => HTMLAttributes<HTMLButtonElement>;
 }) {
   const active = tags.filter((tag) => !tag.deletedAt);
   return (
@@ -303,6 +305,7 @@ export function TagSidebar({
                 <button
                   type="button"
                   key={tag.id}
+                  {...dropProps?.(tag.id)}
                   className={`nav-item tag-nav ${selectedId === tag.id ? "active" : ""}`}
                   onClick={() => onSelect(tag.id)}
                   style={tagStyle(tag)}

@@ -39,6 +39,8 @@ import {
 } from "lucide-react";
 import TaskEditor from "./TaskEditor";
 import { CompletionMark, useTaskCompletion } from "./TaskCompletion";
+import { TaskDragHandle, TaskDragNotice, useTaskDrag } from "./TaskDrag";
+import { compareManualTasks, isActiveTask } from "./task-drag";
 import {
   readCompletionSoundPreference,
   writeCompletionSoundPreference,
@@ -56,7 +58,7 @@ import CalendarWorkspace, {
   CalendarSettings,
   TaskCalendarLinks,
 } from "./CalendarWorkspace";
-import WorkDatesField from "./WorkDatesField";
+import TaskScheduleField from "./TaskScheduleField";
 import { PrivacyInfo } from "./PrivacyInfo";
 import { APP_NAME, APP_VERSION } from "./brand";
 import {
@@ -186,6 +188,14 @@ function App() {
   );
   const [today, setToday] = useState(dateKey());
   const [toast, setToast] = useState("");
+  const drag = useTaskDrag({
+    state,
+    setState,
+    view,
+    mode,
+    query,
+    onCommit: () => setToast(""),
+  });
   const quickRef = useRef<HTMLInputElement>(null),
     searchRef = useRef<HTMLInputElement>(null),
     fileRef = useRef<HTMLInputElement>(null);
@@ -319,15 +329,17 @@ function App() {
       .filter((value): value is string => !!value && value >= today)
       .sort()[0] ?? "9999";
   const sorted = [...visible].sort((a, b) =>
-    view === "completed" || view === "trash"
-      ? 0
-      : view === "upcoming"
-        ? nextTaskDate(a).localeCompare(nextTaskDate(b)) ||
-          compareTaskPriority(a, b)
-        : (view === "today" && progressColumn
-            ? Number(b.columnId === progressColumn.id) -
-              Number(a.columnId === progressColumn.id)
-            : 0) || compareTaskPriority(a, b),
+    drag.reorderEnabled
+      ? compareManualTasks(a, b, view)
+      : view === "completed" || view === "trash"
+        ? 0
+        : view === "upcoming"
+          ? nextTaskDate(a).localeCompare(nextTaskDate(b)) ||
+            compareTaskPriority(a, b)
+          : (view === "today" && progressColumn
+              ? Number(b.columnId === progressColumn.id) -
+                Number(a.columnId === progressColumn.id)
+              : 0) || compareTaskPriority(a, b),
   );
   const upcoming =
     view === "upcoming"
@@ -707,16 +719,18 @@ function App() {
           <div
             data-task-id={task.id}
             className={`task-row ${selectedId === task.id ? "selected" : ""} ${compact ? "compact" : ""} ${celebrating ? "is-completing" : ""}`}
-            draggable={!task.deletedAt}
-            onDragStart={(e) => {
-              e.dataTransfer.setData("text/plain", task.id);
-              e.dataTransfer.effectAllowed = "move";
-            }}
+            {...drag.rowProps(task, compact)}
           >
+            {drag.reorderEnabled && !compact && isActiveTask(task) && (
+              <TaskDragHandle task={task} drag={drag} />
+            )}
             <button
               className={`task-check ${task.completedAt ? "checked" : ""} ${celebrating ? "is-celebrating" : ""}`}
               aria-label={`${task.completedAt ? "Reopen" : "Complete"} ${task.title}`}
-              onClick={() => complete(task)}
+              onClick={() => {
+                drag.clearNotice();
+                complete(task);
+              }}
             >
               <CompletionMark
                 checked={!!task.completedAt}
@@ -940,6 +954,9 @@ function App() {
             <button
               key={id}
               className={`nav-item ${view === id ? "active" : ""}`}
+              {...(id === "inbox"
+                ? drag.destinationProps({ kind: "project", id: "" })
+                : {})}
               onClick={() => changeView(id as View)}
             >
               <Icon size={18} />
@@ -963,6 +980,7 @@ function App() {
               <button
                 key={project.id}
                 className={`nav-item project-nav ${view === `project:${project.id}` ? "active" : ""}`}
+                {...drag.destinationProps({ kind: "project", id: project.id })}
                 onClick={() => changeView(`project:${project.id}`)}
                 onDoubleClick={() =>
                   setDialog({
@@ -987,6 +1005,7 @@ function App() {
             selectedId={selectedTag?.id}
             onSelect={(id) => changeView(`tag:${id}`)}
             onCreate={() => setTagDialog({})}
+            dropProps={(id) => drag.destinationProps({ kind: "tag", id })}
           />
         </div>
         <div className="sidebar-bottom">
@@ -1348,16 +1367,10 @@ function App() {
                   <section
                     className="board-column"
                     key={column.id}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = "move";
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const id = e.dataTransfer.getData("text/plain");
-                      if (state.tasks.some((t) => t.id === id))
-                        updateTask(id, { columnId: column.id });
-                    }}
+                    {...drag.destinationProps({
+                      kind: "column",
+                      id: column.id,
+                    })}
                   >
                     <header>
                       <i style={{ background: column.color }} />
@@ -1518,6 +1531,19 @@ function App() {
               ? `${checkboxQuery ? `${shownCheckboxes} of ` : ""}${openItems.length} open ${openItems.length === 1 ? "checkbox" : "checkboxes"}`
               : `${visible.length} ${visible.length === 1 ? "task" : "tasks"}`}
           </span>
+          {drag.reorderEnabled &&
+            visible.some((task) =>
+              Number.isFinite(task.manualOrder?.[view]),
+            ) && (
+              <button
+                className="task-order-hint"
+                title="Reset to priority order"
+                aria-label="Reset to priority order"
+                onClick={drag.resetOrder}
+              >
+                Manual order
+              </button>
+            )}
           <button onClick={() => setSettings(true)}>
             <Keyboard size={14} />
             Shortcuts
@@ -1534,37 +1560,56 @@ function App() {
             >
               <ArrowLeft size={18} />
             </button>
-            <div className="detail-project">
-              <i
-                style={{
-                  background:
-                    projects.find((p) => p.id === selected.projectId)?.color ??
-                    "#929bab",
-                }}
-              />
-              <select
-                aria-label="Task list"
-                value={selected.projectId}
-                onChange={(e) =>
-                  updateTask(selected.id, { projectId: e.target.value })
+            <button
+              className={`task-check large ${selected.completedAt ? "checked" : ""} ${selected.completedAt && completion.completing.has(selected.id) ? "is-celebrating" : ""}`}
+              aria-label={
+                selected.completedAt ? "Reopen task" : "Complete task"
+              }
+              onClick={() => complete(selected)}
+            >
+              <CompletionMark
+                checked={!!selected.completedAt}
+                celebrating={
+                  !!selected.completedAt &&
+                  completion.completing.has(selected.id)
                 }
-              >
-                <option value="">Inbox</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+              />
+            </button>
+            <TaskScheduleField
+              key={selected.id}
+              dates={workDates(selected)}
+              deadline={selected.deadline}
+              today={today}
+              onChange={({ dates, deadline }) =>
+                updateTask(selected.id, { ...schedulePatch(dates), deadline })
+              }
+            />
             <div className="detail-actions">
-              <span className={`saved-label ${error ? "has-save-error" : ""}`}>
-                {error
-                  ? "Not saved"
-                  : saving || notePending
-                    ? "Saving…"
-                    : "Saved"}
-              </span>
+              <label
+                className={`priority-field priority-${taskPriority(selected)}`}
+                title={`Priority: ${priorityLabels[taskPriority(selected)]}`}
+              >
+                <Flag
+                  size={17}
+                  fill={taskPriority(selected) ? "currentColor" : "none"}
+                />
+                <span className="visually-hidden">Priority</span>
+                <select
+                  aria-label="Task priority"
+                  value={taskPriority(selected)}
+                  onChange={(event) =>
+                    updateTask(selected.id, {
+                      priority: Number(event.target.value) as 0 | 1 | 2 | 3,
+                    })
+                  }
+                >
+                  {priorityLabels.map((label, value) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <div className="menu-anchor">
                 <IconButton
                   label="Task actions"
@@ -1631,21 +1676,6 @@ function App() {
           )}
           <div className="detail-scroll">
             <div className="task-title-editor">
-              <button
-                className={`task-check large ${selected.completedAt ? "checked" : ""} ${selected.completedAt && completion.completing.has(selected.id) ? "is-celebrating" : ""}`}
-                aria-label={
-                  selected.completedAt ? "Reopen task" : "Complete task"
-                }
-                onClick={() => complete(selected)}
-              >
-                <CompletionMark
-                  checked={!!selected.completedAt}
-                  celebrating={
-                    !!selected.completedAt &&
-                    completion.completing.has(selected.id)
-                  }
-                />
-              </button>
               <textarea
                 {...noTextSuggestions}
                 aria-label="Task title"
@@ -1662,28 +1692,31 @@ function App() {
               />
             </div>
             <div className="task-properties">
-              <div className="date-fields">
-                <WorkDatesField
-                  dates={workDates(selected)}
-                  deadline={selected.deadline}
-                  onChange={(dates) =>
-                    updateTask(selected.id, schedulePatch(dates))
-                  }
-                  today={today}
+              <div className="detail-project">
+                <i
+                  style={{
+                    background:
+                      projects.find((p) => p.id === selected.projectId)
+                        ?.color ?? "#929bab",
+                  }}
                 />
-                <DateField
-                  label="Deadline"
-                  value={selected.deadline}
-                  icon={Flag}
-                  onChange={(value) =>
-                    updateTask(selected.id, { deadline: value })
+                <select
+                  aria-label="Task list"
+                  value={selected.projectId}
+                  onChange={(e) =>
+                    updateTask(selected.id, { projectId: e.target.value })
                   }
-                  today={today}
-                />
+                >
+                  <option value="">Inbox</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="task-property-row">
                 <div className="status-field">
-                  <span>Status</span>
                   <i
                     style={{
                       background: columns.find(
@@ -1705,27 +1738,6 @@ function App() {
                     ))}
                   </select>
                 </div>
-                <label
-                  className={`priority-field priority-${taskPriority(selected)}`}
-                >
-                  <Flag size={13} />
-                  <span className="visually-hidden">Priority</span>
-                  <select
-                    aria-label="Task priority"
-                    value={taskPriority(selected)}
-                    onChange={(event) =>
-                      updateTask(selected.id, {
-                        priority: Number(event.target.value) as 0 | 1 | 2 | 3,
-                      })
-                    }
-                  >
-                    {priorityLabels.map((label, value) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
               </div>
               <TaskTags
                 tags={tags}
@@ -1733,15 +1745,15 @@ function App() {
                 onChange={(tagIds) => updateTask(selected.id, { tagIds })}
                 onCreate={(draft) => createTag(draft, selected.id)}
               />
+              <TaskCalendarLinks
+                compact
+                task={selected}
+                tasks={state.tasks}
+                api={calendar}
+                onUpdateTask={updateTask}
+                onOpenTask={setSelectedId}
+              />
             </div>
-            <TaskCalendarLinks
-              task={selected}
-              tasks={state.tasks}
-              api={calendar}
-              onUpdateTask={updateTask}
-              onOpenTask={setSelectedId}
-            />
-            <div className="editor-separator" />
             <TaskEditor
               key={selected.id}
               taskId={selected.id}
@@ -1812,12 +1824,18 @@ function App() {
             />
           </div>
           <footer className="detail-footer">
+            <span className={`saved-label ${error ? "has-save-error" : ""}`}>
+              {error
+                ? "Not saved"
+                : saving || notePending
+                  ? "Saving…"
+                  : "Saved"}
+            </span>
             <span>
               {selected.example
                 ? "Example task · make it your own"
                 : `Created ${new Date(selected.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`}
             </span>
-            <span>Markdown & LaTeX</span>
           </footer>
         </aside>
       )}
@@ -2215,7 +2233,8 @@ function App() {
           {toast}
         </div>
       )}
-      {!toast && completion.notice && (
+      {!toast && <TaskDragNotice drag={drag} />}
+      {!toast && !drag.notice && completion.notice && (
         <div className="toast completion-toast" role="status">
           <Check size={16} />
           <span>Completed {completion.notice.title}</span>
@@ -2316,104 +2335,6 @@ function Empty({ icon: Icon, title, body }: any) {
       <Icon size={30} strokeWidth={1.4} />
       <h2>{title}</h2>
       <p>{body}</p>
-    </div>
-  );
-}
-function DateField({
-  label,
-  value,
-  icon: Icon,
-  onChange,
-  today,
-}: {
-  label: string;
-  value: string | null;
-  icon: any;
-  onChange: (v: string | null) => void;
-  today: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const anchor = useRef<HTMLDivElement>(null);
-  const touch = usesTouchInterface();
-  useEffect(() => {
-    if (!open) return;
-    const outside = (event: PointerEvent) => {
-      if (!anchor.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("pointerdown", outside);
-    return () => document.removeEventListener("pointerdown", outside);
-  }, [open]);
-  return (
-    <div
-      ref={anchor}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          setOpen(false);
-          event.stopPropagation();
-        }
-      }}
-      className={`date-field ${label === "Do date" && value === today ? "today-date" : ""} ${label === "Deadline" && value && value < today ? "overdue-date" : ""}`}
-    >
-      <button
-        className="date-field-trigger"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        <Icon size={16} />
-        <span>
-          <small>{label}</small>
-          <strong>{dateLabel(value)}</strong>
-        </span>
-        <ChevronDown size={13} />
-      </button>
-      {open && (
-        <div
-          className="date-popover"
-          role="dialog"
-          aria-label={`${label} options`}
-        >
-          <strong>{label}</strong>
-          <div className="date-shortcuts">
-            <button
-              onClick={() => {
-                onChange(today);
-                setOpen(false);
-              }}
-            >
-              Today
-            </button>
-            <button
-              onClick={() => {
-                onChange(addDays(1));
-                setOpen(false);
-              }}
-            >
-              Tomorrow
-            </button>
-          </div>
-          <input
-            autoFocus={!touch}
-            type="date"
-            aria-label={label}
-            value={value ?? ""}
-            onChange={(e) => onChange(e.target.value || null)}
-          />
-          <div className="date-popover-footer">
-            <button
-              onClick={() => {
-                onChange(null);
-                setOpen(false);
-              }}
-            >
-              Clear date
-            </button>
-            <button onClick={() => setOpen(false)}>Done</button>
-          </div>
-          {label === "Deadline" && (
-            <p>The final deadline, independent of when you work.</p>
-          )}
-        </div>
-      )}
     </div>
   );
 }

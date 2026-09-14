@@ -1167,12 +1167,14 @@ function linkFallback(link: CalendarEventLink): CalendarEvent {
 }
 export function TaskCalendarLinks({
   task,
+  compact = false,
   tasks = [task],
   api,
   onUpdateTask,
   onOpenTask = () => {},
 }: {
   task: Task;
+  compact?: boolean;
   tasks?: Task[];
   api: CalendarsAPI;
   onUpdateTask: UpdateTask;
@@ -1248,7 +1250,7 @@ export function TaskCalendarLinks({
   };
   return (
     <section
-      className="task-calendar-links"
+      className={`task-calendar-links ${compact ? "is-compact" : ""} ${linked.length ? "has-links" : "is-empty"}`}
       aria-label="Linked calendar events"
     >
       <div className="calendar-section-heading">

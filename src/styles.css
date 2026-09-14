@@ -658,57 +658,6 @@ kbd {
   min-height: 34px;
   max-height: 180px;
 }
-.date-fields {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 21px;
-}
-.date-field {
-  position: relative;
-  min-width: 0;
-}
-.date-field-trigger {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid #e9edf3;
-  padding: 12px 13px;
-  width: 100%;
-  border-radius: 7px;
-  text-align: left;
-  color: var(--secondary);
-  min-height: 59px;
-}
-.date-field-trigger > span {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  flex: 1;
-}
-.date-field-trigger small {
-  font-size: 11px;
-  color: var(--secondary);
-}
-.date-field-trigger strong {
-  font-size: 12px;
-  font-weight: 450;
-  color: var(--secondary);
-}
-.date-field-trigger > svg:last-child {
-  color: var(--secondary);
-}
-.today-date .date-field-trigger {
-  background: #f0f7f2;
-  border-color: #b4d2c0;
-  color: var(--blue);
-}
-.today-date .date-field-trigger strong {
-  color: var(--blue);
-}
-.overdue-date .date-field-trigger strong {
-  color: var(--danger);
-}
 .status-field {
   display: flex;
   align-items: center;
@@ -746,63 +695,6 @@ kbd {
   font-size: 11px;
   padding: 0 28px;
   min-height: 42px;
-}
-.date-popover {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  width: 235px;
-  z-index: 35;
-  background: white;
-  border: 1px solid #e6eaf2;
-  box-shadow: 0 8px 35px #1e33581c;
-  border-radius: 10px;
-  padding: 16px;
-  color: var(--secondary);
-}
-.date-field:last-child .date-popover {
-  right: 0;
-  left: auto;
-}
-.date-popover > strong {
-  font-size: 13px;
-  font-weight: 550;
-}
-.date-popover input {
-  width: 100%;
-  padding: 9px;
-  border: 1px solid #dfe5ef;
-  border-radius: 5px;
-  font-size: 13px;
-}
-.date-shortcuts {
-  display: flex;
-  gap: 8px;
-  margin: 13px 0 10px;
-}
-.date-shortcuts button {
-  background: #f1f5fc;
-  color: var(--blue);
-  border-radius: 5px;
-  padding: 7px;
-  font-size: 11px;
-  flex: 1;
-}
-.date-popover-footer {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 10px;
-}
-.date-popover-footer button {
-  color: var(--blue);
-  font-size: 11px;
-  padding: 2px;
-}
-.date-popover p {
-  font-size: 11px;
-  color: var(--blue);
-  line-height: 1.5;
-  margin: 12px 0 0;
 }
 .menu-anchor {
   position: relative;
@@ -1464,10 +1356,6 @@ kbd {
   .task-title-editor textarea {
     font-size: 21px;
   }
-  .date-field-trigger {
-    padding: 11px 9px;
-    gap: 7px;
-  }
   .detail-top {
     padding: 10px 18px 0;
   }
@@ -1500,9 +1388,6 @@ kbd {
   }
   .task-title-editor textarea {
     height: 65px;
-  }
-  .date-fields {
-    max-width: 560px;
   }
   .task-title {
     font-size: 14px;
@@ -1641,16 +1526,6 @@ kbd {
     width: 23px;
     height: 23px;
   }
-  .date-field-trigger {
-    min-height: 65px;
-    padding: 12px;
-  }
-  .date-field-trigger small {
-    font-size: 11px;
-  }
-  .date-field-trigger strong {
-    font-size: 13px;
-  }
   .status-field {
     font-size: 12px;
     margin-top: 20px;
@@ -1658,22 +1533,10 @@ kbd {
   .status-field select {
     font-size: 12px;
   }
-  .date-fields {
-    gap: 9px;
-  }
   .detail-footer {
     font-size: 11px;
     min-height: calc(42px + env(safe-area-inset-bottom));
     padding-bottom: env(safe-area-inset-bottom);
-  }
-  .date-popover input {
-    font-size: 16px;
-  }
-  .date-popover {
-    width: 225px;
-  }
-  .date-field-trigger > svg:last-child {
-    display: none;
   }
   .modal-backdrop {
     padding: 18px;
@@ -1716,10 +1579,6 @@ kbd {
   .preview-modal {
     height: 80dvh;
   }
-  .date-shortcuts button,
-  .date-popover-footer button {
-    font-size: 12px;
-  }
   .error-banner {
     margin-left: 24px;
     margin-right: 24px;
@@ -1753,17 +1612,6 @@ kbd {
 .nav-item .count {
   font-size: 12px;
   color: var(--secondary);
-}
-.date-field-trigger small {
-  font-size: 11px;
-  color: var(--secondary);
-}
-.date-field-trigger strong {
-  font-size: 13px;
-  color: var(--secondary);
-}
-.today-date .date-field-trigger strong {
-  color: var(--blue);
 }
 .status-field {
   font-size: 11px;
@@ -1852,9 +1700,6 @@ kbd {
   }
   .task-title {
     font-size: 15px;
-  }
-  .date-field-trigger strong {
-    font-size: 14px;
   }
   .nav-item {
     font-size: 15px;
@@ -1993,11 +1838,6 @@ kbd {
   min-height: 44px;
   font-size: 14px;
 }
-.is-touch-device .date-shortcuts button,
-.is-touch-device .date-popover-footer button {
-  min-height: 44px;
-  font-size: 14px;
-}
 .is-touch-device.has-touch-focus .detail-scroll,
 .is-touch-device.has-touch-focus .task-scroll {
   padding-bottom: 76px;
@@ -2092,8 +1932,6 @@ kbd {
   .is-touch-device .status-field select {
     min-height: 44px;
   }
-  .is-touch-device .date-popover,
-  .is-touch-device .date-field:last-child .date-popover,
   .is-touch-device .tag-popover {
     position: fixed;
     top: auto;
@@ -2108,8 +1946,6 @@ kbd {
     border-color: #bcc9df;
     box-shadow: 0 6px 32px #233e6738;
   }
-  .is-touch-device.has-touch-focus .date-popover,
-  .is-touch-device.has-touch-focus .date-field:last-child .date-popover,
   .is-touch-device.has-touch-focus .tag-popover {
     bottom: 66px;
     max-height: calc(100dvh - 88px);

@@ -43,11 +43,20 @@ These results establish build and local interaction behavior. They do not establ
 - The iPhone simulator check used the actual software keyboard to enter `/`. The popup appeared above the keyboard, tapping Checklist inserted a checkbox while retaining the keyboard, and subsequent typing continued in the checkbox. Done dismissed the keyboard. The fictional test note remains in the simulator.
 - The installed Mac app retained its existing workspace and showed the updated note hint. Its previous task view was restored without changing any personal task or calendar records. This development build can require renewed calendar consent; calendar access was not requested during these editor checks.
 
-## Current Open checkboxes update
+## Previous Open checkboxes update
 
 - **501 frontend tests passed**, including six new App integration tests for completed/trashed task exclusion, immediate counts, completion/Undo/reopening without note or schedule mutations, nested checkbox paths, incoming synced changes, search by step/title/tag, and filtered versus unfiltered empty states.
 - Browser checks used a fictional task to verify that its unchecked steps disappear when the parent is completed, remain unchanged inside its note, and reappear when reopened. Search remains in the checkbox pane and shows matching counts while the navigation count stays unfiltered.
 - This update changes the shared interface only. The Mac, simulator, and unsigned device archive builds succeeded. All 62 bundled web files match across these outputs, with no workspace or development directories bundled. The installed Mac app retained its workspace and showed matching active-step counts in its navigation and checkbox pane. Existing physical-device and provider-delivery limits below still apply.
+
+## Current task details, date picker, and dragging update
+
+- **540 frontend tests passed**, including 18 date picker tests, three task-detail integration tests, and 27 drag helper/integration tests. The production web, Mac, simulator, and unsigned device archive builds succeeded. All **62 bundled web files** match across the outputs, with no workspace or development directories bundled.
+- The installed Mac app passed mouse reordering, sidebar list/tag drops, tag Undo, and saved ordering after quit/reopen. This caught and fixed WebKit's native-drag takeover: a mouse gesture now disables the native draggable source before the drag threshold and restores it on finish/cancel. The two temporary tasks and their temporary list were soft-deleted afterward, with backups retained; no personal task or calendar record was edited.
+- The task detail header now contains completion, compact work-day/deadline controls, and a priority flag. List, status, and tags share a small row beneath the title. The note keeps its existing editing behavior and alignment.
+- Browser checks confirmed independent noncontiguous work days and a deadline, one Save applying both, cancellation preserving the previous schedule, and tag-menu placement. The iPhone simulator confirmed the touch sheet, visible selected dates, large calendar targets, and cancellation without changing the saved schedule or note. Pointer selection no longer shows a keyboard-style rectangular outline.
+- Browser mouse checks confirmed reordering, resetting to priority order, moving to a sidebar list/Inbox, adding a tag while preserving the list, and Undo. Touch scrolling remains intact; touch dragging is not claimed or validated.
+- Automated coverage includes atomic schedule saves, task switching, stale incoming changes, keyboard calendar navigation, focus containment, pointer cancellation, click suppression, edge scrolling, authenticated native drag data, per-view order persistence, and Undo preserving unrelated edits.
 
 ## Still needed before distribution
 
