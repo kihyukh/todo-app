@@ -49,7 +49,7 @@ These results establish build and local interaction behavior. They do not establ
 - Browser checks used a fictional task to verify that its unchecked steps disappear when the parent is completed, remain unchanged inside its note, and reappear when reopened. Search remains in the checkbox pane and shows matching counts while the navigation count stays unfiltered.
 - This update changes the shared interface only. The Mac, simulator, and unsigned device archive builds succeeded. All 62 bundled web files match across these outputs, with no workspace or development directories bundled. The installed Mac app retained its workspace and showed matching active-step counts in its navigation and checkbox pane. Existing physical-device and provider-delivery limits below still apply.
 
-## Current task details, date picker, and dragging update
+## Previous task details, date picker, and dragging update
 
 - **540 frontend tests passed**, including 18 date picker tests, three task-detail integration tests, and 27 drag helper/integration tests. The production web, Mac, simulator, and unsigned device archive builds succeeded. All **62 bundled web files** match across the outputs, with no workspace or development directories bundled.
 - The installed Mac app passed mouse reordering, sidebar list/tag drops, tag Undo, and saved ordering after quit/reopen. This caught and fixed WebKit's native-drag takeover: a mouse gesture now disables the native draggable source before the drag threshold and restores it on finish/cancel. The two temporary tasks and their temporary list were soft-deleted afterward, with backups retained; no personal task or calendar record was edited.
@@ -57,6 +57,14 @@ These results establish build and local interaction behavior. They do not establ
 - Browser checks confirmed independent noncontiguous work days and a deadline, one Save applying both, cancellation preserving the previous schedule, and tag-menu placement. The iPhone simulator confirmed the touch sheet, visible selected dates, large calendar targets, and cancellation without changing the saved schedule or note. Pointer selection no longer shows a keyboard-style rectangular outline.
 - Browser mouse checks confirmed reordering, resetting to priority order, moving to a sidebar list/Inbox, adding a tag while preserving the list, and Undo. Touch scrolling remains intact; touch dragging is not claimed or validated.
 - Automated coverage includes atomic schedule saves, task switching, stale incoming changes, keyboard calendar navigation, focus containment, pointer cancellation, click suppression, edge scrolling, authenticated native drag data, per-view order persistence, and Undo preserving unrelated edits.
+
+## Current contextual-table update
+
+- **577 frontend tests passed**, including 20 table helper/resize/source tests and 17 controls integration tests. Coverage includes scoped row/column selection, edit/undo, hover without note writes, width/header source preservation, multiple tables, incoming document changes, Vim Normal/Insert mode, and menu placement during scrolling or software-keyboard changes.
+- Browser checks confirmed the grey handles, contextual menu and selected-column highlight, insertion/deletion, direct border dragging, and retained 120px/313px widths after Markdown apply. All sample data is fictional.
+
+- The installed Mac app confirmed row selection, duplication, Undo, and immediate border dragging; the 125px width was verified in the saved test record. The iPhone simulator confirmed touch handles, an on-screen column menu, insertion, and Undo. Temporary native test tasks were moved to Trash afterward; existing tasks were preserved.
+- Production web, Mac, simulator, and unsigned device archive builds passed. All 62 bundled web assets matched exactly across the outputs. No personal workspace or development directories were bundled.
 
 ## Still needed before distribution
 

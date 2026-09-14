@@ -57,6 +57,14 @@ The menu opens from a freshly typed `/` at the beginning of a paragraph or headi
 
 The insertion subset starts with checklists and lists, then offers H1–H3, quotes, display equations, images, tables, code blocks, and dividers. These actions create or change note elements at the writing position. Inline formatting, links, Markdown source, and task-level file attachments stay in **+**, keeping the typing menu focused. Existing block types are retained when selected again, and schema restrictions protect nested checklist/list structure. The menu adds no permanent toolbar.
 
+## Tables inside notes
+
+The user's requested interaction and [Notion's simple-table guide](https://www.notion.com/en-gb/help/columns-headings-and-dividers) informed the design: hover a cell to reveal a grey strip along its column's top edge and row's left edge. Hovering the strip reveals a grip button. Clicking selects the full row or column and opens its menu. The controls live outside the editable document, so hovering neither changes the selection nor saves a note. Active-cell handles also remain available for keyboard and touch use.
+
+Menus offer insertion on either side, duplication, header styling, clearing contents, and deletion. The selected strip stays visible beside the menu where space permits. Escape restores the original caret, and structural actions return focus to the table without changing Vim mode. The popup follows note scrolling and the visible keyboard viewport; incoming document changes close it before an action can target stale content. The final remaining row/column uses the explicit Delete table action. Duplication is disabled for merged tables to preserve their structure.
+
+Column borders resize directly through the editor's table-resizing implementation, with an 80px minimum and one undoable commit when the gesture ends. Pressing a border refreshes its hit-test so a quick drag works even without a preceding hover event. Widths are stored with the note. Markdown source retains standard GFM for ordinary tables and adds a bounded, consumed metadata comment for custom widths or header layouts. Arbitrary merged-cell source roundtrips remain limited by GFM. Wide tables scroll horizontally within the note. The persistent row/column button strip below the editor has been removed.
+
 ## Images inside notes
 
 An image is a selectable block in the note. Clicking it reveals a clear outline and a compact toolbar below the image: Small, Medium, Full, Crop, and Delete. These controls disappear when the writer returns to text. The corner handle resizes proportionally; keyboard users can focus it and use the arrow keys. Cropping reveals the original image with a movable rectangle and corner handles. Apply commits the crop, Cancel keeps the previous view, and Reset restores the full original. Cropping stores a viewing rectangle without changing the original image bytes. Each size, crop, or deletion action can be undone independently.

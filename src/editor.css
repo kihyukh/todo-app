@@ -272,7 +272,7 @@
   margin: 0;
 }
 .note-prose .selectedCell::after {
-  background: var(--selected, #e5f1e9);
+  background: #3d865726;
   content: "";
   position: absolute;
   inset: 0;
@@ -447,21 +447,6 @@
   border: 0;
   cursor: pointer;
 }
-.note-table-actions {
-  display: flex;
-  gap: 7px;
-  flex-wrap: wrap;
-  padding-bottom: 12px;
-}
-.note-table-actions button {
-  font-size: 11px;
-  border: 1px solid var(--border, #dce3de);
-  border-radius: 4px;
-  padding: 5px 7px;
-  color: var(--secondary);
-  background: var(--sidebar, #f3f5f3);
-  cursor: pointer;
-}
 @media (max-width: 600px) {
   .note-tool {
     width: 29px;
@@ -513,10 +498,6 @@
 }
 .is-touch-editor .note-source-actions > button {
   min-height: 44px;
-}
-.is-touch-editor .note-table-actions button {
-  min-height: 44px;
-  font-size: 13px;
 }
 .touch-link-actions {
   position: fixed;

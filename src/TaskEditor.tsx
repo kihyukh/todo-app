@@ -23,7 +23,8 @@ import {
 } from "./image-imports";
 import { continueFromImage } from "./image-navigation";
 import Placeholder from "@tiptap/extension-placeholder";
-import { TableKit } from "@tiptap/extension-table";
+import { NoteTableKit } from "./note-table";
+import NoteTableControls from "./NoteTableControls";
 import { Markdown } from "@tiptap/markdown";
 import { createNotePublisher } from "./note-publisher";
 import {
@@ -259,7 +260,7 @@ export default function TaskEditor({
         Placeholder.configure({
           placeholder: "Write a note, or type / to add an element…",
         }),
-        TableKit.configure({ table: { resizable: false } }),
+        NoteTableKit,
         Markdown.configure({
           markedOptions: { gfm: true },
           indentation: { style: "space", size: 2 },
@@ -818,6 +819,10 @@ export default function TaskEditor({
               setMenuAnchor(anchor);
             }}
           />
+          <NoteTableControls
+            editor={editor}
+            hidden={menuAnchor !== null || slash !== null}
+          />
         </div>
       )}
 
@@ -894,34 +899,6 @@ export default function TaskEditor({
           </ToolButton>
         </div>
       </div>
-      {context?.table && source === null && (
-        <div className="note-table-actions">
-          <button
-            type="button"
-            onClick={() => editor.chain().focus().addRowAfter().run()}
-          >
-            Add row
-          </button>
-          <button
-            type="button"
-            onClick={() => editor.chain().focus().addColumnAfter().run()}
-          >
-            Add column
-          </button>
-          <button
-            type="button"
-            onClick={() => editor.chain().focus().deleteRow().run()}
-          >
-            Delete row
-          </button>
-          <button
-            type="button"
-            onClick={() => editor.chain().focus().deleteTable().run()}
-          >
-            Remove table
-          </button>
-        </div>
-      )}
     </div>
   );
 }
