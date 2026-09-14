@@ -19,7 +19,8 @@ On this Mac, tasks are stored in **iCloud Drive → Daymark**. The footer report
 - **Images and PDFs as attachments.** Attach image/PDF files to preview inside the Mac app or open in the default viewer.
 - **Open checkboxes.** Every unchecked note item appears with a link to its parent. Checking it updates the original note. Completed parent tasks remain included until their steps are checked; trashed tasks are excluded.
 - **Lists and boards.** Add/rename lists. Switch list/board layouts. Add, rename, recolor, reorder, or remove board columns. Drag a card between columns or change its status in the detail pane. Removing a column moves its tasks into a remaining column.
-- **Daily essentials.** Search across titles and notes, quick entry, task completion/reopening, duplicate, recoverable Trash, and task-data export.
+- **Grouped tags.** Organize tasks by Area, Work type, and Topic. Filter across lists from the sidebar, search tag names, and assign several tags to a task. Create, rename, recolor, regroup, or delete tags; assignments sync with your tasks. A task created in a tag view inherits that tag.
+- **Daily essentials.** Search across titles, notes, and tags, quick entry, task completion/reopening, duplicate, recoverable Trash, and task-data export.
 - **Local persistence and iCloud Drive storage.** Separate coordinated files per task, deletion tombstones, deterministic conflict resolution, and retained previous versions. See [native storage details](README-NATIVE.md).
 
 There are no habits, timers, gamification, collaboration feeds, or analytics integrations.
@@ -47,8 +48,9 @@ On iPhone, choose the Mac app’s **same Daymark folder in iCloud Drive** using 
 
 ## Validation
 
-- 188 automated frontend tests cover date independence, task visibility, merge convergence, deletion preservation, concurrent browser saves, rich Markdown/math round trips, nested checkbox updates, directional math navigation, list/quote/table cursor behavior, image paste/drop placement, resizing/cropping/deletion, link clicks, Vim commands and modes inside equation source, typing batches, immediate task switches, and shutdown flushes.
-- 17 native checks cover conflict handling, unreadable-file protection, revision history, attachments, and ordered background saves without blocking the main queue.
+- 250 automated frontend tests cover date independence, task visibility, merge convergence, deletion preservation, concurrent browser saves, rich Markdown/math round trips, nested checkbox updates, directional math navigation, list/quote/table cursor behavior, image paste/drop placement, resizing/cropping/deletion, link clicks, Vim commands and modes inside equation source, typing batches, immediate task switches, and shutdown flushes, grouped tag editing/filtering, native attachment links, and TickTick conversion.
+- 28 native checks cover conflict handling, unreadable-file protection, revision history, attachments, tag persistence, and ordered background saves without blocking the main queue.
+- 36 synthetic migration CLI checks cover read-only preparation, required full backups, attachment resolution, idempotence, and preservation of existing edits.
 - Manually checked native app launch, task creation, images/PDF previews, iCloud folder saving, quit/reopen persistence, and confirmed-save shutdown.
 - Manually checked Today rescheduling, live checkbox aggregation, typed inline/display math, equation editing, and desktop/mobile layouts.
 - Manually checked cursor entry and exit in both directions, wrapped LaTeX navigation, native WebKit focus, Vim Normal/Insert traversal, list indentation, checkbox continuation, and quote exit.
@@ -63,4 +65,4 @@ swiftc -swift-version 5 native/Shared/DaymarkStore.swift native/Tests/main.swift
 
 [Design notes and product references](docs/DESIGN.md) explain the choices and which products were directly inspected.
 
-Concurrent edits to the **same task** resolve as whole records; the newer record wins and previous/losing versions are retained under `Revisions`. This is a personal app, not a collaborative text editor. Revisions do not have a restore UI yet. JSON export includes attachment references; copy the whole workspace folder to back up the attachment files too. Import from existing task apps and push notifications are outside this first version.
+Concurrent edits to the **same task** resolve as whole records; the newer record wins and previous/losing versions are retained under `Revisions`. This is a personal app, not a collaborative text editor. Revisions do not have a restore UI yet. JSON export includes attachment references; copy the whole workspace folder to back up the attachment files too. A guarded [TickTick migration tool](docs/MIGRATION.md) supports a reviewed one-time transfer; there is no recurring TickTick sync or general import UI. Push notifications remain outside this version.

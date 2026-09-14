@@ -33,8 +33,20 @@ import {
   Keyboard,
   CheckSquare2,
   FolderOpen,
+  Hash,
 } from "lucide-react";
 import TaskEditor from "./TaskEditor";
+import TaskTags, { TagChips, TagDialog, TagSidebar } from "./TaskTags";
+import type { TagDraft } from "./TaskTags";
+import {
+  activeTags,
+  assignTag,
+  findTagByName,
+  normalizeTagName,
+  TAG_GROUPS,
+  tagCounts,
+  taskTags,
+} from "./tags";
 import { extractCheckboxes, toggleCheckbox, plainText } from "./editor-utils";
 import {
   activeTasks,
@@ -45,7 +57,7 @@ import {
   now,
   uid,
 } from "./model";
-import type { Attachment, Task } from "./model";
+import type { Attachment, Task, TagRecord } from "./model";
 import { isNative, nativeSend, useWorkspace } from "./storage";
 import {
   noTextSuggestions,
@@ -61,7 +73,8 @@ type View =
   | "checkboxes"
   | "completed"
   | "trash"
-  | `project:${string}`;
+  | `project:${string}`
+  | `tag:${string}`;
 type Dialog = { kind: "project" | "column"; id?: string; value: string } | null;
 const palette = [
   "#547ce8",
@@ -112,6 +125,7 @@ function App() {
   const [vimEnabled, setVimEnabled] = useState(readVimPreference);
   const [notePending, setNotePending] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [tagDialog, setTagDialog] = useState<{ id?: string } | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [plan, setPlan] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -125,6 +139,11 @@ function App() {
     searchRef = useRef<HTMLInputElement>(null),
     fileRef = useRef<HTMLInputElement>(null);
   const active = activeTasks(state);
+  const tags = activeTags(state);
+  const countsByTag = tagCounts(state);
+  const selectedTag = view.startsWith("tag:")
+    ? tags.find((tag) => tag.id === view.slice(4))
+    : undefined;
   const projects = state.projects.filter((p) => !p.deletedAt),
     columns = state.columns
       .filter((c) => !c.deletedAt)
@@ -146,19 +165,21 @@ function App() {
         ),
     [state.tasks],
   );
-  const title = view.startsWith("project:")
-    ? (projects.find((p) => p.id === view.slice(8))?.name ?? "List")
-    : (
-        {
-          today: "Today",
-          upcoming: "Upcoming",
-          all: "All tasks",
-          inbox: "Inbox",
-          checkboxes: "Open checkboxes",
-          completed: "Completed",
-          trash: "Trash",
-        } as Record<string, string>
-      )[view];
+  const title = view.startsWith("tag:")
+    ? (selectedTag?.name ?? "Tag")
+    : view.startsWith("project:")
+      ? (projects.find((p) => p.id === view.slice(8))?.name ?? "List")
+      : (
+          {
+            today: "Today",
+            upcoming: "Upcoming",
+            all: "All tasks",
+            inbox: "Inbox",
+            checkboxes: "Open checkboxes",
+            completed: "Completed",
+            trash: "Trash",
+          } as Record<string, string>
+        )[view];
   const visible = state.tasks.filter((t) => {
     if (view === "trash") {
       if (!t.deletedAt) return false;
@@ -175,9 +196,13 @@ function App() {
     if (view === "inbox" && t.projectId) return false;
     if (view.startsWith("project:") && t.projectId !== view.slice(8))
       return false;
+    if (view.startsWith("tag:") && !(t.tagIds ?? []).includes(view.slice(4)))
+      return false;
     return (
       !query ||
-      `${t.title} ${plainText(t.notes)}`
+      `${t.title} ${plainText(t.notes)} ${taskTags(t, state)
+        .map((tag) => tag.name)
+        .join(" ")}`
         .toLowerCase()
         .includes(query.toLowerCase())
     );
@@ -227,6 +252,7 @@ function App() {
       if (e.key === "Escape") {
         setSettings(false);
         setDialog(null);
+        setTagDialog(null);
         setMenu(false);
         setPlan(false);
         setAttachmentPreview(null);
@@ -267,6 +293,89 @@ function App() {
       ),
     }));
   }
+  function createTag(draft: TagDraft, taskId?: string) {
+    const name = normalizeTagName(draft.name);
+    if (!name) return;
+    const candidate: TagRecord = {
+      id: uid(),
+      name,
+      group: draft.group,
+      color: draft.color,
+      updatedAt: now(),
+    };
+    setState((s) => {
+      const existing = findTagByName(s.tags ?? [], name);
+      const tag = existing ?? candidate;
+      return {
+        ...s,
+        tags: existing ? s.tags : [...(s.tags ?? []), tag],
+        tasks: taskId
+          ? s.tasks.map((task) =>
+              task.id === taskId
+                ? assignTag(
+                    task,
+                    tag.id,
+                    new Date(
+                      Math.max(Date.now(), Date.parse(task.updatedAt) + 1),
+                    ).toISOString(),
+                  )
+                : task,
+            )
+          : s.tasks,
+      };
+    });
+  }
+  function saveTag(draft: TagDraft) {
+    if (tagDialog?.id) {
+      const id = tagDialog.id;
+      setState((s) => ({
+        ...s,
+        tags: (s.tags ?? []).map((tag) =>
+          tag.id === id
+            ? {
+                ...tag,
+                ...draft,
+                name: normalizeTagName(draft.name),
+                updatedAt: new Date(
+                  Math.max(Date.now(), Date.parse(tag.updatedAt) + 1),
+                ).toISOString(),
+              }
+            : tag,
+        ),
+      }));
+    } else createTag(draft);
+    setTagDialog(null);
+  }
+  function deleteTag(id: string) {
+    setState((s) => ({
+      ...s,
+      tags: (s.tags ?? []).map((tag) =>
+        tag.id === id
+          ? {
+              ...tag,
+              deletedAt: now(),
+              updatedAt: new Date(
+                Math.max(Date.now(), Date.parse(tag.updatedAt) + 1),
+              ).toISOString(),
+            }
+          : tag,
+      ),
+      tasks: s.tasks.map((task) =>
+        (task.tagIds ?? []).includes(id)
+          ? {
+              ...task,
+              tagIds: task.tagIds!.filter((value) => value !== id),
+              updatedAt: new Date(
+                Math.max(Date.now(), Date.parse(task.updatedAt) + 1),
+              ).toISOString(),
+            }
+          : task,
+      ),
+    }));
+    if (view === `tag:${id}`) changeView("all");
+    setTagDialog(null);
+    setToast("Tag deleted");
+  }
   function complete(task: Task) {
     updateTask(task.id, { completedAt: task.completedAt ? null : now() });
   }
@@ -283,6 +392,7 @@ function App() {
       title,
       notes: emptyDoc(),
       projectId: view.startsWith("project:") ? view.slice(8) : "",
+      tagIds: selectedTag ? [selectedTag.id] : [],
       columnId: columnId ?? columns[0]?.id ?? "next",
       doDate: view === "today" ? today : null,
       deadline: null,
@@ -472,6 +582,7 @@ function App() {
               </span>
             )}
           </span>
+          <TagChips tags={taskTags(task, state)} compact />
         </button>
         {task.deletedAt ? (
           <IconButton
@@ -552,11 +663,18 @@ function App() {
             {...noTextSuggestions}
             ref={searchRef}
             aria-label="Search tasks"
-            placeholder="Search tasks"
+            placeholder={
+              view === "completed"
+                ? "Search completed tasks"
+                : view === "trash"
+                  ? "Search Trash"
+                  : "Search tasks"
+            }
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
-              if (e.target.value) setView("all");
+              if (e.target.value && view !== "completed" && view !== "trash")
+                setView("all");
             }}
           />
           <kbd>⌘ K</kbd>
@@ -574,37 +692,47 @@ function App() {
             </button>
           ))}
         </nav>
-        <div className="sidebar-section">
-          <span>MY LISTS</span>
-          <IconButton
-            label="Add list"
-            onClick={() => setDialog({ kind: "project", value: "" })}
-          >
-            <Plus size={15} />
-          </IconButton>
-        </div>
-        <nav aria-label="Lists">
-          {projects.map((project) => (
-            <button
-              key={project.id}
-              className={`nav-item project-nav ${view === `project:${project.id}` ? "active" : ""}`}
-              onClick={() => changeView(`project:${project.id}`)}
-              onDoubleClick={() =>
-                setDialog({
-                  kind: "project",
-                  id: project.id,
-                  value: project.name,
-                })
-              }
+        <div className="sidebar-collections">
+          <div className="sidebar-section">
+            <span>MY LISTS</span>
+            <IconButton
+              label="Add list"
+              onClick={() => setDialog({ kind: "project", value: "" })}
             >
-              <i style={{ background: project.color }} />
-              <span>{project.name}</span>
-              <span className="count">
-                {active.filter((t) => t.projectId === project.id).length || ""}
-              </span>
-            </button>
-          ))}
-        </nav>
+              <Plus size={15} />
+            </IconButton>
+          </div>
+          <nav aria-label="Lists">
+            {projects.map((project) => (
+              <button
+                key={project.id}
+                className={`nav-item project-nav ${view === `project:${project.id}` ? "active" : ""}`}
+                onClick={() => changeView(`project:${project.id}`)}
+                onDoubleClick={() =>
+                  setDialog({
+                    kind: "project",
+                    id: project.id,
+                    value: project.name,
+                  })
+                }
+              >
+                <i style={{ background: project.color }} />
+                <span>{project.name}</span>
+                <span className="count">
+                  {active.filter((t) => t.projectId === project.id).length ||
+                    ""}
+                </span>
+              </button>
+            ))}
+          </nav>
+          <TagSidebar
+            tags={tags}
+            counts={countsByTag}
+            selectedId={selectedTag?.id}
+            onSelect={(id) => changeView(`tag:${id}`)}
+            onCreate={() => setTagDialog({})}
+          />
+        </div>
         <div className="sidebar-bottom">
           <button
             className={`nav-item ${view === "completed" ? "active" : ""}`}
@@ -703,6 +831,14 @@ function App() {
                 </IconButton>
               </div>
             )}
+            {selectedTag && (
+              <IconButton
+                label="Edit tag"
+                onClick={() => setTagDialog({ id: selectedTag.id })}
+              >
+                <MoreHorizontal size={18} />
+              </IconButton>
+            )}
             {view.startsWith("project:") && (
               <IconButton
                 label="Rename list"
@@ -719,6 +855,19 @@ function App() {
             )}
           </div>
         </header>
+        {selectedTag && (
+          <p className="tag-view-description">
+            <Hash size={12} />
+            <span>
+              {
+                TAG_GROUPS.find(
+                  (group) => group.id === (selectedTag.group ?? "topic"),
+                )?.name
+              }{" "}
+              · Across all lists
+            </span>
+          </p>
+        )}
         {view === "today" && (
           <div className="today-intro">
             <span>
@@ -1202,6 +1351,12 @@ function App() {
                 ))}
               </select>
             </div>
+            <TaskTags
+              tags={tags}
+              tagIds={selected.tagIds ?? []}
+              onChange={(tagIds) => updateTask(selected.id, { tagIds })}
+              onCreate={(draft) => createTag(draft, selected.id)}
+            />
             <div className="editor-separator" />
             <TaskEditor
               key={selected.id}
@@ -1232,7 +1387,9 @@ function App() {
                         <small>
                           {a.mime === "application/pdf"
                             ? "PDF document"
-                            : "Image"}{" "}
+                            : a.mime.startsWith("image/")
+                              ? "Image"
+                              : "File"}{" "}
                           ·{" "}
                           {a.size < 1024 * 1024
                             ? `${Math.max(1, Math.round(a.size / 1024))} KB`
@@ -1429,6 +1586,16 @@ function App() {
           </section>
         </div>
       )}
+      {tagDialog && (
+        <TagDialog
+          key={tagDialog.id ?? "new"}
+          tag={tags.find((tag) => tag.id === tagDialog.id) ?? null}
+          tags={tags}
+          onSave={saveTag}
+          onDelete={tagDialog.id ? () => deleteTag(tagDialog.id!) : undefined}
+          onClose={() => setTagDialog(null)}
+        />
+      )}
       {dialog && (
         <div className="modal-backdrop">
           <form
@@ -1560,7 +1727,7 @@ function App() {
             </header>
             {attachmentPreview.mime.startsWith("image/") ? (
               <img src={attachmentPreview.url} alt={attachmentPreview.name} />
-            ) : (
+            ) : attachmentPreview.mime === "application/pdf" ? (
               <object data={attachmentPreview.url} type="application/pdf">
                 <p>This PDF can be opened in your default viewer.</p>
                 <button
@@ -1577,6 +1744,24 @@ function App() {
                   Open PDF
                 </button>
               </object>
+            ) : (
+              <div className="file-preview-fallback">
+                <FileText size={40} />
+                <p>Open this file in its default app.</p>
+                <button
+                  className="primary-button"
+                  onClick={() =>
+                    isNative()
+                      ? nativeSend({
+                          action: "openAttachment",
+                          attachment: attachmentPreview,
+                        })
+                      : window.open(attachmentPreview.url, "_blank", "noopener")
+                  }
+                >
+                  Open file
+                </button>
+              </div>
             )}
           </section>
         </div>

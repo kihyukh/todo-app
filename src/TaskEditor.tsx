@@ -21,6 +21,11 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { TableKit } from "@tiptap/extension-table";
 import { Markdown } from "@tiptap/markdown";
 import { createNotePublisher } from "./note-publisher";
+import {
+  isAllowedNoteLink,
+  normalizedNoteLink as normalizedLink,
+  openNoteLink,
+} from "./note-links";
 import { noTextSuggestions } from "./editor-preferences";
 import { VimEditor } from "./vim-editor";
 import type { VimMode } from "./vim-editor";
@@ -94,22 +99,6 @@ function ToolButton({
   );
 }
 
-function normalizedLink(value: string): string | null {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-  const candidate = /^[a-z][a-z\d+.-]*:/i.test(trimmed)
-    ? trimmed
-    : `https://${trimmed}`;
-  try {
-    const url = new URL(candidate);
-    return ["https:", "http:", "mailto:"].includes(url.protocol)
-      ? url.href
-      : null;
-  } catch {
-    return null;
-  }
-}
-
 export default function TaskEditor({
   taskId,
   content,
@@ -178,8 +167,8 @@ export default function TaskEditor({
             openOnClick: false,
             autolink: true,
             defaultProtocol: "https",
-            protocols: ["https", "http", "mailto"],
-            isAllowedUri: (url) => /^(https?:\/\/|mailto:)/i.test(url),
+            protocols: ["https", "http", "mailto", "daymark"],
+            isAllowedUri: isAllowedNoteLink,
             HTMLAttributes: {
               target: "_blank",
               rel: "noopener noreferrer nofollow",
@@ -238,8 +227,10 @@ export default function TaskEditor({
             // A normal click places the caret; opening a resource is deliberate.
             event.preventDefault();
             if (event.metaKey || event.ctrlKey) {
-              const href = normalizedLink(link.href);
-              if (href) window.open(href, "_blank", "noopener,noreferrer");
+              if (
+                openNoteLink(link.getAttribute("href") ?? "") === "native-only"
+              )
+                setNotice("Open this attachment in the Mac app.");
               return true;
             }
             return false;
@@ -385,7 +376,7 @@ export default function TaskEditor({
     if (!linkDraft) return;
     const url = normalizedLink(linkDraft.url);
     if (url === null) {
-      setNotice("Use a valid https, http, or email link.");
+      setNotice("Use a valid web, email, or Daymark attachment link.");
       return;
     }
     const chain = editor

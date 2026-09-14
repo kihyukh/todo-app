@@ -4,9 +4,21 @@ import type { AppState, Attachment, StorageInfo } from "./model";
 
 export const AUTOSAVE_DELAY_MS = 800;
 
+function stateSnapshot(state: AppState): string {
+  // Older workspaces omit tags. Treat that as the same empty collection so a
+  // cloud poll does not restart autosave merely by filling an optional field.
+  return JSON.stringify({
+    schemaVersion: state.schemaVersion,
+    tasks: state.tasks,
+    projects: state.projects,
+    columns: state.columns,
+    tags: state.tags ?? [],
+  });
+}
+
 function mergeIfChanged(local: AppState, remote: AppState): AppState {
   const merged = mergeState(local, remote);
-  return JSON.stringify(local) === JSON.stringify(merged) ? local : merged;
+  return stateSnapshot(local) === stateSnapshot(merged) ? local : merged;
 }
 
 declare global {
@@ -62,7 +74,9 @@ export async function writeBrowser(state: AppState) {
             columns: [],
           },
         );
-        changed = JSON.stringify(merged) !== JSON.stringify(request.result);
+        changed =
+          !request.result ||
+          stateSnapshot(merged) !== stateSnapshot(request.result);
         if (changed) store.put(merged, "state");
       };
       tx.oncomplete = () => resolve({ state: merged, changed });

@@ -1791,6 +1791,16 @@ kbd {
 .column-order button {
   padding: 5px 0;
 }
+.file-preview-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  min-height: 240px;
+  padding: 32px;
+  color: var(--secondary);
+}
 .task-title-editor textarea {
   height: auto;
   min-height: 65px;
@@ -1822,4 +1832,31 @@ kbd {
   font-weight: 400;
   color: var(--muted);
   margin-left: 8px;
+}
+
+/* Lists and tags share one scroll region, keeping the primary views and sync visible. */
+.sidebar-collections {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0 -5px;
+  padding: 0 5px 14px;
+}
+.sidebar-collections > .sidebar-section:first-child {
+  margin-top: 23px;
+}
+.sidebar-collections .sidebar-tags .sidebar-section {
+  margin-top: 20px;
+  margin-bottom: 4px;
+}
+.sidebar > .brand,
+.sidebar > .search,
+.sidebar > nav,
+.sidebar > .sidebar-bottom {
+  flex-shrink: 0;
+}
+.sidebar > .sidebar-bottom {
+  margin-top: 0;
+  padding-top: 12px;
 }

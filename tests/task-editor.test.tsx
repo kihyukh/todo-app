@@ -457,3 +457,101 @@ describe("rendered math after applying Markdown source", () => {
     expect(source.selectionStart).toBe(source.value.length - 1);
   });
 });
+
+describe("attachments linked inside task notes", () => {
+  const attachmentNote: NoteNode = {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [
+          {
+            type: "text",
+            text: "Review PDF",
+            marks: [
+              {
+                type: "link",
+                attrs: { href: "daymark://attachment/review.pdf" },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  it("retains native attachment links through rendered HTML, Markdown, and the link editor", async () => {
+    const harness = await mount({ initialNote: attachmentNote });
+    const editor = harness.editor();
+    expect(editor.view.dom.querySelector("a")!.getAttribute("href")).toBe(
+      "daymark://attachment/review.pdf",
+    );
+    const markdown = editor.getMarkdown();
+    expect(markdown).toContain("[Review PDF](daymark://attachment/review.pdf)");
+    await act(async () => {
+      editor.commands.setContent(markdown, { contentType: "markdown" });
+      editor.commands.setTextSelection(3);
+    });
+    expect(editor.view.dom.querySelector("a")!.getAttribute("href")).toBe(
+      "daymark://attachment/review.pdf",
+    );
+    await act(async () =>
+      harness.container
+        .querySelector<HTMLButtonElement>('[aria-label="Add or edit link"]')!
+        .click(),
+    );
+    expect(
+      harness.container.querySelector<HTMLInputElement>(
+        '[aria-label="Link URL"]',
+      )!.value,
+    ).toBe("daymark://attachment/review.pdf");
+    await act(async () =>
+      harness.container
+        .querySelector(".note-link-popover form, .note-popover form")!
+        .dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true }),
+        ),
+    );
+    expect(editor.view.dom.querySelector("a")!.getAttribute("href")).toBe(
+      "daymark://attachment/review.pdf",
+    );
+    expect(editor.getText()).toBe("Review PDF");
+  });
+
+  it("uses modifier-click to open native attachments while ordinary click keeps the note editable", async () => {
+    const postMessage = vi.fn(),
+      open = vi.spyOn(window, "open").mockReturnValue(null);
+    window.webkit = { messageHandlers: { daymark: { postMessage } } };
+    try {
+      const { editor: getEditor } = await mount({
+        initialNote: attachmentNote,
+      });
+      const editor = getEditor();
+      const before = editor.getJSON();
+      const link = editor.view.dom.querySelector("a")!;
+      await act(async () =>
+        link.dispatchEvent(
+          new MouseEvent("click", { bubbles: true, cancelable: true }),
+        ),
+      );
+      expect(postMessage).not.toHaveBeenCalled();
+      await act(async () =>
+        link.dispatchEvent(
+          new MouseEvent("click", {
+            bubbles: true,
+            cancelable: true,
+            metaKey: true,
+          }),
+        ),
+      );
+      expect(postMessage).toHaveBeenCalledExactlyOnceWith({
+        action: "openAttachment",
+        url: "daymark://attachment/review.pdf",
+      });
+      expect(open).not.toHaveBeenCalled();
+      expect(editor.getJSON()).toEqual(before);
+    } finally {
+      delete window.webkit;
+      open.mockRestore();
+    }
+  });
+});

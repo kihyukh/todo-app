@@ -4,7 +4,7 @@ import CryptoKit
 /// One file per record lets iCloud Drive reconcile changes to different tasks independently.
 /// updatedAt resolves edits to the same record; prior versions remain in Revisions.
 final class DaymarkStore {
-    static let collections = ["tasks", "projects", "columns"]
+    static let collections = ["tasks", "projects", "columns", "tags"]
     private var folderURL: URL
     private var storageKind: String
     private let queue = DispatchQueue(label: "app.daymark.storage", qos: .utility)

@@ -130,7 +130,7 @@ describe("autosave scheduling", () => {
     }
   });
 
-  it("does not schedule another write for an unchanged cloud state", async () => {
+  it("propagates tags arriving from the cloud while stale legacy snapshots remain unchanged", async () => {
     await advance(AUTOSAVE_DELAY_MS);
     await act(() =>
       window.daymarkNativeReceive?.({
@@ -139,15 +139,68 @@ describe("autosave scheduling", () => {
       }),
     );
     const before = workspace.state;
+    const tag = {
+      id: "reading",
+      name: "Reading",
+      group: "action" as const,
+      color: "#315fd5",
+      updatedAt: "2026-09-14T01:00:00.000Z",
+    };
+    await act(() =>
+      window.daymarkNativeReceive?.({
+        type: "state",
+        state: { ...structuredClone(before), tags: [tag] },
+      }),
+    );
+    expect(workspace.state).not.toBe(before);
+    expect(workspace.state.tags).toEqual([tag]);
+    expect(workspace.state.tasks).toEqual(before.tasks);
+    expect(workspace.saving).toBe(true);
+    await advance(AUTOSAVE_DELAY_MS);
+    expect(saves()).toHaveLength(2);
+    expect(saves()[1].state?.tags).toEqual([tag]);
+    await act(() =>
+      window.daymarkNativeReceive?.({
+        type: "saved",
+        requestId: saves()[1].requestId,
+      }),
+    );
+    const tagged = workspace.state;
     await act(() =>
       window.daymarkNativeReceive?.({
         type: "state",
         state: structuredClone(before),
       }),
     );
-    expect(workspace.state).toBe(before);
+    expect(workspace.state).toBe(tagged);
     await advance(AUTOSAVE_DELAY_MS * 2);
-    expect(saves()).toHaveLength(1);
+    expect(saves()).toHaveLength(2);
     expect(workspace.saving).toBe(false);
   });
+
+  it.each([false, true])(
+    "does not schedule another write for an unchanged cloud state (explicit empty tags: %s)",
+    async (explicitTags) => {
+      await advance(AUTOSAVE_DELAY_MS);
+      await act(() =>
+        window.daymarkNativeReceive?.({
+          type: "saved",
+          requestId: saves()[0].requestId,
+        }),
+      );
+      const before = workspace.state;
+      await act(() =>
+        window.daymarkNativeReceive?.({
+          type: "state",
+          state: explicitTags
+            ? { ...structuredClone(before), tags: [] }
+            : structuredClone(before),
+        }),
+      );
+      expect(workspace.state).toBe(before);
+      await advance(AUTOSAVE_DELAY_MS * 2);
+      expect(saves()).toHaveLength(1);
+      expect(workspace.saving).toBe(false);
+    },
+  );
 });

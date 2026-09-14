@@ -232,3 +232,90 @@ describe("first-run examples on a second device", () => {
     ).toBeTruthy();
   });
 });
+
+describe("tag synchronization", () => {
+  it("opens and merges legacy workspaces without tags or task tagIds", () => {
+    const legacy = workspace({ tasks: [task("legacy")] });
+    const merged = mergeState(legacy, workspace());
+    expect(merged.tags).toEqual([]);
+    expect(merged.tasks).toEqual(legacy.tasks);
+    expect(merged.tasks[0].tagIds).toBeUndefined();
+    expect(legacy).not.toHaveProperty("tags");
+  });
+
+  it("retains tags when an older workspace omits the collection", () => {
+    const tagged = workspace({
+      tasks: [task("paper", { tagIds: ["reading"] })],
+      tags: [{ ...record("reading"), name: "Reading", group: "action" }],
+    });
+    const legacy = workspace({ tasks: [task("other")] });
+    const result = mergeState(tagged, legacy);
+    expect(result).toEqual(mergeState(legacy, tagged));
+    expect(result.tags).toEqual(tagged.tags);
+    expect(result.tasks.find((value) => value.id === "paper")?.tagIds).toEqual([
+      "reading",
+    ]);
+  });
+
+  it("merges tag renames and groups without overwriting tasks or other tags", () => {
+    const local = workspace({
+      tasks: [task("paper", { tagIds: ["reading"] })],
+      tags: [{ ...record("reading"), group: "topic" }, record("local")],
+    });
+    const remote = workspace({
+      tags: [
+        {
+          ...record("reading", { name: "Read", updatedAt: later }),
+          group: "action",
+        },
+        record("remote"),
+      ],
+    });
+    const result = mergeState(local, remote);
+    expect(result.tags?.map((tag) => tag.id)).toEqual([
+      "local",
+      "reading",
+      "remote",
+    ]);
+    expect(result.tags?.find((tag) => tag.id === "reading")).toMatchObject({
+      name: "Read",
+      group: "action",
+    });
+    expect(result.tasks).toEqual(local.tasks);
+    expect(result).toEqual(mergeState(remote, local));
+  });
+
+  it("does not resurrect deleted tags or removed task assignments from offline data", () => {
+    const stale = workspace({
+      tasks: [task("paper", { tagIds: ["reading"] })],
+      tags: [{ ...record("reading"), group: "action" }],
+    });
+    const removed = workspace({
+      tasks: [task("paper", { tagIds: [], updatedAt: later })],
+      tags: [
+        {
+          ...record("reading", { deletedAt: later, updatedAt: later }),
+          group: "action",
+        },
+      ],
+    });
+    for (const result of [
+      mergeState(stale, removed),
+      mergeState(removed, stale),
+    ]) {
+      expect(result.tasks[0].tagIds).toEqual([]);
+      expect(result.tags?.[0].deletedAt).toBe(later);
+    }
+  });
+
+  it("keeps a tag tombstone on equal timestamps and converges simultaneous tag edits", () => {
+    const left = workspace({ tags: [record("tag", { name: "Read" })] });
+    const right = workspace({ tags: [record("tag", { name: "Writing" })] });
+    const merged = mergeState(left, right);
+    expect(merged).toEqual(mergeState(right, left));
+    expect(mergeState(merged, left)).toEqual(merged);
+    const deleted = workspace({ tags: [record("tag", { deletedAt: stamp })] });
+    expect(mergeState(left, deleted).tags?.[0].deletedAt).toBe(stamp);
+    expect(mergeState(deleted, right).tags?.[0].deletedAt).toBe(stamp);
+  });
+});

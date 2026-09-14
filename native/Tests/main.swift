@@ -43,6 +43,45 @@ do { try store.save(state(task("Unsafe write", "2026-09-14T05:00:00.000Z"))) } c
 check(rejected, "An unreadable existing record must block writes")
 try fm.removeItem(at: malformed)
 
+// Tags are optional in old workspaces but first-class per-record data once saved.
+let tagDirectory = directory.appendingPathComponent("TagRoundTrip", isDirectory: true)
+let tagStore = try DaymarkStore(folder: tagDirectory)
+var legacyTask = task("Legacy without tags", "2026-09-14T01:00:00.000Z")
+try tagStore.save(state(legacyTask))
+let legacyState = try tagStore.load()!
+check((legacyState["tags"] as? [[String: Any]])?.isEmpty == true, "Legacy workspace should load with an empty tag collection")
+check((legacyState["tasks"] as? [[String: Any]])?.first?["tagIds"] == nil, "Legacy task should remain unchanged without a tagIds field")
+legacyTask["tagIds"] = ["tag-reading", "tag-topic"]
+legacyTask["updatedAt"] = "2026-09-14T02:00:00.000Z"
+let readingTag: [String: Any] = ["id": "tag-reading", "name": "Reading", "color": "#315fd5", "group": "action", "updatedAt": "2026-09-14T02:00:00.000Z"]
+let topicTag: [String: Any] = ["id": "tag-topic", "name": "Synthetic topic", "color": "#547ce8", "group": "topic", "updatedAt": "2026-09-14T02:00:00.000Z"]
+var taggedState = state(legacyTask)
+taggedState["tags"] = [readingTag, topicTag]
+try tagStore.save(taggedState)
+let restoredTags = try DaymarkStore(folder: tagDirectory).load()!
+check((restoredTags["tags"] as? [[String: Any]])?.count == 2, "Tag records must round-trip through a new store")
+check((restoredTags["tasks"] as? [[String: Any]])?.first?["tagIds"] as? [String] == ["tag-reading", "tag-topic"], "Task tag assignments must round-trip")
+check((restoredTags["tags"] as? [[String: Any]])?.first?["group"] as? String == "action", "Tag groups must round-trip")
+check(fm.fileExists(atPath: tagDirectory.appendingPathComponent("tags/tag-reading.json").path), "Tags must be persisted as independent iCloud records")
+let exportedTags = try JSONSerialization.jsonObject(with: DaymarkStore.json(restoredTags)) as! [String: Any]
+check((exportedTags["tags"] as? [[String: Any]])?.count == 2, "Workspace JSON export must include tags")
+try tagStore.save(state(legacyTask))
+try check((tagStore.load()!["tags"] as? [[String: Any]])?.count == 2, "Saving from an older client that omits tags must not erase tag records")
+var deletedTag = readingTag
+deletedTag["deletedAt"] = "2026-09-14T03:00:00.000Z"
+deletedTag["updatedAt"] = "2026-09-14T03:00:00.000Z"
+var removedTask = legacyTask
+removedTask["tagIds"] = [String]()
+removedTask["updatedAt"] = "2026-09-14T03:00:00.000Z"
+var removedTagsState = state(removedTask)
+removedTagsState["tags"] = [deletedTag]
+try tagStore.save(removedTagsState)
+try tagStore.save(taggedState)
+let removedTagsResult = try tagStore.load()!
+check((removedTagsResult["tags"] as? [[String: Any]])?.first?["deletedAt"] as? String == "2026-09-14T03:00:00.000Z", "An offline copy must not resurrect a deleted tag")
+check(((removedTagsResult["tasks"] as? [[String: Any]])?.first?["tagIds"] as? [String])?.isEmpty == true, "An offline task must not restore removed tag assignments")
+try check(fm.contentsOfDirectory(atPath: tagDirectory.appendingPathComponent("Revisions/tags/tag-reading").path).count >= 1, "Tag changes must preserve revision records")
+
 let image = directory.appendingPathComponent("sample.png")
 let bytes = Data([137, 80, 78, 71, 13, 10, 26, 10])
 try bytes.write(to: image)
@@ -94,4 +133,4 @@ check(operationsOnWorker, "Persistence IO must execute outside the UI thread")
 check(completionsOnMain, "Storage callbacks must return to the UI thread")
 check(completionOrder == [1, 2, 3], "Queued saves and reads must finish in order")
 check((lastState?["tasks"] as? [[String: Any]])?.first?["title"] as? String == "Latest queued edit", "A read after queued saves must contain the latest edit")
-print("Daymark native store: \(checks) persistence, conflict, attachment, and background IO checks passed.")
+print("Daymark native store: \(checks) persistence, tag, conflict, attachment, and background IO checks passed.")

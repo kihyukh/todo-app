@@ -25,6 +25,7 @@ export type Task = {
   createdAt: string;
   updatedAt: string;
   attachments: Attachment[];
+  tagIds?: string[];
   example?: boolean;
 };
 export type NamedRecord = {
@@ -35,11 +36,14 @@ export type NamedRecord = {
   updatedAt: string;
   deletedAt?: string | null;
 };
+export type TagGroup = "area" | "action" | "topic";
+export type TagRecord = NamedRecord & { group?: TagGroup };
 export type AppState = {
   schemaVersion: 1;
   tasks: Task[];
   projects: NamedRecord[];
   columns: NamedRecord[];
+  tags?: TagRecord[];
 };
 export type StorageInfo = {
   kind: "icloud" | "local" | "folder";
@@ -122,6 +126,7 @@ export function mergeState(a: AppState, b: AppState): AppState {
     tasks: merge(a.tasks, b.tasks),
     projects: merge(a.projects, b.projects),
     columns: merge(a.columns, b.columns),
+    tags: merge(a.tags ?? [], b.tags ?? []),
   };
 }
 export const emptyDoc = (): NoteNode => ({
@@ -173,6 +178,7 @@ export function createInitialState(): AppState {
   });
   return {
     schemaVersion: 1,
+    tags: [],
     projects: [
       project("research", "Research", "#547ce8"),
       project("teaching", "Teaching", "#bc82b5"),
