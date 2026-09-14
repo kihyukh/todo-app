@@ -37,7 +37,7 @@ interface Props {
 }
 
 // Formatting must not silently lift a checkbox or list item out of its list.
-function acceptsTextBlock(editor: Editor, name: string) {
+export function acceptsTextBlock(editor: Editor, name: string) {
   const { $from, $to } = editor.state.selection;
   const type = editor.schema.nodes[name];
   return (

@@ -31,7 +31,15 @@ Typing stays in ProseMirror. The app holds an immutable document snapshot and se
 
 Autocomplete and automatic correction are disabled per editable surface and in the native WebKit configuration, without changing system preferences. This uses the public [inline-predictions setting](https://developer.apple.com/documentation/webkit/wkwebviewconfiguration/allowsinlinepredictions) and WebKit's [writing suggestions attribute](https://webkit.org/blog/15865/webkit-features-in-safari-18-0/#html).
 
-Vim mode is optional and remembers its setting on each device. It edits rich notes directly with Normal, Insert, characterwise Visual, and linewise Visual modes. The small mode indicator is shown only when enabled. Paragraphs and checklist items are logical lines rather than visual wraps. This supports common motions, counts, operators, yank/paste, and undo; it is not a full Vim runtime with Ex commands, macros, or plugins. Equation source shares the note's Vim mode and commands. The Markdown source panel remains an ordinary text field.
+Vim mode is optional and remembers its setting on each device. It edits rich notes directly with Normal, Insert, characterwise Visual, and linewise Visual modes. There is no persistent mode badge. Paragraphs and checklist items are logical lines rather than visual wraps. This supports common motions, counts, operators, yank/paste, and undo; it is not a full Vim runtime with Ex commands, macros, or plugins. Equation source shares the note's Vim mode and commands. The Markdown source panel remains an ordinary text field.
+
+## Slash insertion
+
+TickTick's official web changelog describes typing `/` in task details to insert headings, bullet points, attachments, and subtasks. This documented pattern informed GreenDay's slash menu; the trigger boundaries and Vim behavior below are GreenDay design choices. [TickTick web changelog](https://ticktick.com/public/changelog/en.html).
+
+The menu opens from a freshly typed `/` at the beginning of a paragraph or heading, allowing leading spaces. Typing narrows the choices, with aliases such as `/check`, `/h2`, and `/math`. The cursor stays in the note while ↑/↓ selects an option and Enter or Tab inserts it; touch users tap a row. Escape dismisses the menu while preserving the literal slash and query. URLs, code, equation source, and Vim Normal/Visual mode do not invoke it.
+
+The insertion subset starts with checklists and lists, then offers H1–H3, quotes, display equations, images, tables, code blocks, and dividers. These actions create or change note elements at the writing position. Inline formatting, links, Markdown source, and task-level file attachments stay in **+**, keeping the typing menu focused. Existing block types are retained when selected again, and schema restrictions protect nested checklist/list structure. The menu adds no permanent toolbar.
 
 ## Images inside notes
 

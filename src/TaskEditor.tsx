@@ -8,6 +8,7 @@ import { APP_NAME } from "./brand";
 import { usesTouchInterface } from "./platform";
 import { undoDepth, redoDepth } from "@tiptap/pm/history";
 import { NodeSelection } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
 import type { NoteNode } from "./model";
 import StarterKit from "@tiptap/starter-kit";
 import TaskList from "@tiptap/extension-task-list";
@@ -36,6 +37,9 @@ import { NoteInteractions, NoteListKeymap } from "./note-interactions";
 import { NoteHeading } from "./note-heading";
 import NoteGutter from "./NoteGutter";
 import NoteElementMenu from "./NoteElementMenu";
+import NoteSlashMenu from "./NoteSlashMenu";
+import { NoteSlash, dismissNoteSlash } from "./note-slash";
+import type { SlashState } from "./note-slash";
 import { X, Ellipsis, Undo2, Redo2, ExternalLink, Link2 } from "lucide-react";
 import "katex/dist/katex.min.css";
 import "./editor.css";
@@ -113,6 +117,16 @@ export default function TaskEditor({
   const touchLinkPanel = useRef<HTMLDivElement>(null);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const menuFallback = useRef<HTMLButtonElement>(null);
+  const [slash, setSlash] = useState<SlashState | null>(null);
+  const slashKeyHandler = useRef<
+    (view: EditorView, event: KeyboardEvent) => boolean
+  >(() => false);
+  const imageSlash = useRef<{
+    taskId: string;
+    editor: Editor;
+    doc: Editor["state"]["doc"];
+    range: SlashState;
+  } | null>(null);
   const [source, setSource] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const onChangeRef = useRef(onChange);
@@ -190,6 +204,20 @@ export default function TaskEditor({
     });
   };
 
+  const chooseImage = (range?: SlashState) => {
+    const currentEditor = editorRef.current;
+    imageSlash.current =
+      range && currentEditor
+        ? {
+            taskId: taskIdRef.current,
+            editor: currentEditor,
+            doc: currentEditor.state.doc,
+            range,
+          }
+        : null;
+    imageInput.current?.click();
+  };
+
   const editor = useEditor(
     {
       extensions: [
@@ -217,6 +245,10 @@ export default function TaskEditor({
         TaskItem.configure({ nested: true }),
         NoteListKeymap,
         NoteInteractions,
+        NoteSlash.configure({
+          onChange: (next) => setSlash(next),
+          onKeyDown: (view, event) => slashKeyHandler.current(view, event),
+        }),
         NaturalInlineMath,
         NaturalBlockMath,
         ImageImports,
@@ -225,7 +257,7 @@ export default function TaskEditor({
           HTMLAttributes: { loading: "lazy" },
         }),
         Placeholder.configure({
-          placeholder: "Add notes, a checklist, or an equation…",
+          placeholder: "Write a note, or type / to add an element…",
         }),
         TableKit.configure({ table: { resizable: false } }),
         Markdown.configure({
@@ -382,6 +414,15 @@ export default function TaskEditor({
   }, [editor, vimEnabled]);
 
   useEffect(() => {
+    const input = imageInput.current;
+    const cancel = () => {
+      imageSlash.current = null;
+    };
+    input?.addEventListener("cancel", cancel);
+    return () => input?.removeEventListener("cancel", cancel);
+  }, [editor]);
+
+  useEffect(() => {
     if (!touch || !editor) return;
     let frame = 0;
     let settle: ReturnType<typeof setTimeout> | undefined;
@@ -444,6 +485,7 @@ export default function TaskEditor({
     editorRef.current = editor;
     setSource(null);
     setMenuAnchor(null);
+    setSlash(null);
     setLinkDraft(null);
     setTouchLink(null);
     setNotice("");
@@ -465,6 +507,7 @@ export default function TaskEditor({
       return;
     // Context menus and link ranges belong to this document, not a synced revision.
     setMenuAnchor(null);
+    dismissNoteSlash(editor.view);
     setTouchLink(null);
     setLinkDraft(null);
     const { from, to } = editor.state.selection;
@@ -495,7 +538,7 @@ export default function TaskEditor({
                   ? touch
                     ? "Tap a link to open or edit it"
                     : "⌘/Ctrl-click to open link"
-                  : "⌘/ for elements · Markdown & LaTeX";
+                  : "Type / on a new line for elements · Markdown & LaTeX";
 
   const applyLink = () => {
     if (!linkDraft) return;
@@ -549,6 +592,7 @@ export default function TaskEditor({
         ) {
           event.preventDefault();
           event.stopPropagation();
+          dismissNoteSlash(editor.view);
           setMenuAnchor(menuAnchor ? null : menuFallback.current);
         }
       }}
@@ -564,6 +608,15 @@ export default function TaskEditor({
         }
       }}
     >
+      {slash && !menuAnchor && source === null && (
+        <NoteSlashMenu
+          editor={editor}
+          slash={slash}
+          touch={touch}
+          keyHandler={slashKeyHandler}
+          onImage={chooseImage}
+        />
+      )}
       {menuAnchor && source === null && (
         <NoteElementMenu
           editor={editor}
@@ -578,7 +631,7 @@ export default function TaskEditor({
               to,
             });
           }}
-          onImage={() => imageInput.current?.click()}
+          onImage={() => chooseImage()}
           onAttach={onAttach}
           onSource={() => {
             setSource(editor.getMarkdown());
@@ -760,6 +813,7 @@ export default function TaskEditor({
             editor={editor}
             menuOpen={menuAnchor !== null}
             onOpenMenu={(anchor) => {
+              dismissNoteSlash(editor.view);
               setTouchLink(null);
               setMenuAnchor(anchor);
             }}
@@ -774,12 +828,32 @@ export default function TaskEditor({
         multiple
         hidden
         onChange={(event) => {
-          void insertImages(
-            Array.from(event.target.files ?? []),
-            undefined,
-            true,
-          );
+          const files = Array.from(event.target.files ?? []);
+          const ticket = imageSlash.current;
+          imageSlash.current = null;
           event.target.value = "";
+          if (!files.length) return;
+          if (ticket) {
+            if (
+              ticket.taskId !== taskIdRef.current ||
+              ticket.editor !== editor ||
+              editor.isDestroyed ||
+              !ticket.doc.eq(editor.state.doc)
+            ) {
+              setNotice(
+                "The note changed while you were choosing an image. Please insert it again.",
+              );
+              return;
+            }
+            editor.view.focus();
+            editor.commands.setTextSelection({
+              from: ticket.range.from,
+              to: ticket.range.to,
+            });
+          }
+          // The existing import queue replaces the range only after a file loads.
+          // Cancelling or failing the picker leaves /query and surrounding text intact.
+          void insertImages(files, undefined, !ticket);
         }}
       />
       <div className="note-editor-footnote">
@@ -796,6 +870,7 @@ export default function TaskEditor({
               aria-expanded={menuAnchor !== null}
               onMouseDown={(event) => event.preventDefault()}
               onClick={(event) => {
+                dismissNoteSlash(editor.view);
                 setTouchLink(null);
                 setMenuAnchor(menuAnchor ? null : event.currentTarget);
               }}

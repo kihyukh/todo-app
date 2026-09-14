@@ -27,13 +27,21 @@ That update added optional Apple Calendar access to configured iCloud/Google acc
 
 These results establish build and local interaction behavior. They do not establish provider delivery or readiness for signed distribution.
 
-## Current completion feedback and calendar polish
+## Previous completion feedback and calendar polish
 
 - **441 frontend tests passed**, including 13 completion integration tests, 8 sound tests, and 22 calendar UI tests. Completion updates the task immediately, retains its row briefly for animation, preserves unpublished note drafts, supports Undo, and transfers keyboard focus only when its focused row actually leaves. Reduced motion, independent task timers, synced changes, and delayed audio unlocks are covered.
 - The web build, installed Mac app, iPhone/iPad simulator build, and unsigned device Release archive succeeded. All **62 bundled web files** matched across those outputs; no workspace or development directories were bundled. Native code and bundle identity are unchanged.
 - Browser checks confirmed the drawn checkmark, pulse and strike-through in list and board views, Undo, the sound toggle, roomier month cells, and **+N more** opening all entries for that day. No browser errors were reported.
 - On the updated iPhone simulator, completing a fictional task showed the animated checkmark, pulse, and completion receipt. The task was reopened afterward. Month and Day views showed the coral linked-task count; opening the existing fictional event displayed its linked task. No personal task or calendar record was modified for these checks.
 - The installed Mac app retained its existing workspace. The development signature change requires renewed calendar consent; the system prompt was left for the user. Sound generation and blocked-audio recovery passed automated tests, but native speaker output, volume, silent-mode behavior, and physical-device playback still need listening checks.
+
+## Current slash-menu update
+
+- **495 frontend tests passed**, including 26 slash state tests and 28 integration tests using the actual task editor. Coverage includes input-only activation, filtering, keyboard selection, nested lists, one-step undo, Vim and IME behavior, image selection/cancellation, synced content, and switching tasks.
+- The web build, installed Mac app, iPhone/iPad simulator build, and unsigned device Release archive succeeded. All **62 bundled web files** matched across those outputs, with no workspace or development directories bundled. Native code and bundle identity are unchanged.
+- Browser checks confirmed checklist, heading, and equation insertion by slash search, Enter/Tab/mouse selection, continuing at the insertion point, and correct math rendering. The popup stays aligned with the slash while filtering.
+- The iPhone simulator check used the actual software keyboard to enter `/`. The popup appeared above the keyboard, tapping Checklist inserted a checkbox while retaining the keyboard, and subsequent typing continued in the checkbox. Done dismissed the keyboard. The fictional test note remains in the simulator.
+- The installed Mac app retained its existing workspace and showed the updated note hint. Its previous task view was restored without changing any personal task or calendar records. This development build can require renewed calendar consent; calendar access was not requested during these editor checks.
 
 ## Still needed before distribution
 
