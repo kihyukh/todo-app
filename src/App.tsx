@@ -890,17 +890,14 @@ function App() {
   if (!ready)
     return (
       <div className="loading">
-        <span className="brand-mark">
-          <Check size={23} />
-        </span>
-        <p>{error || `Opening ${APP_NAME}…`}</p>
+        <p>{error || "Opening your workspace…"}</p>
       </div>
     );
   return (
     <div
       ref={panes.shell}
       style={panes.style}
-      className={`app-shell ${selected ? "has-detail" : ""} ${sidebar ? "sidebar-open" : ""} ${touch ? "is-touch-device" : ""} ${touchFocus ? "has-touch-focus" : ""}`}
+      className={`app-shell ${selected ? "has-detail" : ""} ${sidebar ? "sidebar-open" : ""} ${touch ? "is-touch-device" : ""} ${window.__DAYMARK_PLATFORM__ === "macos" ? "is-native-mac" : ""} ${touchFocus ? "has-touch-focus" : ""}`}
       onFocusCapture={(event) => {
         if (touch && isTextEntry(event.target)) setTouchFocus(true);
       }}
@@ -911,43 +908,39 @@ function App() {
       <PaneDivider kind="sidebar" layout={panes} hasDetail={!!selected} />
       <PaneDivider kind="detail" layout={panes} hasDetail={!!selected} />
       <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-mark">
-            <Check size={20} strokeWidth={2.5} />
-          </span>
-          <span>{APP_NAME}</span>
+        <div className="sidebar-search-row">
+          <div className="search">
+            <Search size={15} />
+            <input
+              {...noTextSuggestions}
+              ref={searchRef}
+              aria-label={
+                view === "checkboxes" ? "Search checkboxes" : "Search tasks"
+              }
+              placeholder={
+                view === "checkboxes"
+                  ? "Search checkboxes"
+                  : view === "completed"
+                    ? "Search completed tasks"
+                    : view === "trash"
+                      ? "Search Trash"
+                      : "Search tasks"
+              }
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                if (
+                  e.target.value &&
+                  !["completed", "trash", "checkboxes"].includes(view)
+                )
+                  setView("all");
+              }}
+            />
+            <kbd>⌘ K</kbd>
+          </div>
           <IconButton label="Hide sidebar" onClick={() => setSidebar(false)}>
             <PanelLeftClose size={17} />
           </IconButton>
-        </div>
-        <div className="search">
-          <Search size={15} />
-          <input
-            {...noTextSuggestions}
-            ref={searchRef}
-            aria-label={
-              view === "checkboxes" ? "Search checkboxes" : "Search tasks"
-            }
-            placeholder={
-              view === "checkboxes"
-                ? "Search checkboxes"
-                : view === "completed"
-                  ? "Search completed tasks"
-                  : view === "trash"
-                    ? "Search Trash"
-                    : "Search tasks"
-            }
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              if (
-                e.target.value &&
-                !["completed", "trash", "checkboxes"].includes(view)
-              )
-                setView("all");
-            }}
-          />
-          <kbd>⌘ K</kbd>
         </div>
         <nav aria-label="Task views">
           {navigation.map(({ id, label, icon: Icon, count }) => (

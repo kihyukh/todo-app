@@ -25,6 +25,10 @@ Status columns can be changed without affecting completion or scheduling. Comple
 
 The visual direction uses dark charcoal-green text, readable muted metadata, a quiet gray-green sidebar, and forest-green selection states. A left selection indicator reinforces the active task or view. Work dates use green; deadline markers remain distinct, and overdue dates use red. Meaningful text remains readable on both white and selected surfaces.
 
+## Window and navigation
+
+The workspace opens directly into search and task navigation, without a logo/name header. The Mac window uses full-size content and a transparent, untitled titlebar, so the task list and detail pane reach the top edge. The native window buttons sit over the sidebar. Only the sidebar reserves 44px above search; an invisible native drag area stays within its minimum width, leaving task controls and notes interactive. The iPhone drawer puts its close button beside search and respects the safe area.
+
 ## Task details and dates
 
 The user's supplied TickTick screenshots informed this revision: small date controls in a quiet top bar, with most of the detail pane given to the title and note. Completion, work dates, deadline, and priority sit in the header. List, status, tags, and the link-event action share a compact metadata area below the title. A task with no linked events does not reserve an empty Calendar section. Saving status sits in the footer. The title and note share the same left edge; the editor's existing gutter remains usable.

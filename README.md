@@ -58,8 +58,9 @@ On iPhone, choose the Mac app’s **same Daymark folder in iCloud Drive** using 
 
 ## Validation
 
-The table editing update passed these checks:
+The current build passed these checks:
 
+- The Mac window fills its former title strip, with the visible app title and sidebar branding removed. Live checks confirmed top-edge task menus and the sidebar drag area. The iPhone simulator confirmed the compact search row and drawer dismissal.
 - **577 frontend tests passed**, including 20 table helper/resize/source tests and 17 table-control integration tests. Coverage includes correct row/column targeting, hover without note writes, edit/Undo, custom headers, incoming changes, Vim mode, focus restoration, scrolling, and keyboard viewport changes. All existing editor, scheduling, dragging, calendar, storage, and migration checks also pass.
 - Browser checks confirmed contextual handles and menus, readable whole-column highlighting, insertion/deletion, direct border resizing, and retained 120px/313px column widths after Markdown source apply. The sample table uses fictional data.
 - Native Mac checks confirmed row selection, duplication, Undo, and immediate border dragging with a saved 125px column width. The iPhone simulator confirmed touch handles, menu placement, column insertion, and Undo. Temporary native test tasks were moved to Trash afterward.

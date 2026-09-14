@@ -17,14 +17,6 @@
 .app-shell {
   position: relative;
 }
-.brand {
-  gap: 10px;
-}
-.brand-mark {
-  border-radius: 9px;
-  background: var(--accent);
-  box-shadow: 0 2px 5px #245b351c;
-}
 .nav-item {
   height: 40px;
   min-height: 40px;

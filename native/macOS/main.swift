@@ -2,6 +2,21 @@ import AppKit
 import WebKit
 import UniformTypeIdentifiers
 
+/// The only extra drag target is the unused space above sidebar search. Keeping
+/// it narrow leaves task controls and the editor interactive up to the top edge.
+private final class SidebarWindowDragView: NSView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        guard let window, !window.styleMask.contains(.fullScreen) else { return }
+        if event.clickCount == 2 {
+            window.performZoom(nil)
+        } else {
+            window.performDrag(with: event)
+        }
+    }
+}
+
 final class DaymarkAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow!
     private var bridge: DaymarkWebBridge!
@@ -14,12 +29,16 @@ final class DaymarkAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             guard let resources = Bundle.main.resourceURL else { throw CocoaError(.fileNoSuchFile) }
             let webView = bridge.makeWebView(root: resources.appendingPathComponent("Web"))
             webView.setValue(false, forKey: "drawsBackground")
-            window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1420, height: 920), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+            window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1420, height: 920), styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
             window.title = "GreenDay"
+            window.titleVisibility = .hidden
             window.titlebarAppearsTransparent = true
+            window.titlebarSeparatorStyle = .none
+            window.isMovableByWindowBackground = false
             window.backgroundColor = NSColor(calibratedRed: 243 / 255, green: 244 / 255, blue: 246 / 255, alpha: 1)
             window.minSize = NSSize(width: 860, height: 620)
-            window.contentView = webView
+            installContent(webView)
+            window.initialFirstResponder = webView
             window.delegate = self
             window.setFrameAutosaveName("DaymarkMainWindow")
             if !window.setFrameUsingName("DaymarkMainWindow") { window.center() }
@@ -36,6 +55,30 @@ final class DaymarkAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             alert.runModal()
             NSApp.terminate(nil)
         }
+    }
+
+    private func installContent(_ webView: WKWebView) {
+        let content = NSView()
+        window.contentView = content
+        webView.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(webView)
+
+        let dragView = SidebarWindowDragView()
+        dragView.translatesAutoresizingMaskIntoConstraints = false
+        dragView.setAccessibilityElement(false)
+        content.addSubview(dragView)
+        NSLayoutConstraint.activate([
+            webView.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            webView.topAnchor.constraint(equalTo: content.topAnchor),
+            webView.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+            dragView.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            dragView.topAnchor.constraint(equalTo: content.topAnchor),
+            // Match the native sidebar's 44-point top reserve and keep inside
+            // its minimum width. AppKit's traffic lights remain above this view.
+            dragView.widthAnchor.constraint(equalToConstant: 184),
+            dragView.heightAnchor.constraint(equalToConstant: 44),
+        ])
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }

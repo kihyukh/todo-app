@@ -94,30 +94,19 @@ a {
   min-height: 0;
   z-index: 30;
 }
-.brand {
+.sidebar-search-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 19px;
-  font-weight: 650;
-  letter-spacing: -0.5px;
-  height: 81px;
-  padding: 9px 9px 0;
+  gap: 8px;
+  margin: 24px 0 22px;
 }
-.brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 29px;
-  height: 29px;
-  border-radius: 9px;
-  background: var(--blue);
-  color: white;
-  box-shadow: 0 2px 4px #4c6fbd18;
-}
-.brand > .icon-button {
-  margin-left: auto;
+.sidebar-search-row > .icon-button {
   display: none;
+  flex-shrink: 0;
+}
+/* Only the navigation pane reserves room for the Mac window controls. */
+.is-native-mac .sidebar-search-row {
+  margin-top: 44px;
 }
 .search {
   display: flex;
@@ -127,7 +116,8 @@ a {
   border-radius: 7px;
   padding: 8px;
   color: var(--secondary);
-  margin: 7px 0 22px;
+  flex: 1;
+  min-width: 0;
 }
 .search input {
   width: 100%;
@@ -1398,9 +1388,6 @@ kbd {
   .workspace-top {
     padding-top: 25px;
   }
-  .brand {
-    height: 79px;
-  }
 }
 @media (max-width: 600px) {
   :root {
@@ -1431,12 +1418,12 @@ kbd {
     background: #2636553b;
     z-index: 60;
   }
-  .brand > .icon-button {
+  .sidebar-search-row > .icon-button {
     display: inline-flex;
   }
-  .brand {
-    height: 90px;
-    padding-top: env(safe-area-inset-top);
+  .sidebar-search-row {
+    margin-top: calc(16px + env(safe-area-inset-top));
+    margin-bottom: 16px;
   }
   .nav-item {
     font-size: 14px;
@@ -1724,8 +1711,7 @@ kbd {
   margin-top: 20px;
   margin-bottom: 4px;
 }
-.sidebar > .brand,
-.sidebar > .search,
+.sidebar > .sidebar-search-row,
 .sidebar > nav,
 .sidebar > .sidebar-bottom {
   flex-shrink: 0;

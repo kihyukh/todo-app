@@ -58,13 +58,19 @@ These results establish build and local interaction behavior. They do not establ
 - Browser mouse checks confirmed reordering, resetting to priority order, moving to a sidebar list/Inbox, adding a tag while preserving the list, and Undo. Touch scrolling remains intact; touch dragging is not claimed or validated.
 - Automated coverage includes atomic schedule saves, task switching, stale incoming changes, keyboard calendar navigation, focus containment, pointer cancellation, click suppression, edge scrolling, authenticated native drag data, per-view order persistence, and Undo preserving unrelated edits.
 
-## Current contextual-table update
+## Previous contextual-table update
 
 - **577 frontend tests passed**, including 20 table helper/resize/source tests and 17 controls integration tests. Coverage includes scoped row/column selection, edit/undo, hover without note writes, width/header source preservation, multiple tables, incoming document changes, Vim Normal/Insert mode, and menu placement during scrolling or software-keyboard changes.
 - Browser checks confirmed the grey handles, contextual menu and selected-column highlight, insertion/deletion, direct border dragging, and retained 120px/313px widths after Markdown apply. All sample data is fictional.
 
 - The installed Mac app confirmed row selection, duplication, Undo, and immediate border dragging; the 125px width was verified in the saved test record. The iPhone simulator confirmed touch handles, an on-screen column menu, insertion, and Undo. Temporary native test tasks were moved to Trash afterward; existing tasks were preserved.
 - Production web, Mac, simulator, and unsigned device archive builds passed. All 62 bundled web assets matched exactly across the outputs. No personal workspace or development directories were bundled.
+
+## Current window and navigation cleanup
+
+- All **577 frontend tests** pass. Production web, Mac, simulator, and unsigned archive builds passed; the Mac change also passed its macOS 13 typecheck. All 62 packaged web assets match across the outputs, with no personal data or development sources bundled.
+- The installed Mac app shows full-size content with native window buttons and no visible title strip or sidebar branding. Top-edge task actions and the sidebar drag area were checked with pointer input. The user's current task was restored after reopening, with its saved note preserved.
+- The iPhone simulator confirmed a compact search/close row below the safe area and normal drawer opening/dismissal. No task records were edited for these checks.
 
 ## Still needed before distribution
 
