@@ -6,8 +6,18 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.1.0"
+    MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: "1"
+    DAYMARK_DISPLAY_NAME: Daymark
+    PRODUCT_BUNDLE_IDENTIFIER: app.daymark.mobile
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+  configs:
+    Release:
+      SWIFT_COMPILATION_MODE: wholemodule
+      SWIFT_OPTIMIZATION_LEVEL: -O
+      DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
 targets:
   Daymark:
     type: application
@@ -17,26 +27,42 @@ targets:
       - path: iOS
         excludes:
           - Info.plist
+          - MakeIcon.swift
     preBuildScripts:
-      - name: Bundle Daymark web app
+      - name: Bundle web app
         script: |
           set -eu
-          WEB_SOURCE="$SRCROOT/../dist"
+          WEB_SOURCE="${DAYMARK_WEB_DIST:-$SRCROOT/../dist}"
           if [ ! -f "$WEB_SOURCE/index.html" ]; then
             echo "Run npm run build in the repository before building the iPhone app."
             exit 1
           fi
-          mkdir -p "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Web"
-          ditto "$WEB_SOURCE" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Web"
+          WEB_DESTINATION="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Web"
+          rm -rf "$WEB_DESTINATION"
+          mkdir -p "$WEB_DESTINATION"
+          ditto "$WEB_SOURCE" "$WEB_DESTINATION"
         basedOnDependencyAnalysis: false
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.daymark.mobile
         INFOPLIST_FILE: iOS/Info.plist
         TARGETED_DEVICE_FAMILY: "1,2"
-        CODE_SIGN_STYLE: Automatic
-        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        GENERATE_INFOPLIST_FILE: NO
+        ENABLE_PREVIEWS: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
     dependencies:
       - sdk: WebKit.framework
       - sdk: QuickLook.framework
       - sdk: UniformTypeIdentifiers.framework
+schemes:
+  Daymark:
+    build:
+      targets:
+        Daymark: all
+    run:
+      config: Debug
+    archive:
+      config: Release

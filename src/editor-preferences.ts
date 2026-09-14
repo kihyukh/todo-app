@@ -22,5 +22,5 @@ export const noTextSuggestions = {
   autoCorrect: "off",
   autoCapitalize: "off",
   spellCheck: false,
-  writingSuggestions: "false",
+  writingsuggestions: "false",
 } as const;

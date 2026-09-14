@@ -158,6 +158,7 @@ async function mount(
   let renderCount = 0;
   const published: Array<{ id: string; doc: NoteNode }> = [];
   let select!: (id: string) => void;
+  let replace!: (doc: NoteNode) => void;
   function Harness() {
     renderCount++;
     const [id, setId] = useState("a");
@@ -166,6 +167,7 @@ async function mount(
       b: note("Beta"),
     });
     select = setId;
+    replace = (doc) => setNotes((old) => ({ ...old, [id]: doc }));
     return (
       <TaskEditor
         key={id}
@@ -189,6 +191,7 @@ async function mount(
     container,
     published,
     select,
+    replace,
     renders: () => renderCount,
     editor: () =>
       (container.querySelector(".tiptap") as HTMLElement & { editor: Editor })
@@ -552,6 +555,311 @@ describe("attachments linked inside task notes", () => {
     } finally {
       delete window.webkit;
       open.mockRestore();
+    }
+  });
+});
+
+describe("touch link actions", () => {
+  const linkedNote = (href: string): NoteNode => ({
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "Read " },
+          {
+            type: "text",
+            text: "this resource",
+            marks: [{ type: "link", attrs: { href } }],
+          },
+          { type: "text", text: " next." },
+        ],
+      },
+    ],
+  });
+  it.each(["https://example.com/paper", "daymark://attachment/review.pdf"])(
+    "offers deliberate Open/Edit actions for %s on iOS",
+    async (href) => {
+      window.__DAYMARK_PLATFORM__ = "ios";
+      const postMessage = vi.fn(),
+        open = vi.spyOn(window, "open").mockReturnValue(null);
+      window.webkit = { messageHandlers: { daymark: { postMessage } } };
+      try {
+        const { editor: getEditor, container } = await mount({
+          initialNote: linkedNote(href),
+        });
+        const editor = getEditor();
+        const before = editor.getJSON();
+        await act(async () => {
+          editor.view.dom
+            .querySelector("a")!
+            .dispatchEvent(
+              new MouseEvent("click", { bubbles: true, cancelable: true }),
+            );
+        });
+        const actions = container.querySelector('[aria-label="Link actions"]')!;
+        expect(actions).not.toBeNull();
+        expect(actions.textContent).toContain("this resource");
+        expect(open).not.toHaveBeenCalled();
+        expect(postMessage).not.toHaveBeenCalled();
+        await act(async () => {
+          [...actions.querySelectorAll<HTMLButtonElement>("button")]
+            .find((button) => button.textContent === "Open")!
+            .click();
+        });
+        if (href.startsWith("daymark:"))
+          expect(postMessage).toHaveBeenCalledExactlyOnceWith({
+            action: "openAttachment",
+            url: href,
+          });
+        else
+          expect(open).toHaveBeenCalledExactlyOnceWith(
+            href,
+            "_blank",
+            "noopener,noreferrer",
+          );
+        expect(
+          container.querySelector('[aria-label="Link actions"]'),
+        ).toBeNull();
+        expect(editor.getJSON()).toEqual(before);
+      } finally {
+        delete window.__DAYMARK_PLATFORM__;
+        delete window.webkit;
+        open.mockRestore();
+      }
+    },
+  );
+
+  it.each(["actions", "edit"])(
+    "closes the %s popover when a synced revision replaces the note",
+    async (mode) => {
+      window.__DAYMARK_PLATFORM__ = "ios";
+      try {
+        const {
+          editor: getEditor,
+          container,
+          replace,
+          published,
+        } = await mount({
+          initialNote: linkedNote("https://example.com/original"),
+        });
+        const editor = getEditor();
+        await act(async () => {
+          editor.view.dom
+            .querySelector("a")!
+            .dispatchEvent(
+              new MouseEvent("click", { bubbles: true, cancelable: true }),
+            );
+        });
+        if (mode === "edit") {
+          await act(async () => {
+            [
+              ...container.querySelectorAll<HTMLButtonElement>(
+                ".touch-link-actions button",
+              ),
+            ]
+              .find((button) => button.textContent === "Edit")!
+              .click();
+          });
+          expect(
+            container.querySelector('[aria-label="Link URL"]'),
+          ).not.toBeNull();
+        } else
+          expect(
+            container.querySelector('[aria-label="Link actions"]'),
+          ).not.toBeNull();
+        await act(async () => replace(note("Synced replacement text.")));
+        expect(
+          container.querySelector('[aria-label="Link actions"]'),
+        ).toBeNull();
+        expect(container.querySelector('[aria-label="Link URL"]')).toBeNull();
+        expect(editor.getJSON()).toEqual(note("Synced replacement text."));
+        expect(published).toEqual([]);
+        expect(editor.view.dom.querySelector("a")).toBeNull();
+      } finally {
+        delete window.__DAYMARK_PLATFORM__;
+      }
+    },
+  );
+
+  it("edits the tapped link even when the text cursor was somewhere else", async () => {
+    window.__DAYMARK_PLATFORM__ = "ios";
+    try {
+      const { editor: getEditor, container } = await mount({
+        initialNote: linkedNote("https://example.com/original"),
+      });
+      const editor = getEditor();
+      await act(async () => {
+        editor.commands.setTextSelection(2);
+        editor.view.dom
+          .querySelector("a")!
+          .dispatchEvent(
+            new MouseEvent("click", { bubbles: true, cancelable: true }),
+          );
+      });
+      await act(async () => {
+        [
+          ...container.querySelectorAll<HTMLButtonElement>(
+            ".touch-link-actions button",
+          ),
+        ]
+          .find((button) => button.textContent === "Edit")!
+          .click();
+      });
+      expect(container.querySelector('[aria-label="Link actions"]')).toBeNull();
+      const input = container.querySelector<HTMLInputElement>(
+        '[aria-label="Link URL"]',
+      )!;
+      expect(input.value).toBe("https://example.com/original");
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value",
+        )!.set!.call(input, "https://example.com/revised");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await act(async () => {
+        container
+          .querySelector(".link-popover form")!
+          .dispatchEvent(
+            new Event("submit", { bubbles: true, cancelable: true }),
+          );
+      });
+      expect(editor.getText()).toBe("Read this resource next.");
+      expect(editor.view.dom.querySelector("a")!.getAttribute("href")).toBe(
+        "https://example.com/revised",
+      );
+      expect(editor.view.dom.querySelector("a")!.textContent).toBe(
+        "this resource",
+      );
+    } finally {
+      delete window.__DAYMARK_PLATFORM__;
+    }
+  });
+
+  it("keeps link actions available above the keyboard during automatic scrolling", async () => {
+    window.__DAYMARK_PLATFORM__ = "ios";
+    const originalHeight = window.innerHeight;
+    try {
+      const { editor: getEditor, container } = await mount({
+        initialNote: linkedNote("https://example.com/paper"),
+      });
+      const editor = getEditor();
+      const link = editor.view.dom.querySelector("a")!;
+      link.getBoundingClientRect = () => new DOMRect(30, 500, 100, 20);
+      await act(async () => {
+        link.dispatchEvent(
+          new MouseEvent("click", { bubbles: true, cancelable: true }),
+        );
+      });
+      await act(async () => {
+        Object.defineProperty(window, "innerHeight", {
+          configurable: true,
+          value: 350,
+        });
+        window.dispatchEvent(new Event("resize"));
+        document.dispatchEvent(new Event("scroll"));
+      });
+      const actions = container.querySelector<HTMLElement>(
+        '[aria-label="Link actions"]',
+      )!;
+      expect(actions).not.toBeNull();
+      expect(parseInt(actions.style.top)).toBeLessThanOrEqual(186);
+      expect(actions.textContent).toContain("Open");
+    } finally {
+      Object.defineProperty(window, "innerHeight", {
+        configurable: true,
+        value: originalHeight,
+      });
+      delete window.__DAYMARK_PLATFORM__;
+    }
+  });
+
+  it("dismisses touch link actions when the user resumes editing", async () => {
+    window.__DAYMARK_PLATFORM__ = "ios";
+    try {
+      const { editor: getEditor, container } = await mount({
+        initialNote: linkedNote("https://example.com/paper"),
+      });
+      const editor = getEditor();
+      await act(async () => {
+        editor.view.dom
+          .querySelector("a")!
+          .dispatchEvent(
+            new MouseEvent("click", { bubbles: true, cancelable: true }),
+          );
+      });
+      expect(
+        container.querySelector('[aria-label="Link actions"]'),
+      ).not.toBeNull();
+      await act(async () => {
+        editor.view.dom.dispatchEvent(
+          new Event("pointerdown", { bubbles: true }),
+        );
+      });
+      expect(container.querySelector('[aria-label="Link actions"]')).toBeNull();
+    } finally {
+      delete window.__DAYMARK_PLATFORM__;
+    }
+  });
+});
+
+describe("iPhone note focus with the software keyboard", () => {
+  it("reveals an equation after the viewport shrinks and does not scroll again for every edit", async () => {
+    window.__DAYMARK_PLATFORM__ = "ios";
+    const originalHeight = window.innerHeight;
+    try {
+      const { editor: getEditor, container } = await mount({
+        initialNote: {
+          type: "doc",
+          content: [
+            note("Before").content![0],
+            { type: "blockMath", attrs: { latex: "a+b=c" } },
+            note("After").content![0],
+          ],
+        },
+      });
+      container.classList.add("detail-scroll");
+      container.getBoundingClientRect = () => new DOMRect(0, 60, 375, 290);
+      const source =
+        container.querySelector<HTMLTextAreaElement>(".math-note-input")!;
+      source.getBoundingClientRect = () =>
+        new DOMRect(20, 600 - container.scrollTop, 250, 44);
+      vi.useFakeTimers();
+      await act(async () => {
+        container
+          .querySelector(".math-note")!
+          .dispatchEvent(
+            new MouseEvent("click", { bubbles: true, cancelable: true }),
+          );
+        Object.defineProperty(window, "innerHeight", {
+          configurable: true,
+          value: 350,
+        });
+        window.dispatchEvent(new Event("resize"));
+        await vi.advanceTimersByTimeAsync(220);
+      });
+      expect(document.activeElement).toBe(source);
+      expect(container.scrollTop).toBeGreaterThan(0);
+      expect(source.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        350 - 66,
+      );
+      const scroll = container.scrollTop;
+      await act(async () => {
+        source.value = "a+b=c+d";
+        source.dispatchEvent(new Event("input", { bubbles: true }));
+        await vi.advanceTimersByTimeAsync(220);
+      });
+      expect(container.scrollTop).toBe(scroll);
+      expect(getEditor().getText()).toContain("Before");
+      expect(document.activeElement).toBe(source);
+    } finally {
+      Object.defineProperty(window, "innerHeight", {
+        configurable: true,
+        value: originalHeight,
+      });
+      delete window.__DAYMARK_PLATFORM__;
+      vi.useRealTimers();
     }
   });
 });

@@ -2,7 +2,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
+import { getMarkRange } from "@tiptap/core";
 import type { Editor, JSONContent } from "@tiptap/core";
+import { APP_NAME } from "./brand";
+import { usesTouchInterface } from "./platform";
 import { undoDepth, redoDepth } from "@tiptap/pm/history";
 import type { NoteNode } from "./model";
 import StarterKit from "@tiptap/starter-kit";
@@ -45,6 +48,7 @@ import {
   FileCode2,
   Undo2,
   Redo2,
+  ExternalLink,
 } from "lucide-react";
 import "katex/dist/katex.min.css";
 import "./editor.css";
@@ -55,6 +59,15 @@ const EMPTY_NOTE: JSONContent = {
   type: "doc",
   content: [{ type: "paragraph" }],
 };
+
+interface TouchLink {
+  href: string;
+  label: string;
+  from: number;
+  to: number;
+  top: number;
+  left: number;
+}
 
 interface LinkDraft {
   url: string;
@@ -108,6 +121,9 @@ export default function TaskEditor({
   vimEnabled,
 }: TaskEditorProps) {
   const [linkDraft, setLinkDraft] = useState<LinkDraft | null>(null);
+  const [touch] = useState(usesTouchInterface);
+  const [touchLink, setTouchLink] = useState<TouchLink | null>(null);
+  const touchLinkPanel = useRef<HTMLDivElement>(null);
   const [source, setSource] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [vimMode, setVimMode] = useState<VimMode>("normal");
@@ -142,6 +158,33 @@ export default function TaskEditor({
     };
   }, [publisher]);
 
+  useEffect(() => {
+    if (!touchLink) return;
+    const outside = (event: PointerEvent) => {
+      if (!touchLinkPanel.current?.contains(event.target as Node))
+        setTouchLink(null);
+    };
+    const resize = () => {
+      const height = window.visualViewport?.height ?? window.innerHeight;
+      setTouchLink(
+        (current) =>
+          current && {
+            ...current,
+            top: Math.max(12, Math.min(current.top, height - 164)),
+            left: Math.max(12, Math.min(current.left, window.innerWidth - 312)),
+          },
+      );
+    };
+    document.addEventListener("pointerdown", outside);
+    window.addEventListener("resize", resize);
+    window.visualViewport?.addEventListener("resize", resize);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      window.removeEventListener("resize", resize);
+      window.visualViewport?.removeEventListener("resize", resize);
+    };
+  }, [touchLink]);
+
   const insertImages = (files: File[], position?: number, focus = false) => {
     const destinationTaskId = taskIdRef.current;
     const currentEditor = editorRef.current;
@@ -172,7 +215,9 @@ export default function TaskEditor({
             HTMLAttributes: {
               target: "_blank",
               rel: "noopener noreferrer nofollow",
-              title: "⌘/Ctrl-click to open link",
+              title: touch
+                ? "Tap for link actions"
+                : "⌘/Ctrl-click to open link",
             },
           },
         }),
@@ -230,7 +275,32 @@ export default function TaskEditor({
               if (
                 openNoteLink(link.getAttribute("href") ?? "") === "native-only"
               )
-                setNotice("Open this attachment in the Mac app.");
+                setNotice(
+                  `Open this attachment in the ${APP_NAME} mobile or Mac app.`,
+                );
+              return true;
+            }
+            if (touch) {
+              const from = view.posAtDOM(link, 0);
+              const range = getMarkRange(
+                view.state.doc.resolve(from),
+                view.state.schema.marks.link,
+              );
+              const rect = link.getBoundingClientRect();
+              const height =
+                window.visualViewport?.height ?? window.innerHeight;
+              setLinkDraft(null);
+              setTouchLink({
+                href: link.getAttribute("href") ?? "",
+                label: link.textContent ?? "Link",
+                from: range?.from ?? from,
+                to: range?.to ?? from + (link.textContent?.length ?? 0),
+                top: Math.max(12, Math.min(rect.bottom + 8, height - 164)),
+                left: Math.max(
+                  12,
+                  Math.min(rect.left, window.innerWidth - 312),
+                ),
+              });
               return true;
             }
             return false;
@@ -284,6 +354,7 @@ export default function TaskEditor({
         editorRef.current = instance;
       },
       onUpdate: ({ editor: instance }) => {
+        setTouchLink(null);
         // ProseMirror documents are immutable, so holding the current document is
         // cheap. Large notes/images are serialized once per batch, not per key.
         const document = instance.state.doc;
@@ -321,12 +392,70 @@ export default function TaskEditor({
       editor.commands.setVimEnabled(vimEnabled);
   }, [editor, vimEnabled]);
 
+  useEffect(() => {
+    if (!touch || !editor) return;
+    let frame = 0;
+    let settle: ReturnType<typeof setTimeout> | undefined;
+    const reveal = () => {
+      if (editor.isDestroyed) return;
+      const active = document.activeElement;
+      if (!(active instanceof HTMLElement) || !editor.view.dom.contains(active))
+        return;
+      const scroll = editor.view.dom.closest<HTMLElement>(".detail-scroll");
+      if (!scroll) return;
+      try {
+        // A math input owns its native caret; the outer NodeSelection describes
+        // the whole rendered equation and is too large to scroll accurately.
+        const rect =
+          active instanceof HTMLInputElement ||
+          active instanceof HTMLTextAreaElement
+            ? active.getBoundingClientRect()
+            : editor.view.coordsAtPos(editor.state.selection.head);
+        const viewport = window.visualViewport;
+        const viewportTop = viewport?.offsetTop ?? 0;
+        const viewportBottom =
+          viewportTop + (viewport?.height ?? window.innerHeight);
+        const bounds = scroll.getBoundingClientRect();
+        const top = Math.max(bounds.top, viewportTop) + 12;
+        const bottom = Math.min(bounds.bottom, viewportBottom - 66) - 12;
+        if (bottom <= top) return;
+        if (rect.bottom > bottom)
+          scroll.scrollTop += Math.min(
+            rect.bottom - bottom,
+            Math.max(0, rect.top - top),
+          );
+        else if (rect.top < top) scroll.scrollTop += rect.top - top;
+      } catch {
+        /* Native caret geometry may be unavailable during view replacement. */
+      }
+    };
+    const schedule = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(reveal);
+      clearTimeout(settle);
+      // The iOS keyboard animates after focus, then changes the usable viewport.
+      // One settled pass handles its final geometry without scrolling on typing.
+      settle = setTimeout(reveal, 180);
+    };
+    editor.view.dom.addEventListener("focusin", schedule);
+    window.addEventListener("resize", schedule);
+    window.visualViewport?.addEventListener("resize", schedule);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(settle);
+      editor.view.dom.removeEventListener("focusin", schedule);
+      window.removeEventListener("resize", schedule);
+      window.visualViewport?.removeEventListener("resize", schedule);
+    };
+  }, [editor, touch]);
+
   // A new editor per task keeps undo history scoped to that task. External checkbox
   // changes still update the visible note without replacing it on each keystroke.
   useEffect(() => {
     editorRef.current = editor;
     setSource(null);
     setLinkDraft(null);
+    setTouchLink(null);
     setNotice("");
     receivedContent.current = content;
   }, [taskId, editor]);
@@ -344,6 +473,9 @@ export default function TaskEditor({
       JSON.stringify(editor.getJSON()) === JSON.stringify(content ?? EMPTY_NOTE)
     )
       return;
+    // Link ranges belong to the current document, not an incoming synced revision.
+    setTouchLink(null);
+    setLinkDraft(null);
     const { from, to } = editor.state.selection;
     editor.commands.setContent(content ?? EMPTY_NOTE, { emitUpdate: false });
     const end = editor.state.doc.content.size;
@@ -369,14 +501,16 @@ export default function TaskEditor({
               : toolbar?.image
                 ? "Select an image to resize or crop · Delete to remove · Enter to continue"
                 : toolbar?.link
-                  ? "⌘/Ctrl-click to open link"
+                  ? touch
+                    ? "Tap a link to open or edit it"
+                    : "⌘/Ctrl-click to open link"
                   : "Markdown & LaTeX supported";
 
   const applyLink = () => {
     if (!linkDraft) return;
     const url = normalizedLink(linkDraft.url);
     if (url === null) {
-      setNotice("Use a valid web, email, or Daymark attachment link.");
+      setNotice(`Use a valid web, email, or ${APP_NAME} attachment link.`);
       return;
     }
     const chain = editor
@@ -409,12 +543,16 @@ export default function TaskEditor({
 
   return (
     <div
-      className="task-note-editor"
+      className={`task-note-editor ${touch ? "is-touch-editor" : ""}`}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null))
           publisher.flush();
       }}
       onKeyDown={(event) => {
+        if (event.key === "Escape" && touchLink) {
+          setTouchLink(null);
+          event.stopPropagation();
+        }
         if (event.key === "Escape" && linkDraft) {
           setLinkDraft(null);
           editor.commands.focus();
@@ -542,6 +680,57 @@ export default function TaskEditor({
         </div>
       )}
 
+      {touchLink && (
+        <div
+          ref={touchLinkPanel}
+          className="touch-link-actions"
+          role="dialog"
+          aria-label="Link actions"
+          style={{ top: touchLink.top, left: touchLink.left }}
+        >
+          <span title={touchLink.href}>{touchLink.label}</span>
+          <div>
+            <button
+              type="button"
+              onClick={() => {
+                if (openNoteLink(touchLink.href) === "native-only")
+                  setNotice(
+                    `Open this attachment in the ${APP_NAME} mobile or Mac app.`,
+                  );
+                setTouchLink(null);
+              }}
+            >
+              <ExternalLink size={16} />
+              Open
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                editor.commands.setTextSelection({
+                  from: touchLink.from,
+                  to: touchLink.to,
+                });
+                setLinkDraft({
+                  url: touchLink.href,
+                  from: touchLink.from,
+                  to: touchLink.to,
+                });
+                setTouchLink(null);
+              }}
+            >
+              <Link2 size={16} />
+              Edit
+            </button>
+            <button
+              type="button"
+              aria-label="Close link actions"
+              onClick={() => setTouchLink(null)}
+            >
+              <X size={17} />
+            </button>
+          </div>
+        </div>
+      )}
       {linkDraft && (
         <div
           className="note-popover link-popover"

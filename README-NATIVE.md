@@ -16,15 +16,38 @@ When the system iCloud Drive directory exists, the app saves to `~/Library/Mobil
 
 ## iPhone / iPad
 
-The iOS source is provided in `native/iOS`, using the same UI, storage format, and attachment files as Mac. The Mac app was built with the installed Swift command line tools. Xcode was installed during development, but its first-launch license setup was still pending, so an iOS build could not be verified. Building and signing in Xcode is required before iPhone installation; device sync has not been verified here.
+The iOS app uses the same editor, storage format, and attachments as Mac. Its native shell adds keyboard-aware layout, Files import, PDF/image previews, sharing, and a background save when leaving the app. Touch editing has an explicit keyboard dismissal control and touch-friendly note tools. A first-launch introduction connects the existing Mac workspace or starts locally.
 
-1. Install Xcode and XcodeGen on your Mac.
-2. Run `npm run build` in the repository.
-3. Run `cd native && xcodegen generate`.
-4. Open `native/Daymark.xcodeproj` in Xcode, choose your signing team and a unique bundle identifier, then run the Daymark target on your iPhone.
-5. In Daymark settings, choose the **same Daymark folder in iCloud Drive** that the Mac app uses. The Files picker retains access using a security-scoped bookmark.
+Install Xcode, finish its first-launch setup, and install XcodeGen (`brew install xcodegen`). Then:
+
+```sh
+npm install
+npm run build:ios
+```
+
+This generates `native/Daymark.xcodeproj` and builds an unsigned simulator app at `build/ios/Build/Products/Debug-iphonesimulator/Daymark.app`. Open the generated project and run the Daymark scheme on an iPhone or iPad simulator. Xcode 26.6 with the iOS 26.5 simulator SDK was used for the verified build.
+
+For a physical iPhone, sign into **Xcode → Settings → Apple Accounts**, choose your signing team for the Daymark target, and run it on your connected phone. The current working bundle identifier is `app.daymark.mobile`; reserve an identifier belonging to your team before distribution. In the app, choose the **same Daymark folder in iCloud Drive** that the Mac app uses. The Files picker retains access using a security-scoped bookmark.
 
 The iPhone app initially uses its local Documents folder. Selecting an iCloud Drive folder through Files enables shared storage without a private CloudKit container or special iCloud entitlements. The folder must be available in the Files app, and iCloud Drive must be enabled on both devices.
+
+### App Store preparation
+
+`npm run archive:ios` compiles an unsigned Release archive for a generic iOS device at `build/Daymark.xcarchive`. An unsigned archive is a build check, not an installable App Store package.
+
+Once a paid Apple Developer team is configured in Xcode, set `DAYMARK_DEVELOPMENT_TEAM` to its ten-character team ID and use `npm run release:ios` to build and export a signed App Store IPA. `npm run release:ios -- --upload` uploads the build to App Store Connect for processing; it does not submit for review or release publicly. The matching app record must exist before upload.
+
+Release settings are configurable without moving the user's workspace:
+
+| Environment variable | Default |
+| --- | --- |
+| `DAYMARK_DISPLAY_NAME` | `Daymark` (working name) |
+| `DAYMARK_VERSION` | `1.0.0` |
+| `DAYMARK_BUILD_NUMBER` | `1` (increment for every upload) |
+| `DAYMARK_IOS_BUNDLE_IDENTIFIER` | `app.daymark.mobile` |
+| `DAYMARK_DEVELOPMENT_TEAM` | None; required for distribution |
+
+The display name is also passed into the bundled interface. Existing workspace folder names, file formats, and storage keys stay stable. See [App Store delivery](docs/APP-STORE.md) for prepared listing copy, privacy/support pages, and the remaining account and release inputs. Physical-device iCloud delivery still needs verification before public release.
 
 ## Storage and conflict behavior
 

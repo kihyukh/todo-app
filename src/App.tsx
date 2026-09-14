@@ -36,6 +36,16 @@ import {
   Hash,
 } from "lucide-react";
 import TaskEditor from "./TaskEditor";
+import { PrivacyInfo } from "./PrivacyInfo";
+import { APP_NAME, APP_VERSION } from "./brand";
+import {
+  dismissSoftwareKeyboard,
+  finishIOSWorkspaceSetup,
+  isNativeIOS,
+  isTextEntry,
+  needsIOSWorkspaceSetup,
+  usesTouchInterface,
+} from "./platform";
 import TaskTags, { TagChips, TagDialog, TagSidebar } from "./TaskTags";
 import type { TagDraft } from "./TaskTags";
 import {
@@ -115,6 +125,11 @@ function App() {
     attachNative,
   } = useWorkspace();
   const [view, setView] = useState<View>("today");
+  const [touch] = useState(usesTouchInterface);
+  const [touchFocus, setTouchFocus] = useState(false);
+  const [workspaceSetup, setWorkspaceSetup] = useState(needsIOSWorkspaceSetup);
+  const showWorkspaceSetup =
+    workspaceSetup && isNativeIOS() && storage.kind === "local";
   const [selectedId, setSelectedId] = useState<string | null>(() =>
     window.innerWidth > 920 ? "example-review" : null,
   );
@@ -225,6 +240,12 @@ function App() {
       t.completedAt &&
       dateKey(new Date(t.completedAt)) === today,
   ).length;
+  useEffect(() => {
+    if (isNativeIOS() && ready && storage.kind !== "local") {
+      finishIOSWorkspaceSetup();
+      setWorkspaceSetup(false);
+    }
+  }, [ready, storage.kind]);
   useEffect(() => {
     writeVimPreference(vimEnabled);
   }, [vimEnabled]);
@@ -465,7 +486,7 @@ function App() {
     link.href = URL.createObjectURL(
       new Blob([JSON.stringify(state, null, 2)], { type: "application/json" }),
     );
-    link.download = `Daymark-${today}.json`;
+    link.download = `${APP_NAME}-${today}.json`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   }
@@ -640,19 +661,25 @@ function App() {
         <span className="brand-mark">
           <Check size={23} />
         </span>
-        <p>{error || "Opening Daymark…"}</p>
+        <p>{error || `Opening ${APP_NAME}…`}</p>
       </div>
     );
   return (
     <div
-      className={`app-shell ${selected ? "has-detail" : ""} ${sidebar ? "sidebar-open" : ""}`}
+      className={`app-shell ${selected ? "has-detail" : ""} ${sidebar ? "sidebar-open" : ""} ${touch ? "is-touch-device" : ""} ${touchFocus ? "has-touch-focus" : ""}`}
+      onFocusCapture={(event) => {
+        if (touch && isTextEntry(event.target)) setTouchFocus(true);
+      }}
+      onBlurCapture={(event) => {
+        if (touch && !isTextEntry(event.relatedTarget)) setTouchFocus(false);
+      }}
     >
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark">
             <Check size={20} strokeWidth={2.5} />
           </span>
-          <span>Daymark</span>
+          <span>{APP_NAME}</span>
           <IconButton label="Hide sidebar" onClick={() => setSidebar(false)}>
             <PanelLeftClose size={17} />
           </IconButton>
@@ -882,7 +909,7 @@ function App() {
             </button>
           </div>
         )}
-        {error && (
+        {error && !(touch && selected) && !showWorkspaceSetup && (
           <div className="error-banner" role="alert">
             {error}
             <button aria-label="Dismiss error" onClick={() => setError("")}>
@@ -1223,7 +1250,7 @@ function App() {
               </select>
             </div>
             <div className="detail-actions">
-              <span className="saved-label">
+              <span className={`saved-label ${error ? "has-save-error" : ""}`}>
                 {error
                   ? "Not saved"
                   : saving || notePending
@@ -1286,6 +1313,14 @@ function App() {
               </IconButton>
             </div>
           </header>
+          {touch && error && !showWorkspaceSetup && (
+            <div className="error-banner detail-error-banner" role="alert">
+              <span>{error}</span>
+              <button aria-label="Dismiss error" onClick={() => setError("")}>
+                <X size={16} />
+              </button>
+            </div>
+          )}
           <div className="detail-scroll">
             <div className="task-title-editor">
               <button
@@ -1437,6 +1472,34 @@ function App() {
           </footer>
         </aside>
       )}
+      {touch && touchFocus && (
+        <button
+          type="button"
+          className="mobile-keyboard-done"
+          aria-label="Dismiss keyboard"
+          onPointerDown={(event) => event.preventDefault()}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            dismissSoftwareKeyboard();
+            setTouchFocus(false);
+          }}
+        >
+          Done
+        </button>
+      )}
+      {showWorkspaceSetup && (
+        <IOSWorkspaceSetup
+          error={error}
+          onConnect={() => {
+            setError("");
+            nativeSend({ action: "chooseFolder" });
+          }}
+          onContinue={() => {
+            finishIOSWorkspaceSetup();
+            setWorkspaceSetup(false);
+          }}
+        />
+      )}
       {settings && (
         <div
           className="modal-backdrop"
@@ -1581,7 +1644,11 @@ function App() {
               >
                 Move example tasks to Trash
               </button>
-              <p className="version">Daymark 0.1 · Built around your day</p>
+              <h3>Privacy</h3>
+              <PrivacyInfo />
+              <p className="version">
+                {APP_NAME} {APP_VERSION} · Built around your day
+              </p>
             </div>
           </section>
         </div>
@@ -1775,6 +1842,80 @@ function App() {
     </div>
   );
 }
+function IOSWorkspaceSetup({
+  error,
+  onConnect,
+  onContinue,
+}: {
+  error: string;
+  onConnect: () => void;
+  onContinue: () => void;
+}) {
+  const dialog = useRef<HTMLElement>(null);
+  return (
+    <div className="modal-backdrop ios-workspace-backdrop">
+      <section
+        ref={dialog}
+        className="modal ios-workspace-setup"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ios-workspace-title"
+        onKeyDown={(event) => {
+          if (event.key === "Tab") {
+            const controls =
+              dialog.current?.querySelectorAll<HTMLButtonElement>("button");
+            const first = controls?.[0],
+              last = controls?.[1];
+            if (event.shiftKey && document.activeElement === first) {
+              event.preventDefault();
+              last?.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+              event.preventDefault();
+              first?.focus();
+            }
+          }
+        }}
+      >
+        <span className="ios-workspace-icon">
+          <Cloud size={30} />
+        </span>
+        <p className="ios-workspace-eyebrow">{APP_NAME}</p>
+        <h2 id="ios-workspace-title">Connect your Mac workspace</h2>
+        <p>
+          Choose the same workspace folder you already use on your Mac. In the
+          folder picker, find your existing folder in iCloud Drive.
+        </p>
+        <p className="ios-workspace-help">
+          Your tasks, notes, and attachments will stay together on both devices.
+          You can also connect later in Settings.
+        </p>
+        {error && (
+          <div className="error-banner setup-error-banner" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="ios-workspace-actions">
+          <button
+            type="button"
+            className="primary-button"
+            autoFocus
+            onClick={onConnect}
+          >
+            <FolderOpen size={17} />
+            Choose workspace folder
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onContinue}
+          >
+            Continue on this device
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
 function Empty({ icon: Icon, title, body }: any) {
   return (
     <div className="empty-state">
@@ -1798,11 +1939,32 @@ function DateField({
   today: string;
 }) {
   const [open, setOpen] = useState(false);
+  const anchor = useRef<HTMLDivElement>(null);
+  const touch = usesTouchInterface();
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => {
+      if (!anchor.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", outside);
+    return () => document.removeEventListener("pointerdown", outside);
+  }, [open]);
   return (
     <div
+      ref={anchor}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          setOpen(false);
+          event.stopPropagation();
+        }
+      }}
       className={`date-field ${label === "Do date" && value === today ? "today-date" : ""} ${label === "Deadline" && value && value < today ? "overdue-date" : ""}`}
     >
-      <button className="date-field-trigger" onClick={() => setOpen(!open)}>
+      <button
+        className="date-field-trigger"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
         <Icon size={16} />
         <span>
           <small>{label}</small>
@@ -1811,7 +1973,11 @@ function DateField({
         <ChevronDown size={13} />
       </button>
       {open && (
-        <div className="date-popover">
+        <div
+          className="date-popover"
+          role="dialog"
+          aria-label={`${label} options`}
+        >
           <strong>{label}</strong>
           <div className="date-shortcuts">
             <button
@@ -1832,7 +1998,7 @@ function DateField({
             </button>
           </div>
           <input
-            autoFocus
+            autoFocus={!touch}
             type="date"
             aria-label={label}
             value={value ?? ""}

@@ -1356,6 +1356,31 @@ kbd {
   margin-left: auto;
   color: inherit;
 }
+.detail-error-banner {
+  flex-shrink: 0;
+  margin: 0 20px 12px;
+  align-items: center;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.detail-error-banner button {
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  margin-top: -6px;
+  margin-bottom: -6px;
+}
+.setup-error-banner {
+  margin: 16px 0 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.saved-label.has-save-error {
+  color: var(--danger);
+  font-weight: 600;
+}
 .loading {
   height: 100dvh;
   display: flex;
@@ -1859,4 +1884,244 @@ kbd {
 .sidebar > .sidebar-bottom {
   margin-top: 0;
   padding-top: 12px;
+}
+
+/* Touch devices keep the same workspace, with room for fingers and the keyboard. */
+.mobile-keyboard-done {
+  position: fixed;
+  right: 14px;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  z-index: 120;
+  min-width: 66px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid #bac8e2;
+  border-radius: 22px;
+  background: #fff;
+  color: var(--blue);
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: 0 3px 14px #18355b26;
+}
+.is-touch-device input:not([type="checkbox"]):not([type="radio"]),
+.is-touch-device select {
+  font-size: 16px;
+}
+.is-touch-device .icon-button {
+  width: 44px;
+  height: 44px;
+}
+.is-touch-device .nav-item {
+  min-height: 44px;
+}
+.is-touch-device .task-check {
+  position: relative;
+}
+.is-touch-device .task-check::before {
+  content: "";
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.is-touch-device .plan-task {
+  min-width: 36px;
+  min-height: 44px;
+  margin-top: -10px;
+}
+.is-touch-device .task-tags-field {
+  align-items: center;
+}
+.is-touch-device .task-tags-label {
+  padding-top: 0;
+}
+.is-touch-device .tag-add {
+  min-height: 44px;
+  padding: 8px;
+  font-size: 13px;
+}
+.is-touch-device .tag-chip {
+  min-height: 30px;
+  font-size: 12px;
+}
+.is-touch-device .tag-chip > button {
+  width: 30px;
+  height: 30px;
+  margin-top: -3px;
+  margin-bottom: -3px;
+}
+.is-touch-device .tag-chips.is-compact .tag-chip {
+  min-height: 20px;
+  font-size: 11px;
+}
+.is-touch-device .tag-option {
+  min-height: 44px;
+  font-size: 14px;
+}
+.is-touch-device .tag-close {
+  min-width: 36px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+}
+.is-touch-device .tag-search {
+  padding: 2px 8px 2px 12px;
+}
+.is-touch-device .tag-create select {
+  min-height: 36px;
+}
+.is-touch-device .tag-create > button {
+  min-height: 44px;
+  font-size: 14px;
+}
+.is-touch-device .tag-dialog-label input,
+.is-touch-device .tag-dialog-label select {
+  min-height: 44px;
+}
+.is-touch-device .tag-colors button {
+  width: 34px;
+  height: 34px;
+}
+.is-touch-device .primary-button,
+.is-touch-device .secondary-button {
+  min-height: 44px;
+  font-size: 14px;
+}
+.is-touch-device .date-shortcuts button,
+.is-touch-device .date-popover-footer button {
+  min-height: 44px;
+  font-size: 14px;
+}
+.is-touch-device.has-touch-focus .detail-scroll,
+.is-touch-device.has-touch-focus .task-scroll {
+  padding-bottom: 76px;
+}
+.ios-workspace-backdrop {
+  z-index: 130;
+  padding: 22px;
+  background: #f3f5f9ed;
+}
+.ios-workspace-setup {
+  padding: 28px 24px;
+  max-width: 390px;
+  border-radius: 18px;
+}
+.ios-workspace-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  margin-bottom: 23px;
+  border-radius: 17px;
+  color: var(--blue);
+  background: #eaf0ff;
+}
+.ios-workspace-eyebrow {
+  margin: 0 0 8px;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 600;
+}
+.ios-workspace-setup h2 {
+  margin: 0 0 16px;
+  font-size: 25px;
+  line-height: 1.15;
+  letter-spacing: -0.6px;
+  color: var(--ink);
+}
+.ios-workspace-setup > p:not(.ios-workspace-eyebrow) {
+  margin: 0 0 15px;
+  color: #46546b;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.ios-workspace-setup > p.ios-workspace-help {
+  color: #617087;
+  font-size: 13px;
+}
+.ios-workspace-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 24px;
+}
+.ios-workspace-actions > button {
+  justify-content: center;
+  width: 100%;
+  min-height: 48px;
+  font-size: 14px;
+}
+@media (max-width: 600px) {
+  .is-touch-device .detail-top {
+    padding-left: 10px;
+    padding-right: 10px;
+    gap: 5px;
+  }
+  .is-touch-device .detail-back {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+    align-items: center;
+  }
+  .is-touch-device .detail-project {
+    min-width: 0;
+    flex: 1;
+  }
+  .is-touch-device .detail-project select {
+    min-width: 0;
+    max-width: 100%;
+    min-height: 44px;
+  }
+  .is-touch-device .saved-label {
+    display: none;
+  }
+  .is-touch-device .saved-label.has-save-error {
+    display: inline;
+  }
+  .is-touch-device .detail-scroll {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .is-touch-device .status-field select {
+    min-height: 44px;
+  }
+  .is-touch-device .date-popover,
+  .is-touch-device .date-field:last-child .date-popover,
+  .is-touch-device .tag-popover {
+    position: fixed;
+    top: auto;
+    left: 12px;
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    width: auto;
+    min-width: 0;
+    max-height: calc(100dvh - 36px);
+    overflow-y: auto;
+    z-index: 80;
+    border-color: #bcc9df;
+    box-shadow: 0 6px 32px #233e6738;
+  }
+  .is-touch-device.has-touch-focus .date-popover,
+  .is-touch-device.has-touch-focus .date-field:last-child .date-popover,
+  .is-touch-device.has-touch-focus .tag-popover {
+    bottom: 66px;
+    max-height: calc(100dvh - 88px);
+  }
+  .is-touch-device .tag-options {
+    max-height: min(255px, calc(100dvh - 255px));
+  }
+  .is-touch-device .modal-backdrop {
+    padding: 14px;
+  }
+  .is-touch-device .tag-dialog footer {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .is-touch-device .tag-dialog footer .tag-delete {
+    min-height: 44px;
+    font-size: 12px;
+  }
 }

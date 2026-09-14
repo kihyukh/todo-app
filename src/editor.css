@@ -516,3 +516,131 @@
     font-size: 16px;
   }
 }
+
+.is-touch-editor .note-toolbar {
+  justify-content: flex-start;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  gap: 4px;
+  min-height: 54px;
+  padding: 3px 0 7px;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.is-touch-editor .note-toolbar-main {
+  flex-wrap: nowrap;
+  flex: 0 0 auto;
+  gap: 2px;
+}
+.is-touch-editor .note-tool,
+.is-touch-editor .note-editor-footnote .note-tool {
+  width: 44px;
+  height: 44px;
+  border-radius: 7px;
+}
+.is-touch-editor .note-tool svg {
+  width: 18px;
+  height: 18px;
+}
+.is-touch-editor .note-tool-divider {
+  flex: 0 0 1px;
+  margin: 0 3px;
+}
+.is-touch-editor .note-prose {
+  font-size: 16px;
+  line-height: 1.45;
+}
+.is-touch-editor .math-note-input,
+.is-touch-editor .note-source-panel textarea,
+.is-touch-editor .link-popover input {
+  font-size: 16px;
+}
+.is-touch-editor .note-popover-heading > button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.is-touch-editor .link-popover input {
+  min-height: 44px;
+}
+.is-touch-editor button.note-apply {
+  min-height: 44px;
+  font-size: 14px;
+}
+.is-touch-editor .note-remove-link {
+  min-height: 44px;
+  font-size: 14px;
+}
+.is-touch-editor .note-source-actions > button {
+  min-height: 44px;
+}
+.is-touch-editor .note-table-actions button {
+  min-height: 44px;
+  font-size: 13px;
+}
+.touch-link-actions {
+  position: fixed;
+  width: min(300px, calc(100vw - 24px));
+  z-index: 90;
+  padding: 8px;
+  border: 1px solid #bdc9de;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 5px 24px #203b622e;
+}
+.touch-link-actions > span {
+  display: block;
+  padding: 3px 8px 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #53627b;
+  font-size: 12px;
+}
+.touch-link-actions > div {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.touch-link-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--blue);
+  background: #f0f4fc;
+}
+.touch-link-actions button:not(:last-child) {
+  flex: 1;
+}
+.touch-link-actions button:last-child {
+  background: none;
+  color: #60718b;
+}
+@media (max-width: 600px) {
+  .is-touch-editor .link-popover {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 66px;
+    z-index: 90;
+    width: auto;
+    max-height: calc(100dvh - 88px);
+    overflow-y: auto;
+    margin-top: 0;
+    border-color: #bdc9de;
+    box-shadow: 0 5px 24px #203b622e;
+  }
+  .is-touch-editor .note-popover-heading {
+    margin-bottom: 5px;
+  }
+  .is-touch-editor .note-source-label {
+    align-items: flex-start;
+    gap: 10px;
+  }
+}

@@ -1,0 +1,43 @@
+.privacy-info {
+  max-width: 65ch;
+  color: var(--secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.privacy-info h4 {
+  margin: 18px 0 6px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.privacy-info p {
+  margin: 0 0 10px;
+}
+
+.privacy-info > :last-child {
+  margin-bottom: 0;
+}
+
+.license-notices {
+  margin-top: 18px;
+}
+
+.license-notices summary {
+  color: var(--ink);
+  cursor: pointer;
+  padding: 8px 0;
+}
+
+.license-notices pre {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.5;
+  background: var(--canvas, #f5f6f8);
+  border-radius: 8px;
+  padding: 12px;
+}
