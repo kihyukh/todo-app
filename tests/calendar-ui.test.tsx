@@ -32,6 +32,7 @@ afterEach(async () => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
   delete window.__DAYMARK_PLATFORM__;
 });
 async function render(element: React.ReactNode) {
@@ -147,6 +148,157 @@ describe("all-day event dates", () => {
   );
 });
 describe("calendar workspace", () => {
+  it("bounds month events and tasks together, retains a deadline, and opens every remaining item", async () => {
+    const events = Array.from({ length: 4 }, (_, index) =>
+      event({
+        id: `event-${index}`,
+        externalId: `external-${index}`,
+        title: `Meeting ${index}`,
+      }),
+    );
+    const tasks = [
+      ...Array.from({ length: 4 }, (_, index) =>
+        task(`work-${index}`, { doDates: ["2026-09-14"] }),
+      ),
+      task("deadline", { deadline: "2026-09-14" }),
+    ];
+    const onOpenTask = vi.fn(),
+      onUpdateTask = vi.fn();
+    await render(
+      <CalendarWorkspace
+        tasks={tasks}
+        api={api({ events })}
+        onOpenTask={onOpenTask}
+        onUpdateTask={onUpdateTask}
+      />,
+    );
+    await click(button("Month"));
+    const cell = document
+      .querySelector(".calendar-day-number.is-today")!
+      .closest(".calendar-month-day")!;
+    expect(cell.querySelectorAll(".calendar-event-chip")).toHaveLength(2);
+    expect(cell.querySelectorAll(".calendar-task-chip")).toHaveLength(1);
+    expect(cell.querySelector(".calendar-task-chip")?.textContent).toContain(
+      "Task deadline",
+    );
+    const more = cell.querySelector<HTMLButtonElement>(".calendar-more")!;
+    expect(more.textContent).toBe("+6 more");
+    expect(more.getAttribute("aria-label")).toMatch(/^Show 6 more items on /);
+    await click(more);
+    expect(button("Day").getAttribute("aria-pressed")).toBe("true");
+    expect(document.querySelectorAll(".calendar-event-chip")).toHaveLength(4);
+    expect(document.querySelectorAll(".calendar-task-chip")).toHaveLength(5);
+    expect(onOpenTask).not.toHaveBeenCalled();
+    expect(onUpdateTask).not.toHaveBeenCalled();
+  });
+  it("also limits task-only month cells instead of allowing an unbounded task list", async () => {
+    const tasks = Array.from({ length: 5 }, (_, index) =>
+      task(`work-${index}`, { doDates: ["2026-09-14"] }),
+    );
+    await render(
+      <CalendarWorkspace
+        tasks={tasks}
+        api={api()}
+        onOpenTask={vi.fn()}
+        onUpdateTask={vi.fn()}
+      />,
+    );
+    await click(button("Month"));
+    const cell = document
+      .querySelector(".calendar-day-number.is-today")!
+      .closest(".calendar-month-day")!;
+    expect(cell.querySelectorAll(".calendar-task-chip")).toHaveLength(3);
+    expect(cell.querySelector(".calendar-more")?.textContent).toBe("+2 more");
+    await click(cell.querySelector<HTMLButtonElement>(".calendar-more")!);
+    expect(document.querySelectorAll(".calendar-task-chip")).toHaveLength(5);
+  });
+  it("reduces the month item budget as the calendar narrows and keeps an accurate overflow count", async () => {
+    let resize!: ResizeObserverCallback;
+    const disconnect = vi.fn();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          resize = callback;
+        }
+        observe() {}
+        disconnect = disconnect;
+      },
+    );
+    const events = Array.from({ length: 3 }, (_, index) =>
+      event({ id: `event-${index}` }),
+    );
+    const tasks = [
+      task("work", { doDates: ["2026-09-14"] }),
+      task("due", { deadline: "2026-09-14" }),
+    ];
+    await render(
+      <CalendarWorkspace
+        tasks={tasks}
+        api={api({ events })}
+        onOpenTask={vi.fn()}
+        onUpdateTask={vi.fn()}
+      />,
+    );
+    await click(button("Month"));
+    const cell = document
+      .querySelector(".calendar-day-number.is-today")!
+      .closest(".calendar-month-day")!;
+    await act(async () =>
+      resize(
+        [{ contentRect: { width: 420 } } as ResizeObserverEntry],
+        {} as ResizeObserver,
+      ),
+    );
+    expect(cell.querySelectorAll(".calendar-event-chip")).toHaveLength(1);
+    expect(cell.querySelectorAll(".calendar-task-chip")).toHaveLength(1);
+    expect(cell.querySelector(".calendar-task-chip")?.textContent).toContain(
+      "Task due",
+    );
+    expect(cell.querySelector(".calendar-more")?.textContent).toBe("+3 more");
+    await act(async () =>
+      resize(
+        [{ contentRect: { width: 960 } } as ResizeObserverEntry],
+        {} as ResizeObserver,
+      ),
+    );
+    expect(cell.querySelectorAll(".calendar-event-chip")).toHaveLength(2);
+    expect(cell.querySelector(".calendar-more")?.textContent).toBe("+2 more");
+    await act(async () => root!.unmount());
+    root = undefined;
+    expect(disconnect).toHaveBeenCalledOnce();
+  });
+  it.each(["Month", "Week", "Day"])(
+    "keeps the linked-task count readable by assistive technology in %s view",
+    async (view) => {
+      const meeting = event(),
+        unrelated = event({ id: "unrelated", externalId: "unrelated" });
+      const tasks = [
+        task("first", { calendarLinks: [eventLink(meeting)] }),
+        task("second", { calendarLinks: [eventLink(meeting)] }),
+      ];
+      await render(
+        <CalendarWorkspace
+          tasks={tasks}
+          api={api({ events: [meeting, unrelated] })}
+          onOpenTask={vi.fn()}
+          onUpdateTask={vi.fn()}
+        />,
+      );
+      await click(button(view));
+      const badges = document.querySelectorAll(".calendar-link-count");
+      expect(badges).toHaveLength(1);
+      expect(badges[0].getAttribute("role")).toBe("img");
+      expect(badges[0].getAttribute("aria-label")).toBe("2 linked tasks");
+      expect(badges[0].textContent).toBe("2");
+      expect(badges[0].querySelector("svg")?.getAttribute("aria-hidden")).toBe(
+        "true",
+      );
+      await click(badges[0].closest<HTMLButtonElement>("button")!);
+      expect(dialog()?.textContent).toContain("Task first");
+      expect(dialog()?.textContent).toContain("Task second");
+    },
+  );
   it("shows real task work days and deadlines in browser preview without invented events", async () => {
     const onOpenTask = vi.fn();
     await render(

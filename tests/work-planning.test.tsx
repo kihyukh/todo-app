@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import App from "../src/App";
+import { COMPLETION_DURATION } from "../src/TaskCompletion";
 import { addDays, dateKey, dateLabel, emptyDoc, workDates } from "../src/model";
 import type { AppState, Task } from "../src/model";
 
@@ -39,6 +40,7 @@ afterEach(async () => {
   root = undefined;
   document.body.replaceChildren();
   localStorage.clear();
+  vi.useRealTimers();
 });
 const task = (id: string, overrides: Partial<Task> = {}): Task => ({
   id,
@@ -129,6 +131,7 @@ describe("planning a task over several work days", () => {
   });
 
   it("shows each work day in Upcoming and combines a matching deadline into one occurrence", async () => {
+    vi.useFakeTimers();
     const first = addDays(2),
       second = addDays(9),
       last = addDays(20);
@@ -167,8 +170,17 @@ describe("planning a task over several work days", () => {
       rows().filter((row) => row.textContent?.includes("Read and revise")),
     ).toHaveLength(2);
     await click(label("Complete Read and revise"));
-    expect(rows()).toHaveLength(1);
+    expect(latest.tasks[0].completedAt).toBeTruthy();
     expect(workDates(latest.tasks[0])).toEqual([first, second]);
+    expect(latest.tasks[0].deadline).toBe(second);
+    const saved = structuredClone(latest.tasks[0]);
+    expect(rows()).toHaveLength(3);
+    expect(
+      rows().filter((row) => row.classList.contains("is-completing")),
+    ).toHaveLength(2);
+    await act(async () => vi.advanceTimersByTimeAsync(COMPLETION_DURATION));
+    expect(rows()).toHaveLength(1);
+    expect(latest.tasks[0]).toEqual(saved);
     await view("Completed");
     expect(rows()).toHaveLength(1);
   });

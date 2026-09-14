@@ -38,6 +38,11 @@ import {
   Hash,
 } from "lucide-react";
 import TaskEditor from "./TaskEditor";
+import { CompletionMark, useTaskCompletion } from "./TaskCompletion";
+import {
+  readCompletionSoundPreference,
+  writeCompletionSoundPreference,
+} from "./completion-sound";
 import { PaneDivider, usePaneWidths } from "./PaneResize";
 import {
   compareTaskPriority,
@@ -161,6 +166,10 @@ function App() {
   const [sidebar, setSidebar] = useState(false);
   const [settings, setSettings] = useState(false);
   const [vimEnabled, setVimEnabled] = useState(readVimPreference);
+  const [completionSound, setCompletionSound] = useState(
+    readCompletionSoundPreference,
+  );
+  const completion = useTaskCompletion();
   const [notePending, setNotePending] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [tagDialog, setTagDialog] = useState<{ id?: string } | null>(null);
@@ -259,7 +268,12 @@ function App() {
     } else if (t.deletedAt) return false;
     if (view === "completed") {
       if (!t.completedAt) return false;
-    } else if (view !== "trash" && t.completedAt) return false;
+    } else if (
+      view !== "trash" &&
+      t.completedAt &&
+      !completion.completing.has(t.id)
+    )
+      return false;
     if (view === "today" && !isScheduledOn(t, today)) return false;
     if (view === "upcoming" && !(nextWorkDate(t, today) || t.deadline))
       return false;
@@ -309,7 +323,14 @@ function App() {
             a.date.localeCompare(b.date) || compareTaskPriority(a.task, b.task),
         )
       : [];
-  const earlier = active.filter((t) => hasMissedWork(t, today));
+  const earlier = state.tasks.filter((task) =>
+    hasMissedWork(
+      completion.completing.has(task.id)
+        ? { ...task, completedAt: null }
+        : task,
+      today,
+    ),
+  );
   const todayCount = active.filter((t) => isScheduledOn(t, today)).length;
   const completedToday = state.tasks.filter(
     (t) =>
@@ -483,6 +504,11 @@ function App() {
     setSelectedId(task.id);
   }
   function complete(task: Task) {
+    if (task.completedAt) completion.cancel(task.id);
+    else {
+      setToast("");
+      completion.celebrate(task);
+    }
     updateTask(task.id, { completedAt: task.completedAt ? null : now() });
   }
   function addTask(event?: React.FormEvent, columnId?: string) {
@@ -647,145 +673,162 @@ function App() {
     const planned = isScheduledOn(task, today);
     const nextDate = nextWorkDate(task, today) ?? dates[dates.length - 1];
     const otherDates = dates.length - 1;
+    const celebrating =
+      !!task.completedAt && completion.completing.has(task.id);
     return (
       <div
         key={task.id}
-        className={`task-row ${selectedId === task.id ? "selected" : ""} ${compact ? "compact" : ""}`}
-        draggable={!task.deletedAt}
-        onDragStart={(e) => {
-          e.dataTransfer.setData("text/plain", task.id);
-          e.dataTransfer.effectAllowed = "move";
-        }}
+        className={`task-row-shell ${celebrating && !["completed", "trash"].includes(view) ? "is-retiring" : ""}`}
       >
-        <button
-          className={`task-check ${task.completedAt ? "checked" : ""}`}
-          aria-label={`${task.completedAt ? "Reopen" : "Complete"} ${task.title}`}
-          onClick={() => complete(task)}
-        >
-          {task.completedAt && <Check size={12} />}
-        </button>
-        <button className="task-content" onClick={() => setSelectedId(task.id)}>
-          <span className={`task-title ${task.completedAt ? "done" : ""}`}>
-            {task.title}
-          </span>
-          <span className="task-metadata">
-            {project && (
-              <span>
-                <i style={{ background: project.color }} />
-                {project.name}
-              </span>
-            )}
-            {taskPriority(task) > 0 && (
-              <span className={`priority-mark priority-${taskPriority(task)}`}>
-                <Flag size={11} />
-                {priorityLabels[taskPriority(task)]}
-              </span>
-            )}
-            {progressColumn && task.columnId === progressColumn.id && (
-              <span className="task-working">
-                <Clock3 size={11} />
-                In progress
-              </span>
-            )}
-            {checks.length > 0 && (
-              <span>
-                <CheckSquare2 size={12} />
-                {done}/{checks.length}
-              </span>
-            )}
-            {task.attachments.length > 0 && (
-              <span>
-                <Paperclip size={12} />
-                {task.attachments.length}
-              </span>
-            )}
-            {task.deadline && (
-              <span
-                className={`deadline ${task.deadline < today ? "overdue" : ""}`}
-              >
-                <Flag size={12} />
-                Due {dateLabel(task.deadline)}
-              </span>
-            )}
-          </span>
-          <TagChips tags={taskTags(task, state)} compact />
-        </button>
-        {task.deletedAt ? (
-          <IconButton
-            label="Restore task"
-            onClick={() => updateTask(task.id, { deletedAt: null })}
+        <div className="task-row-clip">
+          <div
+            data-task-id={task.id}
+            className={`task-row ${selectedId === task.id ? "selected" : ""} ${compact ? "compact" : ""} ${celebrating ? "is-completing" : ""}`}
+            draggable={!task.deletedAt}
+            onDragStart={(e) => {
+              e.dataTransfer.setData("text/plain", task.id);
+              e.dataTransfer.effectAllowed = "move";
+            }}
           >
-            <RotateCcw size={16} />
-          </IconButton>
-        ) : (
-          view !== "today" &&
-          (occurrence || nextDate) && (
-            <span
-              className={`row-do-date ${occurrence?.deadline ? "row-deadline-day" : ""}`}
-              title={
-                occurrence
-                  ? occurrence.work && occurrence.deadline
-                    ? "Scheduled work day and deadline"
-                    : occurrence.work
-                      ? "Scheduled work day"
-                      : "Final deadline"
-                  : `Work on ${dates.map((date) => dateLabel(date, false)).join(", ")}`
-              }
+            <button
+              className={`task-check ${task.completedAt ? "checked" : ""} ${celebrating ? "is-celebrating" : ""}`}
+              aria-label={`${task.completedAt ? "Reopen" : "Complete"} ${task.title}`}
+              onClick={() => complete(task)}
             >
-              {occurrence?.deadline && !occurrence.work ? (
-                <Flag size={12} />
-              ) : (
-                <CalendarDays size={12} />
-              )}
-              {occurrence ? (
-                occurrence.work && occurrence.deadline ? (
-                  "Work · Due"
-                ) : occurrence.work ? (
-                  "Work day"
-                ) : (
-                  "Deadline"
-                )
-              ) : (
-                <>
-                  {dateLabel(nextDate ?? null)}
-                  {otherDates > 0 && (
-                    <span className="work-date-count">+{otherDates}</span>
+              <CompletionMark
+                checked={!!task.completedAt}
+                celebrating={celebrating}
+              />
+            </button>
+            <button
+              className="task-content"
+              onClick={() => setSelectedId(task.id)}
+            >
+              <span className={`task-title ${task.completedAt ? "done" : ""}`}>
+                <span className="task-title-ink">{task.title}</span>
+              </span>
+              <span className="task-metadata">
+                {project && (
+                  <span>
+                    <i style={{ background: project.color }} />
+                    {project.name}
+                  </span>
+                )}
+                {taskPriority(task) > 0 && (
+                  <span
+                    className={`priority-mark priority-${taskPriority(task)}`}
+                  >
+                    <Flag size={11} />
+                    {priorityLabels[taskPriority(task)]}
+                  </span>
+                )}
+                {progressColumn && task.columnId === progressColumn.id && (
+                  <span className="task-working">
+                    <Clock3 size={11} />
+                    In progress
+                  </span>
+                )}
+                {checks.length > 0 && (
+                  <span>
+                    <CheckSquare2 size={12} />
+                    {done}/{checks.length}
+                  </span>
+                )}
+                {task.attachments.length > 0 && (
+                  <span>
+                    <Paperclip size={12} />
+                    {task.attachments.length}
+                  </span>
+                )}
+                {task.deadline && (
+                  <span
+                    className={`deadline ${task.deadline < today ? "overdue" : ""}`}
+                  >
+                    <Flag size={12} />
+                    Due {dateLabel(task.deadline)}
+                  </span>
+                )}
+              </span>
+              <TagChips tags={taskTags(task, state)} compact />
+            </button>
+            {task.deletedAt ? (
+              <IconButton
+                label="Restore task"
+                onClick={() => updateTask(task.id, { deletedAt: null })}
+              >
+                <RotateCcw size={16} />
+              </IconButton>
+            ) : (
+              view !== "today" &&
+              (occurrence || nextDate) && (
+                <span
+                  className={`row-do-date ${occurrence?.deadline ? "row-deadline-day" : ""}`}
+                  title={
+                    occurrence
+                      ? occurrence.work && occurrence.deadline
+                        ? "Scheduled work day and deadline"
+                        : occurrence.work
+                          ? "Scheduled work day"
+                          : "Final deadline"
+                      : `Work on ${dates.map((date) => dateLabel(date, false)).join(", ")}`
+                  }
+                >
+                  {occurrence?.deadline && !occurrence.work ? (
+                    <Flag size={12} />
+                  ) : (
+                    <CalendarDays size={12} />
                   )}
-                </>
-              )}
-            </span>
-          )
-        )}
-        {!task.deletedAt && !task.completedAt && (
-          <button
-            type="button"
-            className={`start-task ${progressColumn && task.columnId === progressColumn.id ? "is-working" : ""}`}
-            aria-label={`Work on ${task.title}`}
-            title="Work on this task"
-            onClick={() => startWorking(task)}
-          >
-            <Play size={13} />
-          </button>
-        )}
-        {!task.deletedAt && (
-          <button
-            className={`plan-task ${planned ? "planned" : ""}`}
-            title={planned ? "Remove from Today" : "Do today"}
-            aria-label={`${planned ? "Remove from Today" : "Do today"}: ${task.title}`}
-            onClick={() =>
-              updateTask(
-                task.id,
-                schedulePatch(
-                  planned
-                    ? dates.filter((date) => date !== today)
-                    : [...dates, today],
-                ),
+                  {occurrence ? (
+                    occurrence.work && occurrence.deadline ? (
+                      "Work · Due"
+                    ) : occurrence.work ? (
+                      "Work day"
+                    ) : (
+                      "Deadline"
+                    )
+                  ) : (
+                    <>
+                      {dateLabel(nextDate ?? null)}
+                      {otherDates > 0 && (
+                        <span className="work-date-count">+{otherDates}</span>
+                      )}
+                    </>
+                  )}
+                </span>
               )
-            }
-          >
-            <Sun size={15} />
-          </button>
-        )}
+            )}
+            {!task.deletedAt && !task.completedAt && (
+              <button
+                type="button"
+                className={`start-task ${progressColumn && task.columnId === progressColumn.id ? "is-working" : ""}`}
+                aria-label={`Work on ${task.title}`}
+                title="Work on this task"
+                onClick={() => startWorking(task)}
+              >
+                <Play size={13} />
+              </button>
+            )}
+            {!task.deletedAt && (
+              <button
+                className={`plan-task ${planned ? "planned" : ""}`}
+                title={planned ? "Remove from Today" : "Do today"}
+                aria-label={`${planned ? "Remove from Today" : "Do today"}: ${task.title}`}
+                onClick={() =>
+                  updateTask(
+                    task.id,
+                    schedulePatch(
+                      planned
+                        ? dates.filter((date) => date !== today)
+                        : [...dates, today],
+                    ),
+                  )
+                }
+              >
+                <Sun size={15} />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -1573,13 +1616,19 @@ function App() {
           <div className="detail-scroll">
             <div className="task-title-editor">
               <button
-                className={`task-check large ${selected.completedAt ? "checked" : ""}`}
+                className={`task-check large ${selected.completedAt ? "checked" : ""} ${selected.completedAt && completion.completing.has(selected.id) ? "is-celebrating" : ""}`}
                 aria-label={
                   selected.completedAt ? "Reopen task" : "Complete task"
                 }
                 onClick={() => complete(selected)}
               >
-                {selected.completedAt && <Check size={14} />}
+                <CompletionMark
+                  checked={!!selected.completedAt}
+                  celebrating={
+                    !!selected.completedAt &&
+                    completion.completing.has(selected.id)
+                  }
+                />
               </button>
               <textarea
                 {...noTextSuggestions}
@@ -1830,6 +1879,27 @@ function App() {
                   to copy, <kbd>p</kbd> to paste, and <kbd>u</kbd> to undo.
                 </p>
               )}
+              <h3>Feedback</h3>
+              <label
+                className="editor-setting"
+                htmlFor="completion-sound-toggle"
+              >
+                <span>
+                  <strong>Completion sound</strong>
+                  <span>A gentle chime when you finish a task.</span>
+                </span>
+                <input
+                  id="completion-sound-toggle"
+                  type="checkbox"
+                  role="switch"
+                  aria-label="Completion sound"
+                  checked={completionSound}
+                  onChange={(event) => {
+                    setCompletionSound(event.target.checked);
+                    writeCompletionSoundPreference(event.target.checked);
+                  }}
+                />
+              </label>
               <h3>Storage & sync</h3>
               <div className="storage-card">
                 {storage.kind === "icloud" ? (
@@ -2127,6 +2197,24 @@ function App() {
         <div className="toast" role="status">
           <Check size={15} />
           {toast}
+        </div>
+      )}
+      {!toast && completion.notice && (
+        <div className="toast completion-toast" role="status">
+          <Check size={16} />
+          <span>Completed {completion.notice.title}</span>
+          <button
+            onClick={() => {
+              const task = state.tasks.find(
+                (item) => item.id === completion.notice!.id,
+              );
+              if (task?.completedAt) complete(task);
+              else completion.cancel(completion.notice!.id);
+            }}
+            aria-label="Undo task completion"
+          >
+            Undo
+          </button>
         </div>
       )}
     </div>

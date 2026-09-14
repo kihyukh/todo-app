@@ -45,6 +45,7 @@ import type {
   CalendarEvent,
   CalendarEventLink,
   CalendarView,
+  TaskCalendarEntry,
 } from "./calendar-model";
 import type { CalendarsAPI } from "./calendar-client";
 import "./calendar.css";
@@ -698,10 +699,10 @@ function EventChip({
   return (
     <button
       type="button"
-      className={`calendar-event-chip ${compact ? "is-compact" : ""}`}
+      className={`calendar-event-chip ${compact ? "is-compact" : ""} ${count ? "has-linked-tasks" : ""}`}
       style={colorStyle(event.calendarColor)}
       onClick={onClick}
-      title={`${event.title} · ${eventTime(event)}${count ? ` · ${count} linked tasks` : ""}`}
+      title={`${event.title} · ${eventTime(event)}${count ? ` · ${count} linked ${count === 1 ? "task" : "tasks"}` : ""}`}
     >
       <span className="calendar-event-time">
         {event.allDay
@@ -715,10 +716,11 @@ function EventChip({
       {count > 0 && (
         <span
           className="calendar-link-count"
+          role="img"
           aria-label={`${count} linked ${count === 1 ? "task" : "tasks"}`}
         >
-          <Link2 size={11} />
-          {count}
+          <Link2 size={11} aria-hidden="true" />
+          <span aria-hidden="true">{count}</span>
         </span>
       )}
     </button>
@@ -738,27 +740,37 @@ function TaskDayEntries({
   return (
     <>
       {taskEntriesOnDay(tasks, events, day).map(({ task, work, deadline }) => (
-        <button
-          type="button"
-          className={`calendar-task-chip ${deadline ? "has-deadline" : ""}`}
+        <TaskDayChip
           key={task.id}
-          onClick={() => onOpenTask(task.id)}
-          title={
-            deadline
-              ? `${task.title} · Deadline${work ? " and work day" : ""}`
-              : `${task.title} · Work day`
-          }
-        >
-          {deadline ? (
-            <Flag size={11} />
-          ) : (
-            <span className="calendar-work-dot" />
-          )}
-          <span>{task.title}</span>
-          {deadline && <small>Due</small>}
-        </button>
+          entry={{ task, work, deadline }}
+          onOpenTask={onOpenTask}
+        />
       ))}
     </>
+  );
+}
+function TaskDayChip({
+  entry: { task, work, deadline },
+  onOpenTask,
+}: {
+  entry: TaskCalendarEntry;
+  onOpenTask: (id: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`calendar-task-chip ${deadline ? "has-deadline" : ""}`}
+      onClick={() => onOpenTask(task.id)}
+      title={
+        deadline
+          ? `${task.title} · Deadline${work ? " and work day" : ""}`
+          : `${task.title} · Work day`
+      }
+    >
+      {deadline ? <Flag size={11} /> : <span className="calendar-work-dot" />}
+      <span>{task.title}</span>
+      {deadline && <small>Due</small>}
+    </button>
   );
 }
 
@@ -775,10 +787,21 @@ export default function CalendarWorkspace({
   const [sources, setSources] = useState(false),
     [creating, setCreating] = useState(false);
   const [selected, setSelected] = useState<CalendarEvent | null>(null);
+  const workspace = useRef<HTMLElement>(null);
+  const [narrowMonth, setNarrowMonth] = useState(() => window.innerWidth < 700);
   const timeline = useRef<HTMLDivElement>(null);
   const range = useMemo(() => calendarRange(date, view), [date, view]);
   const days = useMemo(() => rangeDays(range), [range]);
   useEffect(() => api.setRange(range), [api.setRange, range]);
+  useEffect(() => {
+    if (!workspace.current || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry && entry.contentRect.width > 0)
+        setNarrowMonth(entry.contentRect.width < 700);
+    });
+    observer.observe(workspace.current);
+    return () => observer.disconnect();
+  }, []);
   useEffect(() => {
     if (view === "week" && timeline.current)
       timeline.current.scrollTop = 7 * 36;
@@ -796,7 +819,11 @@ export default function CalendarWorkspace({
   );
   const today = dateKey();
   return (
-    <section className="calendar-workspace" aria-label="Calendar">
+    <section
+      className="calendar-workspace"
+      aria-label="Calendar"
+      ref={workspace}
+    >
       <div className="calendar-toolbar">
         <div className="calendar-period">
           <button
@@ -918,6 +945,24 @@ export default function CalendarWorkspace({
           <div className="calendar-month-days">
             {days.map((day) => {
               const events = eventsOnDay(visibleEvents, day);
+              const entries = taskEntriesOnDay(tasks, events, day).sort(
+                (a, b) => Number(b.deadline) - Number(a.deadline),
+              );
+              const itemBudget = narrowMonth ? 2 : 3;
+              // Keep a task visible on busy event days, with deadlines first.
+              const shownEvents = events.slice(
+                0,
+                Math.max(0, itemBudget - (entries.length ? 1 : 0)),
+              );
+              const shownTasks = entries.slice(
+                0,
+                itemBudget - shownEvents.length,
+              );
+              const remaining =
+                events.length +
+                entries.length -
+                shownEvents.length -
+                shownTasks.length;
               return (
                 <div
                   key={day}
@@ -936,33 +981,37 @@ export default function CalendarWorkspace({
                   >
                     {Number(day.slice(-2))}
                   </button>
-                  {events.slice(0, 3).map((event) => (
-                    <EventChip
-                      key={eventKey(event)}
-                      event={event}
-                      tasks={tasks}
-                      compact
-                      onClick={() => setSelected(event)}
-                    />
-                  ))}
-                  {events.length > 3 && (
+                  <div className="calendar-month-items">
+                    {shownEvents.map((event) => (
+                      <EventChip
+                        key={eventKey(event)}
+                        event={event}
+                        tasks={tasks}
+                        compact
+                        onClick={() => setSelected(event)}
+                      />
+                    ))}
+                    {shownTasks.map((entry) => (
+                      <TaskDayChip
+                        key={entry.task.id}
+                        entry={entry}
+                        onOpenTask={onOpenTask}
+                      />
+                    ))}
+                  </div>
+                  {remaining > 0 && (
                     <button
                       type="button"
                       className="calendar-more"
+                      aria-label={`Show ${remaining} more ${remaining === 1 ? "item" : "items"} on ${dateTitle(day)}`}
                       onClick={() => {
                         setDate(day);
                         setView("day");
                       }}
                     >
-                      +{events.length - 3} events
+                      +{remaining} more
                     </button>
                   )}
-                  <TaskDayEntries
-                    tasks={tasks}
-                    events={events}
-                    day={day}
-                    onOpenTask={onOpenTask}
-                  />
                 </div>
               );
             })}

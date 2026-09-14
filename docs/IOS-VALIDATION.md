@@ -14,9 +14,9 @@ The chosen display name is **GreenDay**, with a green icon and interface accent.
 
 - The earlier gutter redesign was checked in the browser and native Mac app: headings showed H2/H3 labels; the + menu created checklists and display equations; Escape restored the note cursor and retained Vim Normal mode. Automated checks covered heading undo, nested-list preservation, cancelled image-picker behavior, preserving selected inline math during insertion, and unchanged typing geometry. iPhone touch checks covered heading creation, list insertion/conversion, and opening the + menu while the software keyboard was visible.
 
-## Current GreenDay/calendar update
+## Previous GreenDay/calendar update
 
-The current scope includes optional Apple Calendar access to configured iCloud/Google accounts; Month, Week, and Day views; event creation/editing/deletion; task-event links; priorities and planning; compact rows; adjustable desktop panes; and further gutter/Vim interaction work. These checks completed for the current update:
+That update added optional Apple Calendar access to configured iCloud/Google accounts; Month, Week, and Day views; event creation/editing/deletion; task-event links; priorities and planning; compact rows; adjustable desktop panes; and further gutter/Vim interaction work. These checks completed for that update:
 
 - **414 frontend tests passed.** After the final change disabling text suggestions in calendar fields, **16 focused calendar UI tests** passed again.
 - **36 native persistence checks** and **24 isolated calendar checks** passed. The isolated calendar tests do not construct an EventKit store or access personal calendars. Both native platforms also passed their minimum-target typechecks.
@@ -26,6 +26,14 @@ The current scope includes optional Apple Calendar access to configured iCloud/G
 - The event form fit within a scrollable viewport above the software keyboard, and Done dismissed the keyboard. The simulator's hardware-keyboard setting was restored after the check.
 
 These results establish build and local interaction behavior. They do not establish provider delivery or readiness for signed distribution.
+
+## Current completion feedback and calendar polish
+
+- **441 frontend tests passed**, including 13 completion integration tests, 8 sound tests, and 22 calendar UI tests. Completion updates the task immediately, retains its row briefly for animation, preserves unpublished note drafts, supports Undo, and transfers keyboard focus only when its focused row actually leaves. Reduced motion, independent task timers, synced changes, and delayed audio unlocks are covered.
+- The web build, installed Mac app, iPhone/iPad simulator build, and unsigned device Release archive succeeded. All **62 bundled web files** matched across those outputs; no workspace or development directories were bundled. Native code and bundle identity are unchanged.
+- Browser checks confirmed the drawn checkmark, pulse and strike-through in list and board views, Undo, the sound toggle, roomier month cells, and **+N more** opening all entries for that day. No browser errors were reported.
+- On the updated iPhone simulator, completing a fictional task showed the animated checkmark, pulse, and completion receipt. The task was reopened afterward. Month and Day views showed the coral linked-task count; opening the existing fictional event displayed its linked task. No personal task or calendar record was modified for these checks.
+- The installed Mac app retained its existing workspace. The development signature change requires renewed calendar consent; the system prompt was left for the user. Sound generation and blocked-audio recovery passed automated tests, but native speaker output, volume, silent-mode behavior, and physical-device playback still need listening checks.
 
 ## Still needed before distribution
 
