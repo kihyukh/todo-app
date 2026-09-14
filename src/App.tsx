@@ -1386,6 +1386,22 @@ function App() {
                 <span>Undo in notes</span>
                 <kbd>⌘ Z</kbd>
               </div>
+              <div className="shortcut-row">
+                <span>Indent / outdent list item</span>
+                <kbd>Tab / ⇧ Tab</kbd>
+              </div>
+              <div className="shortcut-row">
+                <span>Toggle current checkbox</span>
+                <kbd>⌘ ⇧ Enter</kbd>
+              </div>
+              <div className="shortcut-row">
+                <span>Continue below a quote or table</span>
+                <kbd>⌘ Enter</kbd>
+              </div>
+              <div className="shortcut-row">
+                <span>Open a link in notes</span>
+                <kbd>⌘ click</kbd>
+              </div>
               <h3>Make it yours</h3>
               <p className="muted">
                 The example tasks show how do dates, deadlines, and rich notes

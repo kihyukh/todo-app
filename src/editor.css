@@ -120,6 +120,7 @@
   font-weight: 600;
 }
 .note-prose a {
+  cursor: text;
   color: var(--blue);
   text-decoration-color: currentColor;
   text-underline-offset: 3px;

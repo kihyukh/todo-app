@@ -17,6 +17,7 @@ import { createNotePublisher } from "./note-publisher";
 import { noTextSuggestions } from "./editor-preferences";
 import { VimEditor } from "./vim-editor";
 import type { VimMode } from "./vim-editor";
+import { NoteInteractions, NoteListKeymap } from "./note-interactions";
 import {
   Bold,
   Italic,
@@ -200,9 +201,10 @@ export default function TaskEditor({
     {
       extensions: [
         StarterKit.configure({
+          listKeymap: false,
           heading: { levels: [1, 2, 3] },
           link: {
-            openOnClick: true,
+            openOnClick: false,
             autolink: true,
             defaultProtocol: "https",
             protocols: ["https", "http", "mailto"],
@@ -210,11 +212,14 @@ export default function TaskEditor({
             HTMLAttributes: {
               target: "_blank",
               rel: "noopener noreferrer nofollow",
+              title: "⌘/Ctrl-click to open link",
             },
           },
         }),
         TaskList,
         TaskItem.configure({ nested: true }),
+        NoteListKeymap,
+        NoteInteractions,
         NaturalInlineMath,
         NaturalBlockMath,
         Image.configure({
@@ -248,6 +253,25 @@ export default function TaskEditor({
           autocorrect: "off",
           autocapitalize: "off",
           writingsuggestions: "false",
+        },
+        handleDOMEvents: {
+          click: (view, event) => {
+            const target = event.target;
+            const link =
+              target instanceof Element
+                ? target.closest<HTMLAnchorElement>("a[href]")
+                : null;
+            if (!link || !view.dom.contains(link) || event.button !== 0)
+              return false;
+            // A normal click places the caret; opening a resource is deliberate.
+            event.preventDefault();
+            if (event.metaKey || event.ctrlKey) {
+              const href = normalizedLink(link.href);
+              if (href) window.open(href, "_blank", "noopener,noreferrer");
+              return true;
+            }
+            return false;
+          },
         },
         handlePaste: (_view, event) => {
           const images = Array.from(event.clipboardData?.files ?? []).filter(
@@ -316,6 +340,9 @@ export default function TaskEditor({
             codeBlock: current.isActive("codeBlock"),
             link: current.isActive("link"),
             table: current.isActive("table"),
+            quote: current.isActive("blockquote"),
+            equation:
+              current.isActive("inlineMath") || current.isActive("blockMath"),
             canUndo: undoDepth(current.state) > 0,
             canRedo: redoDepth(current.state) > 0,
           }
@@ -360,6 +387,21 @@ export default function TaskEditor({
   }, [content, editor, publisher]);
 
   if (!editor) return null;
+
+  const editorHint =
+    source !== null
+      ? "⌘Enter to apply Markdown"
+      : toolbar?.equation
+        ? "Arrow keys move in and out of math"
+        : toolbar?.table
+          ? "Tab next cell · ⇧Tab previous cell"
+          : toolbar?.taskList || toolbar?.bulletList
+            ? "Tab indent · ⇧Tab outdent"
+            : toolbar?.codeBlock || toolbar?.quote
+              ? "⌘Enter to continue below"
+              : toolbar?.link
+                ? "⌘/Ctrl-click to open link"
+                : "Markdown & LaTeX supported";
 
   const applyLink = () => {
     if (!linkDraft) return;
@@ -657,7 +699,7 @@ export default function TaskEditor({
             Vim · {vimMode.replace("-", " ")}
           </span>
         ) : (
-          <span>Markdown &amp; LaTeX supported</span>
+          <span>{editorHint}</span>
         )}
         <div>
           <ToolButton

@@ -4,22 +4,29 @@ import { BlockMath, InlineMath } from "@tiptap/extension-mathematics";
 import { closeHistory } from "@tiptap/pm/history";
 import { NodeSelection, Selection, TextSelection } from "@tiptap/pm/state";
 import katex from "katex";
+import {
+  atSourceVerticalBoundary,
+  enterMathAt,
+  isMathNode,
+  mathNavigationPlugin,
+  registerMathSource,
+} from "./math-navigation";
+import type { MathDirection } from "./math-navigation";
 import "./math-editor.css";
 
 /** Keep the existing math schema and Markdown codecs; only replace the editing UI. */
 const mathNodeView =
   (display: boolean): NodeViewRenderer =>
-  ({ node: initialNode, editor, getPos }) => {
+  ({ node: initialNode, editor, getPos, view }) => {
     let node = initialNode;
     let editing = false;
     let destroyed = false;
-    let focusVersion = 0;
     const tag = display ? "div" : "span";
     const dom = document.createElement(tag);
     dom.className = `tiptap-mathematics-render math-note ${display ? "math-note-block" : "math-note-inline"}`;
     dom.dataset.type = display ? "block-math" : "inline-math";
     dom.contentEditable = "false";
-    dom.title = "Click to edit LaTeX";
+    dom.title = "Move the cursor here or click to edit LaTeX";
 
     const source = document.createElement(tag);
     source.className = "math-note-source";
@@ -93,11 +100,10 @@ const mathNodeView =
 
     const hideSource = () => {
       editing = false;
-      focusVersion += 1;
       source.hidden = true;
       preview.hidden = false;
       dom.classList.remove("is-editing");
-      dom.title = "Click to edit LaTeX";
+      dom.title = "Move the cursor here or click to edit LaTeX";
     };
 
     const showSource = (caret: "start" | "end" = "end") => {
@@ -110,33 +116,23 @@ const mathNodeView =
         dom.removeAttribute("title");
         render();
       }
-      // The surrounding view restores its DOM selection after selecting a node.
-      // Focus once that update finishes, never on subsequent LaTeX transactions.
-      const version = ++focusVersion;
-      queueMicrotask(() => {
-        if (
-          destroyed ||
-          !editing ||
-          version !== focusVersion ||
-          !dom.isConnected
-        )
-          return;
-        input.focus({ preventScroll: true });
-        const offset = caret === "start" ? 0 : input.value.length;
-        input.setSelectionRange(offset, offset);
-        resize();
-      });
+      // Source focus must precede the outer NodeSelection. In WebKit a block
+      // atom selection can otherwise fall back into adjacent prose immediately.
+      input.focus({ preventScroll: true });
+      const offset = caret === "start" ? 0 : input.value.length;
+      input.setSelectionRange(offset, offset);
+      resize();
     };
 
+    const unregisterSource = registerMathSource(view, {
+      getPos,
+      open: (direction) => showSource(direction > 0 ? "start" : "end"),
+    });
     const select = () => {
       const pos = getPos();
       if (pos === undefined || !editor.isEditable) return;
-      editor.view.dispatch(
-        closeHistory(editor.state.tr).setSelection(
-          NodeSelection.create(editor.state.doc, pos),
-        ),
-      );
-      showSource();
+      editor.view.dispatch(closeHistory(editor.state.tr));
+      enterMathAt(editor.view, pos, -1);
     };
 
     const persist = () => {
@@ -158,12 +154,14 @@ const mathNodeView =
       );
     };
 
-    const leave = (direction: -1 | 1) => {
+    const leave = (direction: MathDirection) => {
       const pos = getPos();
       if (destroyed || pos === undefined) return;
       persist();
       hideSource();
-      const tr = closeHistory(editor.state.tr);
+      const tr = closeHistory(editor.state.tr).setMeta("daymarkMathExit", {
+        direction,
+      });
       const current = tr.doc.nodeAt(pos);
       if (!current || current.type !== node.type) return;
       let boundary = direction < 0 ? pos : pos + current.nodeSize;
@@ -201,16 +199,48 @@ const mathNodeView =
         );
       }
       editor.view.dispatch(tr.scrollIntoView());
-      editor.view.focus();
+      // Inline atoms can touch without any text between them. Continue through
+      // their source in the same direction instead of leaving an invisible stop.
+      const next = tr.selection;
+      let enteredNext = false;
+      if (next instanceof NodeSelection && isMathNode(next.node)) {
+        enteredNext = enterMathAt(editor.view, next.from, direction);
+      } else if (next.empty) {
+        const neighbor =
+          direction > 0 ? next.$from.nodeAfter : next.$from.nodeBefore;
+        if (isMathNode(neighbor))
+          enteredNext = enterMathAt(
+            editor.view,
+            direction > 0 ? next.from : next.from - neighbor!.nodeSize,
+            direction,
+          );
+      }
+      if (!enteredNext) editor.view.focus();
     };
 
     const onClick = (event: Event) => {
-      if (editing || !editor.isEditable) return;
+      const mouse = event as MouseEvent;
+      if (
+        editing ||
+        !editor.isEditable ||
+        mouse.shiftKey ||
+        mouse.metaKey ||
+        mouse.ctrlKey
+      )
+        return;
       event.preventDefault();
       select();
     };
     const onMouseDown = (event: Event) => {
-      if (!editing && editor.isEditable) event.preventDefault();
+      const mouse = event as MouseEvent;
+      if (
+        !editing &&
+        editor.isEditable &&
+        !mouse.shiftKey &&
+        !mouse.metaKey &&
+        !mouse.ctrlKey
+      )
+        event.preventDefault();
     };
     const onInput = () => {
       persist();
@@ -257,26 +287,27 @@ const mathNodeView =
       const before =
         collapsed &&
         ((event.key === "ArrowLeft" && start === 0) ||
-          (display &&
-            event.key === "ArrowUp" &&
-            !input.value.slice(0, start).includes("\n")));
+          (event.key === "ArrowUp" &&
+            (!display ||
+              atSourceVerticalBoundary(input as HTMLTextAreaElement, -1))) ||
+          (event.key === "Backspace" && start === 0));
       const after =
         collapsed &&
         ((event.key === "ArrowRight" && end === input.value.length) ||
-          (display &&
-            event.key === "ArrowDown" &&
-            !input.value.slice(end).includes("\n")));
+          (event.key === "ArrowDown" &&
+            (!display ||
+              atSourceVerticalBoundary(input as HTMLTextAreaElement, 1))) ||
+          (event.key === "Delete" && end === input.value.length));
       if (
         event.key === "Escape" ||
         (event.key === "Enter" && (modifier || !display)) ||
-        (!event.shiftKey && !modifier && (before || after))
+        (!event.shiftKey && !modifier && !event.altKey && (before || after))
       ) {
         event.preventDefault();
         leave(before ? -1 : 1);
-      } else if (display && event.key === "Tab" && !event.shiftKey) {
+      } else if (event.key === "Tab" && !modifier && !event.altKey) {
         event.preventDefault();
-        input.setRangeText("  ", start, end, "end");
-        onInput();
+        leave(event.shiftKey ? -1 : 1);
       }
     };
     dom.addEventListener("mousedown", onMouseDown);
@@ -295,9 +326,12 @@ const mathNodeView =
         return true;
       },
       selectNode() {
-        if (editor.isFocused) showSource();
+        // Selection can also mean deleting an atom, extending a visual range, or
+        // restoring external content. Only explicit cursor entry opens source.
+        dom.classList.add("ProseMirror-selectednode");
       },
       deselectNode() {
+        dom.classList.remove("ProseMirror-selectednode");
         hideSource();
       },
       stopEvent(event) {
@@ -308,7 +342,7 @@ const mathNodeView =
       },
       destroy() {
         destroyed = true;
-        focusVersion += 1;
+        unregisterSource();
         dom.removeEventListener("mousedown", onMouseDown);
         dom.removeEventListener("click", onClick);
         input.removeEventListener("input", onInput);
@@ -319,6 +353,9 @@ const mathNodeView =
   };
 
 export const NaturalInlineMath = InlineMath.extend({
+  addProseMirrorPlugins() {
+    return [mathNavigationPlugin()];
+  },
   addNodeView() {
     return mathNodeView(false);
   },
@@ -370,6 +407,7 @@ export const NaturalBlockMath = BlockMath.extend({
         );
         tr.setSelection(NodeSelection.create(tr.doc, pos));
         view.dispatch(tr.scrollIntoView());
+        enterMathAt(view, pos, 1);
         return true;
       },
     };

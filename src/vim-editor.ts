@@ -6,6 +6,7 @@ import type { EditorState, Transaction } from "@tiptap/pm/state";
 import { closeHistory, redo, undo } from "@tiptap/pm/history";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { EditorView } from "@tiptap/pm/view";
+import { enterMathAt, isMathNode } from "./math-navigation";
 import "./vim-editor.css";
 
 export type VimMode = "normal" | "insert" | "visual" | "visual-line";
@@ -118,10 +119,15 @@ function previousCharacter(line: Line, position: number): number {
 function normalPosition(doc: ProseMirrorNode, position: number): number {
   const line = currentLine(lines(doc), position);
   if (!line) return position;
-  return Math.max(
+  let result = Math.max(
     line.from,
     Math.min(position, previousCharacter(line, line.to)),
   );
+  // Vertical movement may land in the second UTF-16 unit of an emoji.
+  const character = line.text.charCodeAt(result - line.from);
+  if (character >= 0xdc00 && character <= 0xdfff)
+    result = Math.max(line.from, result - 1);
+  return result;
 }
 
 function reset(patch: Partial<VimState> = {}): Partial<VimState> {
@@ -308,6 +314,61 @@ function motionTarget(
     default:
       return null;
   }
+}
+
+/** Plain cursor movement reveals math; operators and visual ranges stay atomic. */
+function enterMathAlongMotion(
+  view: EditorView,
+  motion: string,
+  from: number,
+  to: number,
+): boolean {
+  const horizontal = [
+    "h",
+    "l",
+    "ArrowLeft",
+    "ArrowRight",
+    "w",
+    "b",
+    "e",
+  ].includes(motion);
+  const vertical = ["j", "k", "ArrowDown", "ArrowUp"].includes(motion);
+  const direction = to < from ? -1 : 1;
+  const candidates: number[] = [];
+  const start = Math.min(from, to);
+  const end = Math.max(from, to);
+  if ((horizontal || vertical) && start !== end) {
+    view.state.doc.nodesBetween(
+      start,
+      Math.min(end + 1, view.state.doc.content.size),
+      (node, position) => {
+        if (position === from || position < start || position > end) return;
+        if (
+          node.type.name === "blockMath" ||
+          (horizontal && node.type.name === "inlineMath")
+        )
+          candidates.push(position);
+      },
+    );
+  }
+  // Normal mode occupies the final character, rather than the caret after it.
+  // Resolve a terminal atom directly instead of walking every note line again.
+  const $target = view.state.doc.resolve(to);
+  const landing =
+    $target.parent.isTextblock &&
+    $target.parentOffset === $target.parent.content.size &&
+    isMathNode($target.nodeBefore)
+      ? to - $target.nodeBefore!.nodeSize
+      : to;
+  if (isMathNode(view.state.doc.nodeAt(landing))) candidates.push(landing);
+  // A restored/visual selection may already put the block cursor on an atom.
+  // The next motion enters that source before advancing past it.
+  if ((horizontal || vertical) && isMathNode(view.state.doc.nodeAt(from)))
+    candidates.push(from);
+  const position = candidates.sort((a, b) => direction * (a - b))[0];
+  if (position === undefined) return false;
+  update(view, reset());
+  return enterMathAt(view, position, direction);
 }
 
 /** Include a list item's wrapper when linewise commands consume all its text. */
@@ -526,6 +587,14 @@ function handleKey(view: EditorView, event: KeyboardEvent): boolean {
   }
   if (vim.mode === "insert") return false;
   if (event.metaKey || event.altKey) return false;
+  // Keep platform range-selection keys available without opening atom sources.
+  if (
+    event.shiftKey &&
+    ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(
+      key,
+    )
+  )
+    return false;
   if (event.ctrlKey) {
     if (key.toLowerCase() === "r") {
       redo(view.state, view.dispatch);
@@ -618,6 +687,11 @@ function handleKey(view: EditorView, event: KeyboardEvent): boolean {
 
   const targetPosition = motionTarget(view, motion, count, position);
   if (targetPosition !== null) {
+    if (
+      vim.mode === "normal" &&
+      enterMathAlongMotion(view, motion, position, targetPosition)
+    )
+      return true;
     move(view, targetPosition);
     return true;
   }
@@ -725,6 +799,37 @@ export const VimEditor = Extension.create<VimOptions>({
     return [
       new Plugin<VimState>({
         key: vimPluginKey,
+        appendTransaction(transactions, _oldState, state) {
+          const exit = [...transactions]
+            .reverse()
+            .map((transaction) => transaction.getMeta("daymarkMathExit"))
+            .find(Boolean) as { direction: -1 | 1 } | undefined;
+          const vim = vimPluginKey.getState(state)!;
+          if (
+            !exit ||
+            !vim.enabled ||
+            vim.mode !== "normal" ||
+            !(state.selection instanceof TextSelection) ||
+            !state.selection.empty
+          )
+            return null;
+          const { $head } = state.selection;
+          const neighbor =
+            exit.direction < 0 ? $head.nodeBefore : $head.nodeAfter;
+          if (isMathNode(neighbor)) return null;
+          const line = currentLine(lines(state.doc), $head.pos);
+          if (!line) return null;
+          // LaTeX uses a caret; Normal mode resumes on the preceding character
+          // when leaving to the left. Never clamp back onto the equation itself.
+          const position =
+            exit.direction < 0
+              ? previousCharacter(line, $head.pos)
+              : isMathNode($head.nodeBefore)
+                ? $head.pos
+                : normalPosition(state.doc, $head.pos);
+          if (position === $head.pos) return null;
+          return select(state.tr, position);
+        },
         state: {
           init: () => ({ ...INITIAL, enabled: options.enabled }),
           apply(transaction, previous) {

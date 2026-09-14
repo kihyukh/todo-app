@@ -6,6 +6,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Editor } from "@tiptap/core";
 import type { NoteNode } from "../src/model";
 import TaskEditor from "../src/TaskEditor";
+import { vimPluginKey } from "../src/vim-editor";
 
 let root: Root | undefined;
 beforeAll(() => {
@@ -25,14 +26,19 @@ const note = (text: string): NoteNode => ({
   type: "doc",
   content: [{ type: "paragraph", content: [{ type: "text", text }] }],
 });
-async function mount() {
+async function mount(
+  options: { initialNote?: NoteNode; vimEnabled?: boolean } = {},
+) {
   let renderCount = 0;
   const published: Array<{ id: string; doc: NoteNode }> = [];
   let select!: (id: string) => void;
   function Harness() {
     renderCount++;
     const [id, setId] = useState("a");
-    const [notes, setNotes] = useState({ a: note("Alpha"), b: note("Beta") });
+    const [notes, setNotes] = useState({
+      a: options.initialNote ?? note("Alpha"),
+      b: note("Beta"),
+    });
     select = setId;
     return (
       <TaskEditor
@@ -45,7 +51,7 @@ async function mount() {
         }}
         onPendingChange={() => {}}
         onAttach={() => {}}
-        vimEnabled={false}
+        vimEnabled={options.vimEnabled ?? false}
       />
     );
   }
@@ -54,6 +60,7 @@ async function mount() {
   root = createRoot(container);
   await act(async () => root!.render(<Harness />));
   return {
+    container,
     published,
     select,
     renders: () => renderCount,
@@ -122,5 +129,170 @@ describe("task editor publication", () => {
     expect(dom.getAttribute("autocomplete")).toBe("off");
     expect(dom.getAttribute("spellcheck")).toBe("false");
     expect(dom.getAttribute("writingsuggestions")).toBe("false");
+  });
+
+  it("keeps link clicks in the note and opens only deliberate modifier-clicks", async () => {
+    const harness = await mount();
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    try {
+      await act(async () => {
+        harness.editor().commands.setContent({
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                {
+                  type: "text",
+                  text: "Reference paper",
+                  marks: [
+                    {
+                      type: "link",
+                      attrs: { href: "https://example.com/paper" },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        });
+      });
+      const before = harness.editor().getJSON();
+      const link = harness.editor().view.dom.querySelector("a")!;
+      const ordinary = new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+      });
+      link.dispatchEvent(ordinary);
+      expect(ordinary.defaultPrevented).toBe(true);
+      expect(open).not.toHaveBeenCalled();
+      link.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          metaKey: true,
+        }),
+      );
+      expect(open).toHaveBeenCalledExactlyOnceWith(
+        "https://example.com/paper",
+        "_blank",
+        "noopener,noreferrer",
+      );
+      expect(harness.editor().getJSON()).toEqual(before);
+    } finally {
+      open.mockRestore();
+    }
+  });
+});
+
+describe("rendered math after applying Markdown source", () => {
+  async function applyMathSource(vimEnabled = false) {
+    const harness = await mount({
+      initialNote: { type: "doc", content: [{ type: "paragraph" }] },
+      vimEnabled,
+    });
+    await act(async () => {
+      harness.container
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Edit Markdown source"]',
+        )!
+        .click();
+    });
+    const source = harness.container.querySelector<HTMLTextAreaElement>(
+      '[aria-label="Markdown source"]',
+    )!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value",
+      )!.set!.call(source, "Above.\n\n$$\na+b=c\n$$\n\nBelow.");
+      source.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      Array.from(
+        harness.container.querySelectorAll<HTMLButtonElement>("button"),
+      )
+        .find((button) => button.textContent === "Apply Markdown")!
+        .click();
+    });
+    const editor = harness.editor();
+    expect(editor.getJSON().content).toEqual([
+      note("Above.").content![0],
+      { type: "blockMath", attrs: { latex: "a+b=c" } },
+      note("Below.").content![0],
+    ]);
+    return { ...harness, editor };
+  }
+
+  it("opens the display equation on click after the rich editor remounts", async () => {
+    const { editor } = await applyMathSource();
+    const math =
+      editor.view.dom.querySelector<HTMLElement>(".math-note-block")!;
+    await act(async () => {
+      math.dispatchEvent(
+        new MouseEvent("mousedown", { bubbles: true, cancelable: true }),
+      );
+      math.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true }),
+      );
+    });
+    const source = math.querySelector<HTMLTextAreaElement>(".math-note-input")!;
+    expect(math.classList.contains("is-editing")).toBe(true);
+    expect(document.activeElement).toBe(source);
+    expect(source.value).toBe("a+b=c");
+    expect(editor.state.selection.$from.nodeAfter?.type.name).toBe("blockMath");
+  });
+
+  it("enters the display source with Vim j from the paragraph above after Markdown is applied", async () => {
+    const { editor } = await applyMathSource(true);
+    await act(async () => {
+      editor.commands.setTextSelection(1);
+      editor.view.focus();
+      expect(vimPluginKey.getState(editor.state)?.mode).toBe("normal");
+      editor.view.dom.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "j",
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    const source =
+      editor.view.dom.querySelector<HTMLTextAreaElement>(".math-note-input")!;
+    expect(document.activeElement).toBe(source);
+    expect(source.value).toBe("a+b=c");
+    expect(source.selectionStart).toBe(0);
+    expect(vimPluginKey.getState(editor.state)?.mode).toBe("normal");
+    expect(editor.state.selection.$from.nodeAfter?.type.name).toBe("blockMath");
+    await act(async () => {
+      source.value = "a+b=d";
+      source.setSelectionRange(source.value.length, source.value.length);
+      source.dispatchEvent(new Event("input", { bubbles: true }));
+      source.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "ArrowDown",
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    expect(editor.getJSON().content?.[1].attrs?.latex).toBe("a+b=d");
+    expect(editor.state.selection.$from.parent.textContent).toBe("Below.");
+    expect(editor.view.dom.dataset.vimMode).toBe("normal");
+    expect(source.closest(".math-note")!.classList.contains("is-editing")).toBe(
+      false,
+    );
+    await act(async () => {
+      editor.view.dom.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "k",
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    expect(document.activeElement).toBe(source);
+    expect(source.value).toBe("a+b=d");
+    expect(source.selectionStart).toBe(source.value.length);
   });
 });

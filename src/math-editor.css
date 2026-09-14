@@ -7,6 +7,10 @@
   border-radius: 4px;
   cursor: text;
 }
+.note-prose .math-note.ProseMirror-selectednode:not(.is-editing) {
+  outline: 2px solid var(--note-accent);
+  outline-offset: 1px;
+}
 .note-prose .math-note[data-type="block-math"] {
   margin: 10px 0;
   padding: 8px 10px;

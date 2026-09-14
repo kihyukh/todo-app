@@ -6,7 +6,7 @@ import StarterKit from "@tiptap/starter-kit";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
 import { VimEditor, vimPluginKey } from "../src/vim-editor";
-import { NaturalBlockMath } from "../src/math-editor";
+import { NaturalBlockMath, NaturalInlineMath } from "../src/math-editor";
 
 const editors: Editor[] = [];
 beforeAll(() => {
@@ -33,6 +33,7 @@ function createEditor(content: string[] | JSONContent[], enabled = true) {
       TaskList,
       TaskItem.configure({ nested: true }),
       NaturalBlockMath,
+      NaturalInlineMath,
       VimEditor.configure({ enabled, onModeChange }),
     ],
     content: {
@@ -360,5 +361,362 @@ describe("optional Vim note editor", () => {
     input.dispatchEvent(new Event("input", { bubbles: true }));
     expect(editor.getJSON().content?.[1].attrs?.latex).toBe("j(x)");
     expect(key(editor, "f", { metaKey: true })).toBe(false);
+  });
+
+  it("enters inline LaTeX at the approached edge with h/l and returns to Normal mode", async () => {
+    const { editor } = createEditor([
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "ab" },
+          { type: "inlineMath", attrs: { latex: "x^2" } },
+          { type: "text", text: "cd" },
+        ],
+      },
+    ]);
+    const input = editor.view.dom.querySelector<HTMLInputElement>(
+      ".math-note-inline input",
+    )!;
+    keys(editor, "ll");
+    await Promise.resolve();
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(0);
+    expect(mode(editor)).toBe("normal");
+    input.setSelectionRange(input.value.length, input.value.length);
+    input.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "ArrowRight",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(document.activeElement).toBe(editor.view.dom);
+    expect(mode(editor)).toBe("normal");
+    expect(editor.state.selection.head).toBe(4);
+    key(editor, "h");
+    await Promise.resolve();
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(input.value.length);
+    input.setSelectionRange(0, 0);
+    input.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "ArrowLeft",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(editor.state.selection.head).toBe(2);
+    expect(document.activeElement).toBe(editor.view.dom);
+    expect(mode(editor)).toBe("normal");
+  });
+
+  it.each(["w", "e", "b"])(
+    "encounters an inline equation during the %s word motion",
+    async (motion) => {
+      const { editor } = createEditor([
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: ":" },
+            { type: "inlineMath", attrs: { latex: "y" } },
+            { type: "text", text: ", next" },
+          ],
+        },
+      ]);
+      if (motion === "b") editor.commands.setTextSelection(5);
+      key(editor, motion);
+      await Promise.resolve();
+      const input = editor.view.dom.querySelector<HTMLInputElement>(
+        ".math-note-inline input",
+      )!;
+      expect(document.activeElement).toBe(input);
+      expect(input.selectionStart).toBe(motion === "b" ? 1 : 0);
+      expect(editor.state.doc.child(0).child(1).attrs.latex).toBe("y");
+    },
+  );
+
+  it("does not skip a display equation with j/k, including equations inside quotes", async () => {
+    const { editor } = createEditor([
+      {
+        type: "blockquote",
+        content: [
+          paragraph("Before"),
+          { type: "blockMath", attrs: { latex: "a+b" } },
+          paragraph("After"),
+        ],
+      },
+    ]);
+    const input = editor.view.dom.querySelector<HTMLTextAreaElement>(
+      ".math-note-block textarea",
+    )!;
+    key(editor, "j");
+    await Promise.resolve();
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(0);
+    input.setSelectionRange(input.value.length, input.value.length);
+    input.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "ArrowDown",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(editor.state.selection.$head.parent.textContent).toBe("After");
+    expect(mode(editor)).toBe("normal");
+    key(editor, "k");
+    await Promise.resolve();
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(input.value.length);
+    expect(editor.getJSON().content?.[0].type).toBe("blockquote");
+  });
+
+  it("keeps equations rendered during visual selections and deletion operators", async () => {
+    const { editor } = createEditor([
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "a" },
+          { type: "inlineMath", attrs: { latex: "x" } },
+          { type: "text", text: "b" },
+        ],
+      },
+      { type: "blockMath", attrs: { latex: "y^2" } },
+      paragraph("After"),
+    ]);
+    keys(editor, "vl");
+    await Promise.resolve();
+    expect(mode(editor)).toBe("visual");
+    expect(editor.view.dom.querySelector(".math-note.is-editing")).toBeNull();
+    key(editor, "y");
+    expect(editor.view.dom.querySelector(".math-note.is-editing")).toBeNull();
+    keys(editor, "ggVj");
+    await Promise.resolve();
+    expect(mode(editor)).toBe("visual-line");
+    expect(editor.state.selection.from).toBeLessThan(6);
+    expect(editor.state.selection.to).toBeGreaterThan(6);
+    expect(editor.view.dom.querySelector(".math-note.is-editing")).toBeNull();
+    key(editor, "Escape");
+    keys(editor, "ggdj");
+    await Promise.resolve();
+    expect(
+      editor.getJSON().content?.some((node) => node.type === "blockMath"),
+    ).toBe(false);
+    expect(editor.view.dom.querySelector(".math-note.is-editing")).toBeNull();
+    key(editor, "u");
+    expect(editor.getJSON().content?.[1]).toMatchObject({
+      type: "blockMath",
+      attrs: { latex: "y^2" },
+    });
+  });
+
+  it("keeps the vertical cursor on a whole Unicode character across nested checklist and code lines", () => {
+    const { editor } = createEditor([
+      paragraph("abcd"),
+      {
+        type: "taskList",
+        content: [
+          {
+            type: "taskItem",
+            attrs: { checked: false },
+            content: [paragraph("a😀b")],
+          },
+        ],
+      },
+      { type: "codeBlock", content: [{ type: "text", text: "a😀b\nlast" }] },
+    ]);
+    keys(editor, "llj");
+    const first = editor.state.selection.$head;
+    expect(first.parent.textContent).toBe("a😀b");
+    expect(first.parentOffset).toBe(1);
+    key(editor, "j");
+    const second = editor.state.selection.$head;
+    expect(second.parent.type.name).toBe("codeBlock");
+    expect(second.parentOffset).toBe(1);
+    key(editor, "x");
+    expect(editor.state.doc.child(2).textContent).toBe("ab\nlast");
+    expect(editor.getJSON().content?.[1].content?.[0].attrs?.checked).toBe(
+      false,
+    );
+  });
+
+  it("resumes Insert mode after traversing source and saves edits before prose typing", async () => {
+    const { editor } = createEditor([
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "a" },
+          { type: "inlineMath", attrs: { latex: "x" } },
+          { type: "text", text: "b" },
+        ],
+      },
+    ]);
+    key(editor, "i");
+    editor.commands.setTextSelection(2);
+    key(editor, "ArrowRight");
+    await Promise.resolve();
+    const input = editor.view.dom.querySelector<HTMLInputElement>(
+      ".math-note-inline input",
+    )!;
+    expect(document.activeElement).toBe(input);
+    expect(mode(editor)).toBe("insert");
+    input.value = "x+y";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.setSelectionRange(3, 3);
+    input.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "ArrowRight",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(mode(editor)).toBe("insert");
+    expect(editor.state.selection.head).toBe(3);
+    type(editor, "new");
+    expect(editor.state.doc.child(0).child(1).attrs.latex).toBe("x+y");
+    expect(editor.state.doc.child(0).lastChild?.textContent).toBe("newb");
+  });
+
+  it("moves through touching equations without losing Normal mode or revisiting a separated equation", async () => {
+    const { editor } = createEditor([
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "a" },
+          { type: "inlineMath", attrs: { latex: "x" } },
+          { type: "inlineMath", attrs: { latex: "y" } },
+          { type: "text", text: "b" },
+          { type: "inlineMath", attrs: { latex: "z" } },
+          { type: "text", text: "c" },
+        ],
+      },
+    ]);
+    const inputs = [
+      ...editor.view.dom.querySelectorAll<HTMLInputElement>(
+        ".math-note-inline input",
+      ),
+    ];
+    key(editor, "l");
+    await Promise.resolve();
+    expect(document.activeElement).toBe(inputs[0]);
+    inputs[0].setSelectionRange(1, 1);
+    inputs[0].dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "ArrowRight",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await Promise.resolve();
+    expect(document.activeElement).toBe(inputs[1]);
+    expect(inputs[1].selectionStart).toBe(0);
+    inputs[1].setSelectionRange(1, 1);
+    inputs[1].dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "ArrowRight",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(editor.state.selection.head).toBe(4);
+    key(editor, "l");
+    await Promise.resolve();
+    expect(document.activeElement).toBe(inputs[2]);
+    inputs[2].setSelectionRange(0, 0);
+    inputs[2].dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "ArrowLeft",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await Promise.resolve();
+    expect(document.activeElement).toBe(editor.view.dom);
+    expect(editor.state.selection.head).toBe(4);
+    expect(editor.view.dom.querySelector(".math-note.is-editing")).toBeNull();
+    expect(mode(editor)).toBe("normal");
+  });
+
+  it("leaves Shift-arrow selection available without entering math in Normal mode", async () => {
+    const { editor } = createEditor([
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "a" },
+          { type: "inlineMath", attrs: { latex: "x" } },
+          { type: "text", text: "b" },
+        ],
+      },
+    ]);
+    expect(key(editor, "ArrowRight", { shiftKey: true })).toBe(false);
+    await Promise.resolve();
+    expect(editor.view.dom.querySelector(".math-note.is-editing")).toBeNull();
+  });
+});
+
+describe("Vim cursor arrival at equation line boundaries", () => {
+  it.each(["$", "End"])(
+    "reveals terminal inline math when %s lands on its normal cursor position",
+    async (motion) => {
+      const { editor } = createEditor([
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "prefix " },
+            { type: "inlineMath", attrs: { latex: "x^2" } },
+          ],
+        },
+      ]);
+      key(editor, motion);
+      await Promise.resolve();
+      const input = editor.view.dom.querySelector<HTMLInputElement>(
+        ".math-note-inline input",
+      )!;
+      expect(document.activeElement).toBe(input);
+      expect(input.selectionStart).toBe(0);
+      expect(mode(editor)).toBe("normal");
+    },
+  );
+
+  it("enters source when l moves from a rendered inline atom under the normal cursor", async () => {
+    const { editor } = createEditor([
+      {
+        type: "paragraph",
+        content: [
+          { type: "inlineMath", attrs: { latex: "x" } },
+          { type: "text", text: " after" },
+        ],
+      },
+    ]);
+    expect(editor.state.selection.head).toBe(1);
+    expect(editor.view.dom.querySelector(".is-editing")).toBeNull();
+    key(editor, "l");
+    await Promise.resolve();
+    const input = editor.view.dom.querySelector<HTMLInputElement>(
+      ".math-note-inline input",
+    )!;
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(0);
+  });
+
+  it("keeps end-of-line visual ranges and deletion operators atomic", async () => {
+    const { editor } = createEditor([
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "prefix " },
+          { type: "inlineMath", attrs: { latex: "x" } },
+        ],
+      },
+    ]);
+    keys(editor, "v$");
+    await Promise.resolve();
+    expect(editor.view.dom.querySelector(".is-editing")).toBeNull();
+    expect(mode(editor)).toBe("visual");
+    key(editor, "Escape");
+    key(editor, "0");
+    keys(editor, "d$");
+    await Promise.resolve();
+    expect(editor.view.dom.querySelector(".math-note")).toBeNull();
+    expect(editor.state.doc.textContent).toBe("");
   });
 });
