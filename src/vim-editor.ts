@@ -690,6 +690,125 @@ function openLine(view: EditorView, before: boolean) {
   );
 }
 
+/** Join text, not visual wrapping or neighboring objects. Keeping the first
+ * block's type matches Backspace, while the original inline nodes retain marks. */
+function joinNextLine(transaction: Transaction, first: Line, next: Line) {
+  const { doc } = transaction;
+  const $first = doc.resolve(first.from);
+  const $next = doc.resolve(next.from);
+  const left = $first.parent;
+  const right = $next.parent;
+  const indent = next.text.match(/^[\t ]*/u)![0].length;
+  const remainder = next.text.slice(indent);
+  const space =
+    first.text &&
+    remainder &&
+    !/[\t ]$/u.test(first.text) &&
+    !remainder.startsWith(")")
+      ? " "
+      : "";
+  const separator = space
+    ? Fragment.from(doc.type.schema.text(space))
+    : Fragment.empty;
+
+  if (first.blockFrom === next.blockFrom) {
+    // Literal newlines inside code and legacy hard breaks are one-character
+    // boundaries. Replacing only that boundary preserves the containing block.
+    transaction.replaceWith(first.to, next.from + indent, separator);
+    return first.to;
+  }
+  if (
+    !["paragraph", "heading"].includes(left.type.name) ||
+    !["paragraph", "heading"].includes(right.type.name) ||
+    first.to !== first.blockTo - 1 ||
+    next.from !== next.blockFrom + 1
+  )
+    return null;
+
+  const content = left.content
+    .append(separator)
+    .append(right.content.cut(indent));
+  if (!left.type.validContent(content)) return null;
+  const merged = left.copy(content);
+  const depth = $first.depth;
+  if (
+    depth === $next.depth &&
+    $first.start(depth - 1) === $next.start(depth - 1) &&
+    first.blockTo === next.blockFrom
+  ) {
+    // Sibling paragraphs can join inside one quote, list item, or table cell;
+    // crossing into another container is deliberately not an implicit unwrap.
+    transaction.replaceWith(first.blockFrom, next.blockTo, merged);
+    return first.to;
+  }
+
+  if (depth < 2 || depth !== $next.depth) return null;
+  const leftItem = $first.node(depth - 1);
+  const rightItem = $next.node(depth - 1);
+  if (
+    leftItem.type.name !== "listItem" ||
+    !leftItem.sameMarkup(rightItem) ||
+    $first.start(depth - 2) !== $next.start(depth - 2) ||
+    $next.index(depth - 2) !== $first.index(depth - 2) + 1 ||
+    $first.index(depth - 1) !== leftItem.childCount - 1 ||
+    $next.index(depth - 1) !== 0
+  )
+    return null;
+  // Adjacent bullets/numbers merge while their remaining children keep order
+  // and nesting. Separate task items stop here: each checkbox is its own task,
+  // and joining must not silently discard its identity or completion state.
+  const itemContent = leftItem.content
+    .cut(0, leftItem.content.size - left.nodeSize)
+    .append(Fragment.from(merged))
+    .append(rightItem.content.cut(right.nodeSize));
+  if (!leftItem.type.validContent(itemContent)) return null;
+  transaction.replaceWith(
+    $first.before(depth - 1),
+    $next.after(depth - 1),
+    leftItem.copy(itemContent),
+  );
+  return first.to;
+}
+
+function joinLines(view: EditorView, count: number) {
+  const vim = vimPluginKey.getState(view.state)!;
+  if (!(view.state.selection instanceof TextSelection)) {
+    update(view, reset());
+    return;
+  }
+  const all = lines(view.state.doc);
+  const visual = vim.mode === "visual" || vim.mode === "visual-line";
+  const anchor = vim.anchor ?? view.state.selection.anchor;
+  const head = vim.head ?? view.state.selection.head;
+  const start = visual ? Math.min(anchor, head) : head;
+  const first = currentLine(all, start);
+  if (!first) return;
+  if (visual) {
+    const last = currentLine(all, Math.max(anchor, head))!;
+    count = all.indexOf(last) - all.indexOf(first) + 1;
+  }
+  const transaction = closeHistory(view.state.tr);
+  let cursor = start;
+  for (let remaining = Math.max(2, count) - 1; remaining > 0; remaining--) {
+    const current = lines(transaction.doc);
+    const left = currentLine(current, first.from)!;
+    const right = current[current.indexOf(left) + 1];
+    if (!right) break;
+    const joinedAt = joinNextLine(transaction, left, right);
+    if (joinedAt === null) break;
+    cursor = joinedAt;
+  }
+  select(transaction, normalPosition(transaction.doc, cursor));
+  update(
+    view,
+    reset({ mode: "normal", anchor: null, head: null }),
+    transaction.scrollIntoView(),
+  );
+  // Subsequent edits from pointer controls or native text input also get their
+  // own undo step, even when they bypass the Vim keyboard command handlers.
+  if (transaction.docChanged) view.dispatch(closeHistory(view.state.tr));
+}
+
 /** An image is an atomic Normal-mode target, never an invisible text position. */
 function handleSelectedImage(view: EditorView, key: string, count: number) {
   const selection = view.state.selection;
@@ -915,6 +1034,9 @@ function handleKey(view: EditorView, event: KeyboardEvent): boolean {
   }
 
   switch (key) {
+    case "J":
+      joinLines(view, count);
+      return true;
     case "i":
     case "a":
     case "I":

@@ -1032,6 +1032,91 @@ describe("attachments linked inside task notes", () => {
       open.mockRestore();
     }
   });
+
+  it.each(["normal", "insert", "off"])(
+    "opens a PDF on the first press and click with the cursor elsewhere in %s mode",
+    async (mode) => {
+      const postMessage = vi.fn();
+      window.webkit = { messageHandlers: { daymark: { postMessage } } };
+      try {
+        const harness = await mount({
+          vimEnabled: mode !== "off",
+          initialNote: {
+            type: "doc",
+            content: [
+              note("Cursor starts here").content![0],
+              ...attachmentNote.content!,
+            ],
+          },
+        });
+        const editor = harness.editor();
+        await act(async () => {
+          editor.view.focus();
+          editor.commands.setTextSelection(2);
+          if (mode === "insert") pressKey(editor.view.dom, "i");
+          if (mode === "normal") pressKey(editor.view.dom, "d");
+        });
+        const before = editor.getJSON();
+        const position = editor.state.selection.head;
+        const link = editor.view.dom.querySelector("a")!;
+        const press = new MouseEvent("mousedown", {
+          bubbles: true,
+          cancelable: true,
+        });
+        await act(async () => {
+          link.dispatchEvent(press);
+        });
+        // A browser must not move its selection and redraw Vim's decoration
+        // before delivering the click to the original anchor.
+        expect(press.defaultPrevented).toBe(true);
+        expect(editor.state.selection.head).toBe(position);
+        expect(postMessage).not.toHaveBeenCalled();
+        await act(async () => {
+          link.dispatchEvent(
+            new MouseEvent("mouseup", { bubbles: true, cancelable: true }),
+          );
+          link.dispatchEvent(
+            new MouseEvent("click", { bubbles: true, cancelable: true }),
+          );
+        });
+        expect(postMessage).toHaveBeenCalledExactlyOnceWith({
+          action: "openAttachment",
+          url: "daymark://attachment/review.pdf",
+        });
+        expect(editor.state.selection.head).toBe(position);
+        expect(editor.view.dom.dataset.vimMode).toBe(mode);
+        expect(vimPluginKey.getState(editor.state)?.operator).toBeNull();
+        expect(editor.getJSON()).toEqual(before);
+      } finally {
+        delete window.webkit;
+      }
+    },
+  );
+
+  it("leaves Option-click and secondary presses available for link editing", async () => {
+    const { editor: getEditor } = await mount({
+      initialNote: attachmentNote,
+      vimEnabled: true,
+    });
+    const editor = getEditor();
+    const link = editor.view.dom.querySelector("a")!;
+    for (const options of [{ altKey: true }, { button: 2 }]) {
+      const event = new MouseEvent("mousedown", {
+        bubbles: true,
+        cancelable: true,
+        ...options,
+      });
+      // Call the editor's handler directly: jsdom has no native text hit testing
+      // for the selection behavior intentionally delegated back to ProseMirror.
+      const handled = editor.options.editorProps.handleDOMEvents!.mousedown!(
+        editor.view,
+        event,
+      );
+      expect(handled).toBe(false);
+      expect(event.defaultPrevented).toBe(false);
+    }
+    expect(link.getAttribute("href")).toBe("daymark://attachment/review.pdf");
+  });
 });
 
 describe("touch link actions", () => {

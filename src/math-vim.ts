@@ -219,6 +219,48 @@ export function createMathVim(options: MathVimOptions) {
     options.commit();
   }
 
+  function joinLines(repeats: number, mode: VimMode) {
+    const text = input.value;
+    const all = lines(text);
+    const visual = isVisual(mode);
+    const origin = visual ? (anchor ?? head) : head;
+    const first = currentLine(all, Math.min(origin, head));
+    const firstIndex = all.indexOf(first);
+    const lastIndex = Math.min(
+      all.length - 1,
+      visual
+        ? Math.max(
+            firstIndex + 1,
+            all.indexOf(currentLine(all, Math.max(origin, head))),
+          )
+        : firstIndex + Math.max(2, repeats) - 1,
+    );
+    if (!options.multiline || lastIndex === firstIndex) {
+      setMode("normal");
+      return;
+    }
+    let joined = text.slice(first.from, first.to);
+    let position = first.from;
+    for (let index = firstIndex + 1; index <= lastIndex; index++) {
+      const line = all[index];
+      const following = text.slice(line.from, line.to).replace(/^[ \t]+/, "");
+      position = first.from + joined.length;
+      if (
+        joined &&
+        following &&
+        !/[ \t]$/.test(joined) &&
+        !following.startsWith(")")
+      )
+        joined += " ";
+      joined += following;
+    }
+    // The mode bridge closes history even when already Normal. Isolate the
+    // whole counted join from edits before it and the next source keystroke.
+    setMode("normal", first.from);
+    replace(first.from, all[lastIndex].to, joined, position);
+    setMode("normal", position);
+  }
+
   function lineRange(from: number, to: number, deleting: boolean) {
     const all = lines(input.value);
     const first = currentLine(all, Math.min(from, to));
@@ -454,6 +496,9 @@ export function createMathVim(options: MathVimOptions) {
     const text = input.value;
     const line = currentLine(lines(text), head);
     switch (key) {
+      case "J":
+        joinLines(repeats, mode);
+        break;
       case "i":
         setMode("insert");
         break;

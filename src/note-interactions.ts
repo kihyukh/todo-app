@@ -102,6 +102,21 @@ function leaveNoteBlock(view: EditorView) {
   return true;
 }
 
+function enterNoteBlock(view: EditorView) {
+  // Replay the ordinary Enter chain so lists, headings, math and code keep
+  // their own commands and selection handling. The plain event cannot recurse
+  // into our Shift+Enter mapping.
+  const enter = new KeyboardEvent("keydown", {
+    key: "Enter",
+    code: "Enter",
+    bubbles: true,
+    cancelable: true,
+  });
+  view.someProp("handleKeyDown", (handler) => handler(view, enter));
+  // Consume even an unhandled Enter instead of falling through to hardBreak.
+  return true;
+}
+
 export const NoteInteractions = Extension.create({
   name: "noteInteractions",
   priority: 1000,
@@ -135,6 +150,15 @@ export const NoteInteractions = Extension.create({
               )
             )
               return false;
+
+            if (
+              event.key === "Enter" &&
+              event.shiftKey &&
+              !event.metaKey &&
+              !event.ctrlKey &&
+              !event.altKey
+            )
+              return enterNoteBlock(view);
 
             if (imageKeyNavigation(view, event)) return true;
 

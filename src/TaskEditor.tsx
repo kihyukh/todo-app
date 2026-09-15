@@ -34,7 +34,7 @@ import {
   openNoteLink,
 } from "./note-links";
 import { noTextSuggestions } from "./editor-preferences";
-import { VimEditor } from "./vim-editor";
+import { clearVimPendingAction, VimEditor } from "./vim-editor";
 import { NoteInteractions, NoteListKeymap } from "./note-interactions";
 import { NoteHeading } from "./note-heading";
 import NoteGutter from "./NoteGutter";
@@ -303,6 +303,20 @@ export default function TaskEditor({
           writingsuggestions: "false",
         },
         handleDOMEvents: {
+          mousedown: (view, event) => {
+            if (touch || event.button !== 0 || event.altKey) return false;
+            const link =
+              event.target instanceof Element
+                ? event.target.closest("a[href]")
+                : null;
+            if (!link || !view.dom.contains(link)) return false;
+            // Opening a link must not first relocate the caret. In Vim normal
+            // mode that redraws the block cursor and can replace the anchor
+            // between mouse-down and click, swallowing the first click.
+            // Activate on click (not mouse-down) so a cancelled press stays inert.
+            event.preventDefault();
+            return true;
+          },
           click: (view, event) => {
             const target = event.target;
             const link =
@@ -316,6 +330,7 @@ export default function TaskEditor({
             event.preventDefault();
             if (!touch && event.altKey) return false;
             if (!touch || event.metaKey || event.ctrlKey) {
+              clearVimPendingAction(view);
               activateLink(
                 link.getAttribute("href") ?? "",
                 link.textContent ?? "File",

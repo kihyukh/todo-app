@@ -285,12 +285,13 @@ describe("heading cursor behavior", () => {
     expect(empty.getJSON().content).toEqual([paragraph(), paragraph("After")]);
   });
 
-  it("preserves ShiftEnter and selection deletion instead of removing heading formatting", () => {
+  it("starts a paragraph on ShiftEnter and preserves heading formatting when deleting selected text", () => {
     const editor = createEditor([heading("Title", 2)]);
     editor.commands.setTextSelection(6);
     key(editor, "Enter", { shiftKey: true });
-    expect(block(editor).type.name).toBe("heading");
-    expect(block(editor).lastChild?.type.name).toBe("hardBreak");
+    expect(block(editor).type.name).toBe("paragraph");
+    expect(editor.state.doc.firstChild?.type.name).toBe("heading");
+    expect(editor.state.doc.firstChild?.textContent).toBe("Title");
     editor.commands.setTextSelection({ from: 1, to: 3 });
     key(editor, "Backspace");
     expect(block(editor).type.name).toBe("heading");

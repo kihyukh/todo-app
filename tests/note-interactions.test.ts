@@ -9,7 +9,9 @@ import Image from "@tiptap/extension-image";
 import { TableKit } from "@tiptap/extension-table";
 import { NodeSelection } from "@tiptap/pm/state";
 import { NoteInteractions, NoteListKeymap } from "../src/note-interactions";
-import { VimEditor } from "../src/vim-editor";
+import { VimEditor, getVimMode } from "../src/vim-editor";
+import { NoteHeading } from "../src/note-heading";
+import { NaturalBlockMath, NaturalInlineMath } from "../src/math-editor";
 
 const editors: Editor[] = [];
 beforeAll(() => {
@@ -56,7 +58,10 @@ function createEditor(content: JSONContent[], vim = false) {
   const editor = new Editor({
     element,
     extensions: [
-      StarterKit.configure({ listKeymap: false }),
+      StarterKit.configure({ listKeymap: false, heading: false }),
+      NoteHeading,
+      NaturalInlineMath,
+      NaturalBlockMath,
       NoteListKeymap,
       NoteInteractions,
       TaskList,
@@ -197,15 +202,176 @@ describe("structured note cursor interactions", () => {
     },
   );
 
-  it("uses ShiftEnter for a soft line within a checklist item", () => {
-    const editor = createEditor([list([item("first", true)], true)]);
-    caret(editor, "first", 5);
+  it.each([false, true])(
+    "splits checked items identically with Enter and ShiftEnter (shift %s)",
+    (shiftKey) => {
+      const editor = createEditor([list([item("first", true, true)], true)]);
+      caret(editor, "first", 2);
+      key(editor, "Enter", { shiftKey });
+      const items = editor.getJSON().content?.[0].content;
+      expect(items).toHaveLength(2);
+      expect(items?.map((node) => node.attrs?.checked)).toEqual([true, false]);
+      expect(items?.map((node) => node.content?.[0].content?.[0].text)).toEqual(
+        ["fi", "rst"],
+      );
+      expect(editor.state.selection.$from.parentOffset).toBe(0);
+      expect(JSON.stringify(editor.getJSON())).not.toContain("hardBreak");
+    },
+  );
+
+  it("matches Enter across paragraphs, lists, quotes, tables and headings, including empty exits", () => {
+    const heading = (text: string): JSONContent => ({
+      ...paragraph(text),
+      type: "heading",
+      attrs: { level: 2 },
+    });
+    const nested = item("parent", true);
+    nested.content!.push(list([item("", true)], true));
+    const cases: { content: JSONContent[]; text: string; offset: number }[] = [
+      { content: [paragraph("before after")], text: "before after", offset: 6 },
+      { content: [paragraph("")], text: "", offset: 0 },
+      { content: [heading("Title")], text: "Title", offset: 5 },
+      { content: [heading("Title")], text: "Title", offset: 2 },
+      { content: [heading("")], text: "", offset: 0 },
+      { content: [list([item("item")])], text: "item", offset: 4 },
+      { content: [list([item("item")])], text: "item", offset: 2 },
+      { content: [list([item("")])], text: "", offset: 0 },
+      {
+        content: [
+          { ...list([item("item")]), type: "orderedList", attrs: { start: 3 } },
+        ],
+        text: "item",
+        offset: 2,
+      },
+      { content: [list([nested], true)], text: "", offset: 0 },
+      { content: [quote(paragraph("quoted"))], text: "quoted", offset: 3 },
+      { content: [quote(paragraph(""))], text: "", offset: 0 },
+      { content: [table()], text: "first", offset: 2 },
+    ];
+    for (const { content, text, offset } of cases) {
+      const enter = createEditor(content);
+      caret(enter, text, offset);
+      key(enter, "Enter");
+      const shifted = createEditor(content);
+      caret(shifted, text, offset);
+      expect(key(shifted, "Enter", { shiftKey: true })).toBe(true);
+      expect(shifted.getJSON()).toEqual(enter.getJSON());
+      expect(shifted.state.selection.toJSON()).toEqual(
+        enter.state.selection.toJSON(),
+      );
+      expect(JSON.stringify(shifted.getJSON())).not.toContain("hardBreak");
+    }
+  });
+
+  it("replaces selected text with a block split and restores text and selection on undo", () => {
+    const editor = createEditor([paragraph("before middle after")]);
+    editor.commands.setTextSelection({ from: 8, to: 15 });
+    const saved = editor.getJSON();
+    const selected = editor.state.selection.toJSON();
     key(editor, "Enter", { shiftKey: true });
-    expect(editor.getJSON().content?.[0].content).toHaveLength(1);
     expect(
-      editor.getJSON().content?.[0].content?.[0].content?.[0].content?.at(-1)
-        ?.type,
-    ).toBe("hardBreak");
+      editor.getJSON().content?.map((node) => node.content?.[0]?.text),
+    ).toEqual(["before ", "after"]);
+    expect(editor.state.selection.$from.parentOffset).toBe(0);
+    editor.commands.undo();
+    expect(editor.getJSON()).toEqual(saved);
+    expect(editor.state.selection.toJSON()).toEqual(selected);
+    editor.commands.redo();
+    expect(editor.state.doc.childCount).toBe(2);
+  });
+
+  it("preserves stored hard breaks while new shifted line breaks create blocks", () => {
+    const original: JSONContent = {
+      type: "paragraph",
+      content: [
+        { type: "text", text: "old" },
+        { type: "hardBreak" },
+        { type: "text", text: "line" },
+      ],
+    };
+    const editor = createEditor([original]);
+    expect(editor.getJSON().content?.[0]).toEqual(original);
+    editor.commands.setTextSelection(editor.state.doc.firstChild!.nodeSize - 1);
+    key(editor, "Enter", { shiftKey: true });
+    expect(editor.getJSON().content).toEqual([original, { type: "paragraph" }]);
+  });
+
+  it("keeps syntax newlines in code and uses the same empty-code exit", () => {
+    const editor = createEditor([
+      { type: "codeBlock", content: [{ type: "text", text: "code" }] },
+    ]);
+    caret(editor, "code", 2);
+    key(editor, "Enter", { shiftKey: true });
+    expect(editor.state.doc.firstChild!.textContent).toBe("co\nde");
+    caret(editor, "co\nde", 5);
+    key(editor, "Enter", { shiftKey: true });
+    key(editor, "Enter", { shiftKey: true });
+    key(editor, "Enter", { shiftKey: true });
+    expect(ancestors(editor)).toEqual(["paragraph"]);
+    expect(editor.state.doc.firstChild!.textContent).toBe("co\nde");
+  });
+
+  it("starts display math on ShiftEnter and leaves math source Enter handling intact", () => {
+    const editor = createEditor([paragraph("$$")]);
+    caret(editor, "$$", 2);
+    key(editor, "Enter", { shiftKey: true });
+    expect(editor.state.doc.firstChild!.type.name).toBe("blockMath");
+    const input =
+      editor.view.dom.querySelector<HTMLTextAreaElement>(".math-note-input")!;
+    expect(document.activeElement).toBe(input);
+    for (const shiftKey of [false, true]) {
+      const event = new KeyboardEvent("keydown", {
+        key: "Enter",
+        shiftKey,
+        bubbles: true,
+        cancelable: true,
+      });
+      input.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+      expect(document.activeElement).toBe(input);
+      expect(editor.state.doc.firstChild!.type.name).toBe("blockMath");
+    }
+  });
+
+  it("continues below selected images identically without replacing the image or following prose", () => {
+    const content = [
+      { type: "image", attrs: { src: "test.png" } },
+      paragraph("After"),
+    ];
+    const output = [false, true].map((shiftKey) => {
+      const editor = createEditor(content);
+      editor.commands.setNodeSelection(0);
+      key(editor, "Enter", { shiftKey });
+      expect(ancestors(editor)).toEqual(["paragraph"]);
+      expect(editor.state.selection.$from.parent.textContent).toBe("");
+      return editor.getJSON();
+    });
+    expect(output[1]).toEqual(output[0]);
+    expect(output[0].content?.map((node) => node.type)).toEqual([
+      "image",
+      "paragraph",
+      "paragraph",
+    ]);
+    expect(output[0].content?.[2].content?.[0].text).toBe("After");
+  });
+
+  it("splits blocks in Vim Insert while preserving Normal mode commands", () => {
+    const editor = createEditor(
+      [paragraph("first"), paragraph("second")],
+      true,
+    );
+    caret(editor, "first", 2);
+    const saved = editor.getJSON();
+    key(editor, "Enter", { shiftKey: true });
+    expect(getVimMode(editor.view)).toBe("normal");
+    expect(editor.getJSON()).toEqual(saved);
+    caret(editor, "first", 2);
+    key(editor, "i");
+    key(editor, "Enter", { shiftKey: true });
+    expect(getVimMode(editor.view)).toBe("insert");
+    expect(
+      editor.getJSON().content?.map((node) => node.content?.[0]?.text),
+    ).toEqual(["fi", "rst", "second"]);
   });
 
   it("toggles only the nearest checkbox with CmdShiftEnter without moving the caret, and supports undo", () => {

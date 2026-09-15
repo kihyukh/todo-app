@@ -191,6 +191,123 @@ describe("Vim controls inside equation source", () => {
     expect(s.input.value).toBe("a+b");
   });
 
+  it.each([
+    ["x +\n  y", "x + y", 3],
+    ["x  \n\t y", "x  y", 3],
+    ["x\t\ny", "x\ty", 2],
+    ["x\n  )", "x)", 1],
+    ["x\n", "x", 0],
+    ["x\n  \t", "x", 0],
+    ["\nx", "x", 0],
+    ["\n", "", 0],
+    ["x\n\u00a0y", "x \u00a0y", 1],
+    ["x.\ny", "x. y", 2],
+    ["😀\ny", "😀 y", 2],
+  ])("joins source lines with Vim spacing: %j", (text, expected, position) => {
+    const s = source(text);
+    s.press("J", { shiftKey: true });
+    expect(s.input.value).toBe(expected);
+    expect(s.range()).toEqual([position, expected ? position + 1 : position]);
+    expect(s.mode()).toBe("normal");
+    expect(s.input.readOnly).toBe(true);
+    expect(s.commit).toHaveBeenCalledOnce();
+    expect(s.leave).not.toHaveBeenCalled();
+  });
+
+  it("joins counted lines once, keeps the final join cursor, and leaves other source lines intact", () => {
+    const s = source("before\nx\n\n  y\nz\nafter");
+    s.keys("j4J");
+    expect(s.input.value).toBe("before\nx y z\nafter");
+    expect(s.range()).toEqual([10, 11]);
+    expect(s.commit).toHaveBeenCalledOnce();
+    expect(s.mode()).toBe("normal");
+    expect(s.leave).not.toHaveBeenCalled();
+    s.keys("i");
+    s.type("+");
+    expect(s.input.value).toBe("before\nx y+ z\nafter");
+  });
+
+  it.each(["J", "1J", "2J"])("joins at least two lines with %s", (keys) => {
+    const s = source("x\ny\nz");
+    s.keys(keys);
+    expect(s.input.value).toBe("x y\nz");
+    expect(s.range()).toEqual([1, 2]);
+  });
+
+  it("caps a large count at the equation boundary without leaving or splitting Unicode", () => {
+    const s = source("x\n😀");
+    s.keys("9999J");
+    expect(s.input.value).toBe("x 😀");
+    expect(s.range()).toEqual([1, 2]);
+    expect(s.commit).toHaveBeenCalledOnce();
+    expect(s.leave).not.toHaveBeenCalled();
+    s.keys("J");
+    expect(s.input.value).toBe("x 😀");
+    expect(s.commit).toHaveBeenCalledOnce();
+    expect(s.mode()).toBe("normal");
+  });
+
+  it.each(["VjjJ", "vjjJ", "jjVkkJ", "jjvkkJ"])(
+    "joins all visually selected lines in either direction with %s",
+    (keys) => {
+      const s = source("x\n y\n z\nafter");
+      s.keys(keys);
+      expect(s.input.value).toBe("x y z\nafter");
+      expect(s.range()).toEqual([3, 4]);
+      expect(s.mode()).toBe("normal");
+      expect(s.commit).toHaveBeenCalledOnce();
+      expect(s.leave).not.toHaveBeenCalled();
+    },
+  );
+
+  it("joins the next line for a one-line visual selection and preserves its register", () => {
+    const s = source("x\ny\nz");
+    s.keys("vyvJ");
+    expect(s.input.value).toBe("x y\nz");
+    expect(s.mode()).toBe("normal");
+    s.keys("$p");
+    expect(s.input.value).toBe("x yx\nz");
+  });
+
+  it("keeps J inside the source and does nothing on the final line or inline source", () => {
+    const s = source("x\ny");
+    s.keys("GVJ");
+    s.keys("J");
+    expect(s.input.value).toBe("x\ny");
+    expect(s.mode()).toBe("normal");
+    expect(s.commit).not.toHaveBeenCalled();
+    expect(s.leave).not.toHaveBeenCalled();
+    const inline = source("x+y", "normal", false);
+    inline.keys("J");
+    expect(inline.input.value).toBe("x+y");
+    expect(inline.commit).not.toHaveBeenCalled();
+    expect(inline.leave).not.toHaveBeenCalled();
+  });
+
+  it("preserves the join selection through synchronous history updates and delegates a single undo", () => {
+    const s = source("x\ny\nz");
+    s.commit.mockImplementation(() => s.controller.sync());
+    s.keys("3J");
+    expect(s.range()).toEqual([3, 4]);
+    expect(s.commit).toHaveBeenCalledOnce();
+    s.undo.mockImplementation(() => {
+      s.input.value = "x\ny\nz";
+    });
+    s.keys("u");
+    expect(s.input.value).toBe("x\ny\nz");
+    expect(s.undo).toHaveBeenCalledOnce();
+    expect(s.mode()).toBe("normal");
+  });
+
+  it("leaves J as ordinary text in Insert mode or with Vim disabled", () => {
+    const s = source("x\ny", "insert");
+    expect(s.press("J", { shiftKey: true })).toBe(false);
+    expect(s.input.value).toBe("x\ny");
+    s.setExternalMode(null);
+    expect(s.press("J", { shiftKey: true })).toBe(false);
+    expect(s.commit).not.toHaveBeenCalled();
+  });
+
   it("supports counted deletion and change-word without deleting separating whitespace", () => {
     const s = source("one two three four");
     s.keys("2dw");

@@ -5,6 +5,7 @@ import type { JSONContent } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
+import { NoteTableKit } from "../src/note-table";
 import { VimEditor, vimPluginKey } from "../src/vim-editor";
 import { NaturalBlockMath, NaturalInlineMath } from "../src/math-editor";
 import { NoteImage } from "../src/image-editor";
@@ -33,6 +34,7 @@ function createEditor(content: string[] | JSONContent[], enabled = true) {
       StarterKit,
       TaskList,
       TaskItem.configure({ nested: true }),
+      NoteTableKit,
       NaturalBlockMath,
       NaturalInlineMath,
       NoteImage.configure({ allowBase64: true }),
@@ -817,6 +819,404 @@ describe("optional Vim note editor", () => {
   });
 });
 
+describe("Vim Shift+J joins", () => {
+  it.each([
+    { before: ["one", "two"], after: "one two", cursor: 4 },
+    { before: ["one", "  two"], after: "one two", cursor: 4 },
+    { before: ["one ", "\ttwo"], after: "one two", cursor: 5 },
+    { before: ["one\t", "two"], after: "one\ttwo", cursor: 5 },
+    { before: ["(one", "  )"], after: "(one)", cursor: 5 },
+    { before: ["one.", "Two"], after: "one. Two", cursor: 5 },
+    { before: ["one", ""], after: "one", cursor: 3 },
+    { before: ["one", "   "], after: "one", cursor: 3 },
+    { before: ["", "two"], after: "two", cursor: 1 },
+    { before: ["", ""], after: "", cursor: 1 },
+    { before: ["한글 😀", "  다음"], after: "한글 😀 다음", cursor: 6 },
+  ])(
+    "joins $before with Vim spacing and a cursor at the join",
+    ({ before, after, cursor }) => {
+      const { editor } = createEditor(before);
+      expect(key(editor, "J", { shiftKey: true })).toBe(true);
+      expect(paragraphs(editor)).toEqual([after]);
+      expect(editor.state.selection.head).toBe(cursor);
+      expect(mode(editor)).toBe("normal");
+    },
+  );
+
+  it("joins a count of logical lines, independent of cursor column, in one undo step", () => {
+    const { editor } = createEditor(["one", "two", "three", "four"]);
+    keys(editor, "l3J");
+    expect(paragraphs(editor)).toEqual(["one two three", "four"]);
+    expect(editor.state.selection.head).toBe(8);
+    key(editor, "u");
+    expect(paragraphs(editor)).toEqual(["one", "two", "three", "four"]);
+    key(editor, "r", { ctrlKey: true });
+    expect(paragraphs(editor)).toEqual(["one two three", "four"]);
+    keys(editor, "99J");
+    expect(paragraphs(editor)).toEqual(["one two three four"]);
+    const before = editor.getJSON();
+    keys(editor, "1J");
+    expect(editor.getJSON()).toEqual(before);
+    expect(vimPluginKey.getState(editor.state)?.count).toBe("");
+  });
+
+  it.each(["x", "insert", "native"])(
+    "keeps %s edits after a join in a separate undo step",
+    (change) => {
+      const { editor } = createEditor(["one", "two"]);
+      key(editor, "J");
+      if (change === "x") key(editor, "x");
+      else if (change === "insert") {
+        key(editor, "i");
+        type(editor, "!");
+        key(editor, "Escape");
+      } else editor.view.dispatch(editor.state.tr.insertText("!"));
+      key(editor, "u");
+      expect(paragraphs(editor)).toEqual(["one two"]);
+      key(editor, "u");
+      expect(paragraphs(editor)).toEqual(["one", "two"]);
+    },
+  );
+
+  it("leaves the yank register and ordinary j navigation unchanged", () => {
+    const { editor } = createEditor(["one", "two", "three"]);
+    keys(editor, "yy");
+    const register = vimPluginKey.getState(editor.state)?.register;
+    key(editor, "J");
+    expect(vimPluginKey.getState(editor.state)?.register).toBe(register);
+    key(editor, "j");
+    expect(editor.state.selection.$head.parent.textContent).toBe("three");
+    key(editor, "p");
+    expect(paragraphs(editor)).toEqual(["one two", "three", "one"]);
+  });
+
+  it.each(["VjJ", "vjJ", "jVkJ", "jvkJ", "VJ", "vJ"])(
+    "%s joins selected logical lines and returns to Normal",
+    (sequence) => {
+      const { editor } = createEditor(["one", "two", "three"]);
+      keys(editor, sequence);
+      expect(paragraphs(editor)).toEqual(["one two", "three"]);
+      expect(mode(editor)).toBe("normal");
+      expect(editor.state.selection.empty).toBe(true);
+      expect(vimPluginKey.getState(editor.state)?.anchor).toBeNull();
+      expect(vimPluginKey.getState(editor.state)?.head).toBeNull();
+    },
+  );
+
+  it("keeps marks, links and inline equations intact, without making the added space a link", () => {
+    const { editor } = createEditor([
+      {
+        type: "paragraph",
+        content: [{ type: "text", text: "bold", marks: [{ type: "bold" }] }],
+      },
+      {
+        type: "paragraph",
+        content: [
+          {
+            type: "text",
+            text: "  paper",
+            marks: [
+              {
+                type: "link",
+                attrs: { href: "https://example.com/paper.pdf" },
+              },
+            ],
+          },
+          { type: "inlineMath", attrs: { latex: "x^2" } },
+          { type: "text", text: " italic", marks: [{ type: "italic" }] },
+        ],
+      },
+    ]);
+    key(editor, "J");
+    const content = editor.getJSON().content?.[0].content;
+    expect(content?.[0]).toMatchObject({
+      text: "bold",
+      marks: [{ type: "bold" }],
+    });
+    expect(content?.[1]).toEqual({ type: "text", text: " " });
+    expect(content?.[2]).toMatchObject({
+      text: "paper",
+      marks: [
+        { type: "link", attrs: { href: "https://example.com/paper.pdf" } },
+      ],
+    });
+    expect(content?.[3]).toMatchObject({
+      type: "inlineMath",
+      attrs: { latex: "x^2" },
+    });
+    expect(content?.[4]).toMatchObject({
+      text: " italic",
+      marks: [{ type: "italic" }],
+    });
+    expect(editor.view.dom.querySelector(".math-note.is-editing")).toBeNull();
+  });
+
+  it.each([true, false])(
+    "retains the first block's heading or paragraph style (%s)",
+    (headingFirst) => {
+      const heading = {
+        type: "heading",
+        attrs: { level: 2 },
+        content: [{ type: "text", text: "Title" }],
+      };
+      const { editor } = createEditor(
+        headingFirst
+          ? [heading, paragraph("body")]
+          : [paragraph("body"), heading],
+      );
+      key(editor, "J");
+      expect(editor.getJSON().content?.[0]).toMatchObject({
+        type: headingFirst ? "heading" : "paragraph",
+        ...(headingFirst ? { attrs: { level: 2 } } : {}),
+      });
+      expect(editor.state.doc.textContent).toBe(
+        headingFirst ? "Title body" : "body Title",
+      );
+    },
+  );
+
+  it.each(["bulletList", "orderedList"])(
+    "merges sibling %s items and retains nested children",
+    (type) => {
+      const nested: JSONContent = {
+        type: "bulletList",
+        content: [{ type: "listItem", content: [paragraph("Nested")] }],
+      };
+      const { editor } = createEditor([
+        {
+          type,
+          ...(type === "orderedList" ? { attrs: { start: 5 } } : {}),
+          content: [
+            { type: "listItem", content: [paragraph("one")] },
+            { type: "listItem", content: [paragraph("two"), nested] },
+            { type: "listItem", content: [paragraph("three")] },
+          ],
+        },
+      ]);
+      key(editor, "J");
+      const list = editor.getJSON().content?.[0];
+      expect(list?.type).toBe(type);
+      if (type === "orderedList") expect(list?.attrs?.start).toBe(5);
+      expect(list?.content).toHaveLength(2);
+      expect(list?.content?.[0].content).toEqual([
+        paragraph("one two"),
+        nested,
+      ]);
+      const before = editor.getJSON();
+      key(editor, "J");
+      expect(editor.getJSON()).toEqual(before);
+      key(editor, "u");
+      expect(editor.getJSON().content?.[0].content).toHaveLength(3);
+    },
+  );
+
+  it("joins a continuation paragraph to the next bullet without discarding previous paragraphs", () => {
+    const { editor } = createEditor([
+      {
+        type: "bulletList",
+        content: [
+          {
+            type: "listItem",
+            content: [paragraph("first"), paragraph("continued")],
+          },
+          {
+            type: "listItem",
+            content: [paragraph("next"), paragraph("detail")],
+          },
+        ],
+      },
+    ]);
+    keys(editor, "jJ");
+    expect(editor.getJSON().content?.[0].content).toEqual([
+      {
+        type: "listItem",
+        content: [
+          paragraph("first"),
+          paragraph("continued next"),
+          paragraph("detail"),
+        ],
+      },
+    ]);
+  });
+
+  it.each([
+    [false, false],
+    [false, true],
+    [true, false],
+    [true, true],
+  ])(
+    "preserves separate checkbox identities and completion values %s/%s",
+    (first, second) => {
+      const { editor } = createEditor([
+        {
+          type: "taskList",
+          content: [
+            {
+              type: "taskItem",
+              attrs: { checked: first },
+              content: [paragraph("one"), paragraph("detail")],
+            },
+            {
+              type: "taskItem",
+              attrs: { checked: second },
+              content: [paragraph("two")],
+            },
+          ],
+        },
+      ]);
+      keys(editor, "3J");
+      expect(editor.getJSON().content?.[0].content).toEqual([
+        {
+          type: "taskItem",
+          attrs: { checked: first },
+          content: [paragraph("one detail")],
+        },
+        {
+          type: "taskItem",
+          attrs: { checked: second },
+          content: [paragraph("two")],
+        },
+      ]);
+      const before = editor.getJSON();
+      key(editor, "J");
+      expect(editor.getJSON()).toEqual(before);
+    },
+  );
+
+  it("joins within one quote but never crosses quote boundaries or changes nesting", () => {
+    const { editor } = createEditor([
+      { type: "blockquote", content: [paragraph("one"), paragraph("two")] },
+      { type: "blockquote", content: [paragraph("three")] },
+      paragraph("outside"),
+    ]);
+    keys(editor, "4J");
+    expect(editor.getJSON().content).toEqual([
+      { type: "blockquote", content: [paragraph("one two")] },
+      { type: "blockquote", content: [paragraph("three")] },
+      paragraph("outside"),
+    ]);
+    keys(editor, "jJ");
+    expect(editor.getJSON().content).toHaveLength(3);
+  });
+
+  it("joins code lines without converting the block or joining the following prose", () => {
+    const { editor } = createEditor([
+      {
+        type: "codeBlock",
+        attrs: { language: "javascript" },
+        content: [{ type: "text", text: "call(\n  value\n)" }],
+      },
+      paragraph("outside"),
+    ]);
+    keys(editor, "9J");
+    expect(editor.getJSON().content?.[0]).toMatchObject({
+      type: "codeBlock",
+      attrs: { language: "javascript" },
+      content: [{ type: "text", text: "call( value)" }],
+    });
+    expect(paragraphs(editor)?.[1]).toBe("outside");
+    key(editor, "u");
+    expect(editor.state.doc.firstChild?.textContent).toBe("call(\n  value\n)");
+  });
+
+  it("joins legacy hard breaks and following paragraphs while preserving other lines", () => {
+    const { editor } = createEditor([
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "first" },
+          { type: "hardBreak" },
+          { type: "text", text: "  second", marks: [{ type: "bold" }] },
+        ],
+      },
+      paragraph("third"),
+      paragraph("fourth"),
+    ]);
+    keys(editor, "3J");
+    expect(paragraphs(editor)).toEqual(["first second third", "fourth"]);
+    expect(editor.getJSON().content?.[0].content?.[1]).toMatchObject({
+      text: "second",
+      marks: [{ type: "bold" }],
+    });
+  });
+
+  it.each([
+    { type: "blockMath", attrs: { latex: "x^2" } },
+    { type: "image", attrs: { src: "data:image/png;base64,YQ==" } },
+    { type: "horizontalRule" },
+  ])(
+    "stops counted and visual joins at a $type without skipping or deleting it",
+    (object) => {
+      const { editor } = createEditor([
+        paragraph("one"),
+        paragraph("two"),
+        object,
+        paragraph("three"),
+      ]);
+      const original = editor.getJSON();
+      keys(editor, "9J");
+      expect(editor.getJSON().content).toEqual([
+        paragraph("one two"),
+        original.content?.[2],
+        paragraph("three"),
+      ]);
+      key(editor, "u");
+      keys(editor, "ggV2jJ");
+      expect(editor.getJSON().content).toEqual([
+        paragraph("one two"),
+        original.content?.[2],
+        paragraph("three"),
+      ]);
+    },
+  );
+
+  it("allows paragraphs within one table cell but never joins across cells, rows or table edges", () => {
+    const { editor } = createEditor([
+      paragraph("before"),
+      {
+        type: "table",
+        content: [
+          {
+            type: "tableRow",
+            content: [
+              { type: "tableCell", content: [paragraph("a"), paragraph("b")] },
+              { type: "tableCell", content: [paragraph("c")] },
+            ],
+          },
+          {
+            type: "tableRow",
+            content: [
+              { type: "tableCell", content: [paragraph("d")] },
+              { type: "tableCell", content: [paragraph("e")] },
+            ],
+          },
+        ],
+      },
+      paragraph("after"),
+    ]);
+    const before = editor.getJSON();
+    key(editor, "J");
+    expect(editor.getJSON()).toEqual(before);
+    keys(editor, "j9J");
+    expect(editor.state.doc.child(1).child(0).child(0).textContent).toBe("a b");
+    expect(editor.state.doc.child(1).child(0).child(1).textContent).toBe("c");
+    expect(editor.state.doc.child(1).child(1).textContent).toBe("de");
+    keys(editor, "jjjJ");
+    expect(editor.state.doc.lastChild?.textContent).toBe("after");
+    expect(editor.state.doc.child(1).childCount).toBe(2);
+  });
+
+  it("does not run J in Insert mode or when Vim is disabled", () => {
+    const { editor } = createEditor(["one", "two"]);
+    key(editor, "i");
+    expect(key(editor, "J", { shiftKey: true })).toBe(false);
+    type(editor, "J");
+    expect(paragraphs(editor)).toEqual(["Jone", "two"]);
+    editor.commands.setVimEnabled(false);
+    expect(key(editor, "J", { shiftKey: true })).toBe(false);
+  });
+});
+
 describe("Vim cursor arrival at equation line boundaries", () => {
   it.each(["$", "End"])(
     "reveals terminal inline math when %s lands on its normal cursor position",
@@ -905,6 +1305,40 @@ describe("Vim modes inside equation source", () => {
     expect(document.activeElement).toBe(input);
     return { ...result, input };
   }
+
+  it("joins display equation source in one undo step and keeps later typing separate", async () => {
+    const { editor } = createEditor([
+      paragraph("Before"),
+      { type: "blockMath", attrs: { latex: "f(\n  x\n)" } },
+      paragraph("After"),
+    ]);
+    key(editor, "j");
+    await Promise.resolve();
+    const input = editor.view.dom.querySelector<HTMLTextAreaElement>(
+      ".math-note-block textarea",
+    )!;
+    expect(document.activeElement).toBe(input);
+    sourceKey(input, "3");
+    sourceKey(input, "J", { shiftKey: true });
+    expect(input.value).toBe("f( x)");
+    expect(editor.state.doc.child(1).attrs.latex).toBe("f( x)");
+    expect(mode(editor)).toBe("normal");
+    sourceKey(input, "u");
+    expect(input.value).toBe("f(\n  x\n)");
+    sourceKey(input, "r", { ctrlKey: true });
+    expect(input.value).toBe("f( x)");
+    sourceKey(input, "A");
+    sourceType(input, "+y");
+    sourceKey(input, "Escape");
+    expect(input.value).toBe("f( x)+y");
+    sourceKey(input, "u");
+    expect(input.value).toBe("f( x)");
+    sourceKey(input, "u");
+    expect(input.value).toBe("f(\n  x\n)");
+    expect(editor.state.doc.child(0).textContent).toBe("Before");
+    expect(editor.state.doc.child(2).textContent).toBe("After");
+    expect(document.activeElement).toBe(input);
+  });
 
   it("shares Insert and Normal mode with the note while Escape keeps source focused", async () => {
     const { editor, onModeChange, input } = await inlineSource();
