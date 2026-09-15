@@ -1,42 +1,62 @@
 {
-  "status": "prepared-not-submitted",
+  "status": "listing-prepared-builds-processed-not-submitted",
   "workingName": "GreenDay",
-  "name": "GreenDay",
+  "name": "GreenDay: Tasks & Notes",
+  "displayName": "GreenDay",
   "primaryLanguage": "en-US",
   "primaryCategory": "Productivity",
   "subtitle": "Plan today. Keep the details.",
   "promotionalText": "Choose what to work on today, keep deadlines separate, and put notes, checklists, images, and equations beside each task.",
   "description": "Plan the work. Keep the details close.\n\nGreenDay brings tasks, calendars, and rich notes together in a focused workspace.\n\nWORK DAYS AND DEADLINES\nChoose one or several days to work on a task, even when those days are weeks apart. Keep its final deadline separate. Use Today to focus on the work you selected, or review approaching deadlines and priorities before planning your day.\n\nNOTES THAT FIT THE WORK\nWrite Markdown, checklists, tables, and links alongside each task. Render inline and display LaTeX equations, then move into an equation to edit its source. Paste images into notes or keep documents beside the instructions they support.\n\nYOUR NEXT SMALL STEP\nOpen checkboxes gathers unfinished checklist items from active tasks. Completing the parent task removes those items from this view without changing the note. Organize tasks with lists, tags, priorities, and a board.\n\nCALENDARS ALONGSIDE TASKS\nConnect calendars already configured in Apple Calendar, including iCloud and Google accounts. Switch between Month, Week, and Day. Link events to tasks and open the association from either side. Calendar access is optional.\n\nYOUR WORKSPACE, YOUR DEVICES\nCore task and note editing works offline and saves automatically. Select the same workspace folder in iCloud Drive on your Mac and iPhone to keep your files together. iCloud Drive handles transfers, so changes may take time to reach another device.\n\nOptional Vim mode supports keyboard navigation and editing, including equation source. On iPhone, a hardware keyboard is useful for these shortcuts.\n\nNo GreenDay account is required. The app contains no advertising or analytics SDK.",
   "keywords": "todo,tasks,planner,markdown,latex,notes,checklist,kanban,deadline,research,vim",
-  "copyright": null,
-  "supportURL": null,
-  "privacyPolicyURL": null,
-  "marketingURL": null,
-  "sku": null,
+  "publisherName": "Kihyuk Hong",
+  "supportEmail": "hominot@gmail.com",
+  "copyright": "2026 Kihyuk Hong",
+  "supportURL": "https://kihyukh.github.io/todo-app/support.html",
+  "privacyPolicyURL": "https://kihyukh.github.io/todo-app/privacy.html",
+  "marketingURL": "https://kihyukh.github.io/todo-app/",
+  "sku": "greenday-2026",
+  "appStoreID": "6812229239",
   "bundleIdentifiers": {
-    "iOS": null,
-    "macOS": null
+    "iOS": "com.kihyukh.greenday",
+    "macOS": "com.kihyukh.greenday"
   },
   "priceAndAvailability": {
-    "price": null,
-    "countriesOrRegions": null,
-    "releaseMode": "manual-proposed"
+    "status": "saved-to-app-store-connect",
+    "price": "free",
+    "countriesOrRegions": "all-175-current-and-future-regions",
+    "releaseMode": "automatic-after-approval-current-default"
+  },
+  "futureMonetization": {
+    "plan": "In-app purchases may be added in a later release.",
+    "status": "not-implemented-or-configured"
   },
   "testFlight": {
     "betaDescription": "A focused planner with separate work days and deadlines, Markdown and LaTeX notes, checklists, images, and task-linked calendars. No GreenDay sign-in is required. Core editing works offline. To test sync, select the same folder in your own iCloud Drive on both devices.",
     "whatToTest": "Use fictional tasks and a dedicated test calendar. Test nonconsecutive work days without changing the deadline; completion and Open checkboxes; cursor movement, selections, Vim mode, and Shift+J around equations and lists; pasted images and dropped documents; PDF/image opening; saving through backgrounding and relaunch; and offline edits on two devices using the same iCloud Drive workspace. Check calendar permission refusal, event edits, recurring occurrences, and links from both directions. A local save and provider delivery should be checked separately. On Mac, test the sandboxed release, folder reauthorization, and the transition from floating details to three columns.",
-    "feedbackEmail": null
+    "feedbackEmail": "hominot@gmail.com"
   },
   "reviewContact": {
-    "firstName": null,
-    "lastName": null,
-    "email": null,
+    "firstName": "Kihyuk",
+    "lastName": "Hong",
+    "email": "hominot@gmail.com",
     "phone": null,
     "signInRequired": false
   },
   "distributionPlan": {
-    "status": "proposed",
+    "status": "both-builds-processed-review-setup-incomplete",
     "platforms": ["iOS", "macOS"],
-    "appRecord": "One app record with matching release bundle identifiers for both platforms; reserve after checking the publisher account."
+    "appRecord": "App Store record 6812229239 contains iOS and macOS versions 1.0.0, both in Prepare for Submission, with registered identifier com.kihyukh.greenday. Both uploaded builds 1.0.0 (1) show Complete and Ready to Submit in TestFlight. Build selection is not saved: App Review contact information is required. The listing name GreenDay: Tasks & Notes is saved; the native app display name remains GreenDay."
+  },
+  "storeSetup": {
+    "versionMetadata": "Saved for iOS and macOS: 1.0.0, promotional text, description, keywords, support/marketing URLs, copyright, and no reviewer sign-in.",
+    "category": "Productivity",
+    "ageRating": "Calculated 4+ with regional exceptions; questionnaire saved.",
+    "privacyPolicyURL": "Saved to App Store Connect.",
+    "privacyLabel": "Data Not Collected draft saved; final publication certification awaiting publisher confirmation.",
+    "reviewContact": "Phone number requested from publisher; contact and build selection remain incomplete.",
+    "euTraderStatus": "Publisher declaration requested; not selected.",
+    "screenshots": "Uploaded and verified: one 1320x2868 iPhone screenshot (6.9-inch slot) and three 2064x2752 iPad screenshots (13-inch slot). Native final Release simulator UI, fictional data only. Mac screenshot pending manual capture.",
+    "submission": "Neither platform submitted to App Review or released."
   }
 }

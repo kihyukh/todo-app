@@ -102,14 +102,14 @@ These results establish build and local interaction behavior. They do not establ
 - All **157 focused frontend tests** passed, covering import persistence, size/read failures, native request isolation, caret geometry, import ordering and cancellation, link activation, and image-paste/slash-menu regressions. The production web build, all 90 native store checks, and macOS/iOS Swift typechecks passed in temporary verification environments.
 - No installed Mac or simulator app was replaced, and no real task, attachment, or calendar records were changed. The production web build is newer than the installed apps. Real-device file dragging, native preview interaction, and cross-device file delivery still need verification on the next signed build.
 
-## Current Mac and iOS store archive preparation — 15 September 2026
+## Initial unsigned Mac and iOS store archive preparation — 15 September 2026
 
 Both Release archive commands succeeded. A read-only audit checked the resulting artifacts:
 
-| Archive | Application | Architectures | SDK / minimum OS |
-| --- | --- | --- | --- |
+| Archive                                                       | Application                          | Architectures    | SDK / minimum OS  |
+| ------------------------------------------------------------- | ------------------------------------ | ---------------- | ----------------- |
 | `~/Library/Caches/GreenDay/AppStore/macOS/GreenDay.xcarchive` | `Products/Applications/GreenDay.app` | arm64 and x86_64 | macOS 26.5 / 13.0 |
-| `~/Library/Caches/GreenDay/AppStore/iOS/GreenDay.xcarchive` | `Products/Applications/Daymark.app` | arm64 | iOS 26.5 / 16.0 |
+| `~/Library/Caches/GreenDay/AppStore/iOS/GreenDay.xcarchive`   | `Products/Applications/Daymark.app`  | arm64            | iOS 26.5 / 16.0   |
 
 - Both application plists contain the GreenDay display name, expected bundle identifiers, version **1.0.0**, build **1**, calendar access descriptions, and the nonexempt-encryption declaration set to false. The iOS device family remains iPhone and iPad. The Mac category is Productivity and its `DaymarkAppSandbox` storage marker is true.
 - The web resources in both archives match `build/release-web` byte for byte: **62 files, 2,572,051 bytes**. The native bundle validator passed on the reference and both archived copies. Native builds omit browser-only PDF.js assets and use native document opening. The bundle inventory contains no workspace directories, attachment stores, revision stores, migration folders, source maps, source files, `node_modules`, or symlinks.
@@ -126,15 +126,69 @@ The final archives were rebuilt after a help-text-only change, then their resour
 - The user's installed development app, existing workspace, and calendar data/permissions were not modified by the QA copy. Only the isolated fictional workspace was written.
 - The Release iPhone simulator app was installed and launched; visual inspection showed its existing test tasks. Further touch interaction checks could not proceed because the UI automation surface returned `noWindowsAvailable`. The iPad Release simulator install succeeded, but a new iPad launch/touch check is not claimed for this turn.
 
-No physical iPhone, real calendar/provider synchronization, or cross-device iCloud delivery was tested in this preparation. Store-signature checks and the deeper mobile interaction checks below remain outstanding.
+No physical iPhone, real calendar/provider synchronization, or cross-device iCloud delivery was tested in this initial preparation. The subsequent signing checks below supersede the signing limitation for the exported iOS package, but do not replace mobile runtime checks.
+
+## Signed iOS App Store export — 15 September 2026
+
+After the user renewed Developer Program membership, the authenticated App Store Connect page no longer displayed the expired-membership banner, and an automatic-signing release export succeeded. The signed archive is `~/Library/Caches/GreenDay/AppStore/iOS-Signed/GreenDay.xcarchive`; the App Store IPA is `~/Library/Caches/GreenDay/AppStore/iOS-Signed/Export/Daymark.ipa`.
+
+A read-only audit of the exported IPA, using a disposable extracted copy for signature verification, confirmed:
+
+- App identity **`com.kihyukh.greenday`**, display name **GreenDay**, version **1.0.0**, build **1**; arm64 architecture, minimum iOS **16.0**, SDK **26.5**, and iPhone/iPad device families. The nonexempt-encryption flag is false.
+- Strict `codesign` verification passed. Certificate authorities are **Apple Distribution: Kihyuk Hong (3D637V9C9W)**, **Apple Worldwide Developer Relations Certification Authority**, and **Apple Root CA**. The embedded signed app identifier and provisioning-profile app identifier both equal `3D637V9C9W.com.kihyukh.greenday`.
+- Both signed entitlements and the embedded provisioning profile set `get-task-allow=false` and `beta-reports-active=true`. The profile has no provisioned-device list and does not provision all devices; it expires on **15 September 2027**. No private device identifiers or credential material were written into release documentation.
+- The native privacy manifest exactly matches the iOS source manifest: no tracking or collected-data categories, with app-local UserDefaults reason `CA92.1`.
+- The **62 web files, 2,572,298 bytes**, exactly match the signed archive. Their JavaScript includes `https://kihyukh.github.io/todo-app/support.html` and `https://kihyukh.github.io/todo-app/privacy.html`. The native production-resource validator passed; no workspace directories, source maps, symlinks, or browser PDF assets are packaged. Asset catalog and generated iPhone/iPad icon resources are present.
+- IPA SHA-256: `bb0b47425512735f80bd688c14e735a6aba6c265843bec81c8ef0cacd7dbe2c8`.
+
+The support/privacy site was published through GitHub Pages from branch `codex/app-store-site`, site commit `1ccc663`; both required pages returned HTTP 200 and matched the local source byte for byte. They identify Kihyuk Hong and the user-approved public support address `hominot@gmail.com`.
+
+At this initial signing stage, no final release screenshots were captured: the available native UI automation returned `noWindowsAvailable`, and the Simulator Save Screen action was disabled. A subsequent native capture recovery and release-matching simulator build are recorded below. The capture plan remains in [screenshots.md](../app-store/screenshots.md). No physical iPhone or cross-device iCloud/provider delivery was tested in this signing pass. The subsequent upload is recorded below.
+
+## Signed Mac App Store export — 15 September 2026
+
+The universal Mac archive and export also succeeded. The archive is `~/Library/Caches/GreenDay/AppStore/macOS-Signed/GreenDay.xcarchive`; the store package is `~/Library/Caches/GreenDay/AppStore/macOS-Signed/Export/GreenDay.pkg`. A read-only installer-signature inspection and disposable expanded-copy audit confirmed:
+
+- Package signing certificate **3rd Party Mac Developer Installer: Kihyuk Hong (3D637V9C9W)**, chaining through **Apple Worldwide Developer Relations Certification Authority** to **Apple Root CA**. The enclosed application passed strict code-signature verification with **Apple Distribution: Kihyuk Hong (3D637V9C9W)** and the same Apple authority chain.
+- App identity **`com.kihyukh.greenday`**, display name **GreenDay**, version **1.0.0**, build **1**, copyright **2026 Kihyuk Hong**; **arm64 and x86_64**, minimum macOS **13.0**, SDK **26.5**, and the nonexempt-encryption flag false.
+- The signature enables hardened runtime. Actual signed entitlements include App Sandbox, outgoing network access, calendar access, user-selected read/write files, and app-scoped bookmarks, matching `native/macOS/GreenDay.entitlements`. No debug entitlement is enabled. Both signed and provisioning-profile app identifiers are `3D637V9C9W.com.kihyukh.greenday`; the profile has no provisioned-device list or all-device grant and expires on **15 September 2027**. The storage marker `DaymarkAppSandbox` is true.
+- The privacy manifest exactly matches the Mac source manifest: no tracking or collected-data categories, app-local UserDefaults reason `CA92.1`, and elapsed-event-time reason `35F9.1`.
+- The **62 web files, 2,572,298 bytes**, exactly match the Mac signed archive and the iOS package's web content. Both public support/privacy URLs and `Daymark.icns` are present. The native production-resource validator passed; no workspace directories, source maps, symlinks, or browser PDF assets are packaged.
+- Package SHA-256: `a92045351f5b0a298d18520334cada4965627b93d847d1904b5e12143a94a514`.
+
+These audits did not install either distribution package, open the user's workspace, alter its calendar permissions, or upload a build. Signing keys remain in Keychain. Portal verification confirmed the explicit identifier `com.kihyukh.greenday` under the publisher's team. App Store record **6812229239** was created for both platforms with SKU **greenday-2026** and English (U.S.). The available listing name is **GreenDay: Tasks & Notes**; the app itself remains named GreenDay. Both platforms are in Prepare for Submission.
+
+## App Store Connect uploads — 15 September 2026
+
+The iOS **1.0.0 (1)** upload from the audited existing archive succeeded at **16:03:23 KST**, with command exit status **0**. `build/ios-upload.log` records “Uploaded package is processing,” “Upload succeeded,” and `EXPORT SUCCEEDED`. The upload used `xcodebuild -exportArchive` with `destination=upload`, automatic signing, and version/build management disabled; the application was not rebuilt. Its upload output directory is `~/Library/Caches/GreenDay/AppStore/iOS-Signed/Upload`.
+
+The Mac **1.0.0 (1)** upload from its audited archive succeeded at **16:07:29 KST**, with command exit status **0**. `build/macos-upload.log` records “Uploaded package is processing,” “Upload succeeded,” and `EXPORT SUCCEEDED`. It used the same export options and output directory `~/Library/Caches/GreenDay/AppStore/macOS-Signed/Upload`. No retry or rebuild was performed. Neither platform has been submitted for App Review or publicly released. A subsequent App Store Connect check confirmed upload status **Complete** and build status **Ready to Submit** for both platforms. Neither version's build selection is saved: saving the selected build and review notes requires the complete private review contact, and its phone number is pending. A fresh Mac version page still shows **Add Build**.
+
+App Store Connect verification confirmed saved iOS and Mac listing versions **1.0.0**, description, promotional text, keywords, support/marketing URLs, copyright, and no sign-in requirement. Pricing is saved at **US$0.00**, with zero prices verified for all **174 other territories**. Availability is saved for **all 175 countries/regions**, including future territories; the table identifies them as available when the app releases. These settings do not make the app live before approval/release. A Mac screenshot, a private review phone number, and the user's EU trader declaration remain pending. App Store Connect Business confirms **Free Apps Agreement: Active**. The privacy-policy URL and **Data Not Collected** response are saved as a draft; publication awaits the user's certification confirmation. The EU trader form remains unanswered.
+
+## Final Release simulator package for screenshots
+
+Native Simulator screenshot capture was recovered. One final iPhone screenshot and three final iPad screenshots have been captured, reviewed, and uploaded. A fresh Release simulator package was built from the current source with `VITE_NATIVE_APP=1`, GreenDay version **1.0.0**, build **1**, and the same published privacy/support URLs as the uploaded release. Output: `~/Library/Caches/GreenDay/AppStore/Simulator-Final/Build/Products/Release-iphonesimulator/Daymark.app`. The isolated QA identifier remains **app.daymark.mobile**.
+
+The package's **62 web files, 2,572,298 bytes**, are byte-identical to the signed iOS archive, and the native resource validator passed. Display/version, iPhone/iPad device families, calendar descriptions, minimum OS, encryption flag, and native privacy manifest match the release. The expected differences are the simulator SDK/native executable, QA bundle identifier, and signing. No store archive or export was rebuilt or changed.
+
+After coordination with the screenshot operator, the package was installed in place on both the iPhone 17 Pro Max and iPad Pro 13-inch simulators without uninstalling or clearing data. Installed web resources match the release on both. Simulator installation relocated data-container UUIDs: all **12 iPad Documents files** retained identical hashes; the iPhone still contains its **37 fictional task/revision files**, but its first overly strict container-path check did not retain the prior hash snapshot, so an exact iPhone before/after-content comparison is not claimed. Both apps were relaunched through the Simulator UI and the expected fictional content was confirmed. No real user app or workspace was modified.
 
 ## Still needed before distribution
 
 - Complete native calendar interaction checks for unlinking, event deletion, recurring occurrence edits/deletion, permission refusal, read-only calendars, and error recovery. Test external event changes and iCloud/Google delivery separately using a dedicated test calendar. Event creation and title editing were tested only in a simulator local calendar.
 - Finish touch review of Month/Week/Day layouts, overlapping/all-day events, and task work days/deadlines. Recheck note menu placement, selected-text formatting, and Vim interactions on the final mobile build.
 - Finish the remaining native interaction checks: touch link Open/Edit, deadline/tag sheets, image/PDF import and preview, folder selection, and error recovery. Capture App Store screenshots from the final build using fictional data.
-- Renew the expired Apple Developer Program membership, configure the signing team in Xcode, reserve the final bundle identifier, and create the App Store Connect record. App Store Connect and the Developer account are signed in, but both currently report expired membership; no local signing identity is available. The user was asked to renew. No payment, renewal, or agreement acceptance was attempted, and no build was uploaded.
+- Complete the private review contact, then save build selections and review notes for both platforms in App Store record **6812229239**. Membership, identifier registration, record creation, both local distribution exports/uploads, and processing are complete; saved build selections are not claimed.
 - Test on a physical iPhone: foreground/background persistence, local offline edits, Files permissions after relaunch, attachments, and cross-device iCloud delivery with the Mac using a separate test workspace. Simulator compilation does not verify these device/provider behaviors.
-- Finish publisher/contact details, privacy/support URLs, listing, and distribution settings described in [App Store delivery](APP-STORE.md). GreenDay is the chosen display name; the publisher/contact placeholders are still unresolved.
+- Finish the private App Review phone number, screenshots, privacy-publication confirmation, and account declarations described in [App Store delivery](APP-STORE.md). Both platform listings, publisher/copyright, public support URLs, free prices, and availability in all 175 countries/regions are saved and verified. The user's EU trader declaration remains pending; future in-app purchases are not configured.
 
-No build has been uploaded to TestFlight or submitted to App Review.
+Both packages have completed App Store Connect processing and show Ready to Submit; neither app has been submitted to App Review.
+
+## Native screenshot capture and App Store upload
+
+Four opaque JPEG assets are retained under `app-store/screenshots/ios` with SHA-256 hashes in `manifest.json`. They are native simulator captures with unchanged pixel dimensions and only fictional data. App Store Connect verified **1 of 10** screenshots in the **iPhone 6.9-inch** slot (1320 × 2868) and **3 of 10** in the **iPad 13-inch** slot (2064 × 2752). The iPad set shows tasks with rendered math, three nonconsecutive work days with a separate deadline, and open checkboxes.
+
+The final iPad UI successfully opened the work-day picker, selected and saved work days, and opened Open checkboxes. Native CUA taps on iPhone header controls remained unreliable; this is an unresolved automation limitation and does not establish physical-touch correctness. Check those controls on an iPhone before submission.
+
+Mac native screenshot capture remains incomplete after bounded attempts with Simulator-independent system capture and Preview. Use the isolated fictional GreenDay Release QA app for manual capture, verify an Apple-accepted pixel size, and exclude the user’s working app and private workspace. No browser screenshot was substituted for a native capture.

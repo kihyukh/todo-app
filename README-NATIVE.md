@@ -39,7 +39,7 @@ npm run build:ios
 
 This generates `native/Daymark.xcodeproj` and builds an unsigned simulator app at `build/ios/Build/Products/Debug-iphonesimulator/Daymark.app`. Open the generated project and run the Daymark scheme on an iPhone or iPad simulator. Xcode 26.6 with the iOS 26.5 simulator SDK was used for the verified build.
 
-For a physical iPhone, sign into **Xcode → Settings → Apple Accounts**, choose your signing team for the Daymark target, and run it on your connected phone. The current working bundle identifier is `app.daymark.mobile`; reserve an identifier belonging to your team before distribution. In the app, choose the **same Daymark folder in iCloud Drive** that the Mac app uses. The Files picker retains access using a security-scoped bookmark.
+For a physical iPhone, sign into **Xcode → Settings → Apple Accounts**, choose your signing team for the Daymark target, and run it on your connected phone. The development bundle identifier remains `app.daymark.mobile`; the registered release identifier is `com.kihyukh.greenday` for both platforms. In the app, choose the **same Daymark folder in iCloud Drive** that the Mac app uses. The Files picker retains access using a security-scoped bookmark.
 
 The iPhone app initially uses its local Documents folder. Selecting an iCloud Drive folder through Files enables shared storage without a private CloudKit container or special iCloud entitlements. The folder must be available in the Files app, and iCloud Drive must be enabled on both devices.
 
@@ -51,27 +51,27 @@ The store workflows build the native interface with `VITE_NATIVE_APP=1`. PDFs us
 
 Build verification does not require a Developer account:
 
-| Command | Target | Default archive |
-| --- | --- | --- |
-| `npm run archive:ios` | Generic arm64 iOS device, iOS 16 minimum | `build/Daymark.xcarchive` |
+| Command               | Target                                       | Default archive                                               |
+| --------------------- | -------------------------------------------- | ------------------------------------------------------------- |
+| `npm run archive:ios` | Generic arm64 iOS device, iOS 16 minimum     | `build/Daymark.xcarchive`                                     |
 | `npm run archive:mac` | Universal arm64/x86_64 Mac, macOS 13 minimum | `~/Library/Caches/GreenDay/AppStore/macOS/GreenDay.xcarchive` |
 
 These are unsigned verification archives, not App Store packages. The Mac linker may embed an ad hoc executable signature; this does not seal the bundle or activate the release sandbox entitlements. The archive audit and separate sandbox runtime check are recorded in [native validation](docs/IOS-VALIDATION.md).
 
 The Mac App Store target uses `DaymarkMac`, `native/macOS/Store-Info.plist`, and `native/macOS/GreenDay.entitlements`. It starts in its sandbox container and offers a system picker to connect an existing workspace. Select the same Daymark folder in iCloud Drive on both platforms. Successful folder selection stores an app-scoped bookmark; a failed restore keeps the old bookmark and offers reconnection while new edits remain separate locally. This build does not probe the development app's unrestricted iCloud path or silently move its data. Its entitlements cover outgoing networking, calendars, user-selected read/write files, and app-scoped bookmarks; it does not request an unrestricted filesystem exception or private CloudKit container.
 
-The currently signed-in App Store Connect/Developer account reports expired membership. Renew it in the Apple Developer account, then configure the active team in **Xcode → Settings → Apple Accounts** and supply these explicit values. No renewal/payment or build upload has been performed. Release commands intentionally do not silently reuse the verification bundle/version defaults:
+Developer membership was renewed on 15 September 2026, and both iOS and Mac App Store distribution exports passed their signing audits. The active team is `3D637V9C9W`, with shared release identifier `com.kihyukh.greenday` and App Store record `6812229239` (**GreenDay: Tasks & Notes**; the app's displayed name remains GreenDay). Both **1.0.0 (1)** uploads succeeded and finished processing; App Store Connect shows **Complete** and **Ready to Submit** for both. Both listings and free global availability are saved, and the Free Apps Agreement is Active. Build selection and review-note saves require the pending private review phone number; no saved build attachment is claimed. The privacy response is a saved draft awaiting publication confirmation, and the EU trader declaration remains unanswered. One iPhone screenshot and three iPad screenshots are uploaded and verified; a Mac screenshot still needs manual capture. Neither platform has been submitted for review or publicly released. For subsequent builds, configure the active team in **Xcode → Settings → Apple Accounts** and supply these explicit values. Release commands intentionally do not silently reuse the verification bundle/version defaults:
 
-| Environment variable | Required value |
-| --- | --- |
-| `DAYMARK_DEVELOPMENT_TEAM` | Your ten-character Apple Developer team ID, both platforms |
-| `DAYMARK_IOS_BUNDLE_IDENTIFIER` | The registered iOS identifier, iOS release |
-| `DAYMARK_MAC_BUNDLE_IDENTIFIER` | The registered macOS identifier, Mac release |
-| `DAYMARK_VERSION` | Intended numeric version, such as `1.0.0`, both platforms |
-| `DAYMARK_BUILD_NUMBER` | An unused positive build number; increment for every upload |
-| `DAYMARK_COPYRIGHT` | The publisher's actual copyright notice, Mac release |
-| `VITE_PUBLIC_PRIVACY_URL` | The published public HTTPS privacy-policy page, both platforms |
-| `VITE_PUBLIC_SUPPORT_URL` | The published public HTTPS support page with actual contact details, both platforms |
+| Environment variable            | Required value                                                                      |
+| ------------------------------- | ----------------------------------------------------------------------------------- |
+| `DAYMARK_DEVELOPMENT_TEAM`      | Your ten-character Apple Developer team ID, both platforms                          |
+| `DAYMARK_IOS_BUNDLE_IDENTIFIER` | The registered iOS identifier, iOS release                                          |
+| `DAYMARK_MAC_BUNDLE_IDENTIFIER` | The registered macOS identifier, Mac release                                        |
+| `DAYMARK_VERSION`               | Intended numeric version, such as `1.0.0`, both platforms                           |
+| `DAYMARK_BUILD_NUMBER`          | An unused positive build number; increment for every upload                         |
+| `DAYMARK_COPYRIGHT`             | The publisher's actual copyright notice, Mac release                                |
+| `VITE_PUBLIC_PRIVACY_URL`       | The published public HTTPS privacy-policy page, both platforms                      |
+| `VITE_PUBLIC_SUPPORT_URL`       | The published public HTTPS support page with actual contact details, both platforms |
 
 `DAYMARK_PUBLIC_PRIVACY_URL` and `DAYMARK_PUBLIC_SUPPORT_URL` are accepted aliases for the two URL variables. `DAYMARK_DISPLAY_NAME` remains optional and defaults to GreenDay; it is also passed into the bundled interface. The URL check rejects local, malformed, and placeholder URLs; verify that the actual published pages load before uploading. Do not place passwords, private signing keys, or API credentials in this repository.
 
@@ -91,6 +91,8 @@ The default release action creates a signed archive and exports a local store pa
 Default iOS release outputs are `build/Daymark.xcarchive` and `build/app-store`; override them with `DAYMARK_IOS_ARCHIVE_PATH` and `DAYMARK_IOS_EXPORT_PATH`. Mac outputs stay outside the iCloud-managed repository under `~/Library/Caches/GreenDay/AppStore/macOS`: `GreenDay.xcarchive`, `DerivedData`, and `Export`. Override those with `DAYMARK_MAC_ARCHIVE_PATH`, `DAYMARK_MAC_DERIVED_DATA`, and `DAYMARK_MAC_EXPORT_PATH`. `bash scripts/build-mac-store.sh --signed` creates only a signed Mac archive when the team, copyright, and public URL inputs are configured; it does not export or upload.
 
 The development workflow and workspace names/file formats remain stable. See [App Store delivery](docs/APP-STORE.md) for listing copy, privacy/support pages, publisher/contact inputs, and review steps. A final distribution-signed device test, physical-iPhone iCloud delivery, and provider-specific calendar checks remain necessary before public release.
+
+The final Release simulator app for screenshot capture is `~/Library/Caches/GreenDay/AppStore/Simulator-Final/Build/Products/Release-iphonesimulator/Daymark.app`. It retains QA identifier `app.daymark.mobile` and contains **all 62 web files byte-identical** to the signed iOS release, including the public privacy/support URLs and GreenDay **1.0.0 (1)** display/version. It was installed in place on the isolated iPhone 17 Pro Max and iPad Pro 13-inch simulators. Its native executable targets the simulator SDK, not the device SDK.
 
 ## Calendars and task links
 

@@ -27,6 +27,7 @@ header {
   color: #24704f;
   font-weight: 650;
   font-size: 15px;
+  text-decoration: none;
 }
 h1 {
   margin: 10px 0;
@@ -62,21 +63,75 @@ footer {
   color: #526071;
   font-size: 14px;
 }
-.draft {
-  padding: 12px 16px;
-  margin-bottom: 24px;
-  border: 1px solid #b77b17;
-  border-radius: 4px;
-  background: #fff8e8;
-  color: #714607;
-}
 footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
   margin-top: 36px;
   padding-top: 18px;
   border-top: 1px solid #dfe3e8;
 }
-footer a {
-  margin-right: 20px;
+.hero {
+  padding: 8px 0 18px;
+}
+.hero h1 {
+  max-width: 520px;
+  margin: 22px 0 16px;
+  font-size: clamp(34px, 6vw, 46px);
+}
+.intro {
+  max-width: 550px;
+  font-size: 18px;
+  color: #43564a;
+}
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+.page-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 9px 18px;
+  border: 1px solid #c5d6cb;
+  border-radius: 6px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.page-actions .primary {
+  color: #fff;
+  background: #24704f;
+  border-color: #24704f;
+}
+.page-actions a:hover {
+  border-color: #24704f;
+  background: #eef5f0;
+}
+.page-actions .primary:hover {
+  background: #1c5b40;
+}
+.features {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px 28px;
+  padding: 28px 0;
+  border-top: 1px solid #dfe3e8;
+  border-bottom: 1px solid #dfe3e8;
+}
+.features h2 {
+  margin-top: 0;
+}
+.features p {
+  color: #43564a;
+}
+.support-note {
+  margin-top: 28px;
+}
+a[href^="mailto:"] {
+  overflow-wrap: anywhere;
 }
 @media (max-width: 600px) {
   main {
@@ -87,5 +142,9 @@ footer a {
   }
   h1 {
     font-size: 28px;
+  }
+  .features {
+    grid-template-columns: 1fr;
+    gap: 18px;
   }
 }
