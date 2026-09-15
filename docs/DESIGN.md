@@ -43,6 +43,12 @@ Both date controls open one calendar with **Work days** and **Deadline** tabs. W
 
 Changes stay in a local draft until **Save**, which commits both fields together. **Cancel**, Escape, the close button, or clicking outside discards the draft. Clear affects only the active tab. Switching tasks or receiving changed schedule data closes a stale draft, preventing it from overwriting a newer schedule. Keyboard arrows navigate days, Page Up/Down changes months, and Tab remains within the picker. On iPhone the picker becomes a sheet sized to the visible screen.
 
+## Tag editor
+
+Creating and editing tags share a 420px dialog with a padded, scrollable form and a separate action footer. Name and group fields have consistent spacing, the group explanation clarifies sidebar placement, and six color choices use generous targets with both an outline and a checkmark for selection. A live tag preview shows the normalized name and chosen color. Duplicate names stay beside the name field; focus starts there, Tab stays inside the dialog, and closing restores the invoking control.
+
+On narrow screens, fields use 16px text and controls provide larger touch targets. Colors wrap into two rows at the smallest widths. The body scrolls independently so Cancel and Create/Save remain visible, with Delete on its own row when needed.
+
 ## Dragging tasks
 
 Dragging makes the same task easier to organize without creating a duplicate. Dropping between rows sets their order in the current All tasks, Inbox, list, or tag view. Order is stored per task and per view, so it survives native file reloads and does not affect other views. Until a view is rearranged, its existing priority ordering remains in use. A small **Manual order** footer action restores automatic priority order. Today and Upcoming preserve their scheduling order, and searching disables rearrangement to avoid moving tasks relative to invisible results.

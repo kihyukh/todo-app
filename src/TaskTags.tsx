@@ -28,7 +28,7 @@ export const TAG_COLORS = [
   "#627087",
 ];
 export type TagDraft = { name: string; group: TagGroup; color: string };
-const tagStyle = (tag: TagRecord): CSSProperties =>
+const tagStyle = (tag: Pick<TagRecord, "color">): CSSProperties =>
   ({
     "--tag-color": /^#[\da-f]{6}$/i.test(tag.color) ? tag.color : TAG_COLORS[0],
   }) as CSSProperties;
@@ -356,14 +356,14 @@ export function TagDialog({
   }, []);
   return (
     <div
-      className="modal-backdrop"
+      className="modal-backdrop tag-dialog-backdrop"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <form
         ref={form}
-        className="modal small-modal tag-dialog"
+        className="modal tag-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby={heading}
@@ -401,7 +401,10 @@ export function TagDialog({
         }}
       >
         <header>
-          <h2 id={heading}>{tag ? "Edit tag" : "New tag"}</h2>
+          <div>
+            <h2 id={heading}>{tag ? "Edit tag" : "New tag"}</h2>
+            <p>Organize related tasks across your lists.</p>
+          </div>
           <button
             type="button"
             className="icon-button"
@@ -411,54 +414,78 @@ export function TagDialog({
             <X size={18} />
           </button>
         </header>
-        <label className="tag-dialog-label">
-          Name
-          <input
-            {...noTextSuggestions}
-            ref={input}
-            aria-label="Tag name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="e.g. Reading"
-            aria-invalid={duplicate}
-          />
-        </label>
-        {duplicate && (
-          <p className="tag-dialog-error" role="alert">
-            A tag with this name already exists.
-          </p>
-        )}
-        <label className="tag-dialog-label">
-          Group
-          <select
-            aria-label="Tag group"
-            value={group}
-            onChange={(event) => setGroup(event.target.value as TagGroup)}
-          >
-            {TAG_GROUPS.map((category) => (
-              <option value={category.id} key={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <fieldset className="tag-color-field">
-          <legend>Color</legend>
-          <div className="tag-colors">
-            {TAG_COLORS.map((value) => (
-              <button
-                type="button"
-                key={value}
-                aria-label={`Tag color ${value}`}
-                aria-pressed={color === value}
-                style={{ background: value }}
-                onClick={() => setColor(value)}
+        <div className="tag-dialog-body">
+          <div className="tag-dialog-field">
+            <label className="tag-dialog-label">
+              Name
+              <input
+                {...noTextSuggestions}
+                ref={input}
+                aria-label="Tag name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="e.g. Reading"
+                aria-invalid={duplicate}
+                aria-describedby={duplicate ? `${heading}-error` : undefined}
+              />
+            </label>
+            {duplicate && (
+              <p
+                id={`${heading}-error`}
+                className="tag-dialog-error"
+                role="alert"
               >
-                {color === value && <Check size={14} />}
-              </button>
-            ))}
+                A tag with this name already exists.
+              </p>
+            )}
           </div>
-        </fieldset>
+          <div className="tag-dialog-field">
+            <label className="tag-dialog-label">
+              Group
+              <select
+                aria-label="Tag group"
+                aria-describedby={`${heading}-group-help`}
+                value={group}
+                onChange={(event) => setGroup(event.target.value as TagGroup)}
+              >
+                {TAG_GROUPS.map((category) => (
+                  <option value={category.id} key={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p id={`${heading}-group-help`} className="tag-dialog-hint">
+              Where this tag appears in your sidebar.
+            </p>
+          </div>
+          <fieldset className="tag-color-field">
+            <legend>Color</legend>
+            <div className="tag-colors">
+              {TAG_COLORS.map((value) => (
+                <button
+                  type="button"
+                  key={value}
+                  aria-label={`Tag color ${value}`}
+                  aria-pressed={color === value}
+                  style={tagStyle({ color: value })}
+                  onClick={() => setColor(value)}
+                >
+                  <span>
+                    {color === value && <Check size={15} strokeWidth={2.5} />}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          <div className="tag-dialog-preview" aria-label="Tag preview">
+            <span>Preview</span>
+            <span className="tag-chip" style={tagStyle({ color })}>
+              <Hash size={12} aria-hidden="true" />
+              <span>{normalized || "Your tag"}</span>
+            </span>
+          </div>
+        </div>
         <footer>
           {tag && onDelete && (
             <button type="button" className="tag-delete" onClick={onDelete}>

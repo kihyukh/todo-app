@@ -297,68 +297,206 @@
     margin-right: 22px;
   }
 }
-.tag-dialog-label {
+.modal-backdrop.tag-dialog-backdrop {
+  padding: 24px;
+  background: #18291f38;
+  backdrop-filter: blur(2px);
+}
+.modal.tag-dialog {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  margin-top: 14px;
-  color: #536179;
-  font-size: 12px;
+  width: 420px;
+  max-width: 100%;
+  max-height: calc(100dvh - 48px);
+  border: 1px solid #dce4de;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow:
+    0 20px 64px #172c2429,
+    0 3px 12px #172c2410;
 }
-.tag-dialog-label input,
-.tag-dialog-label select {
+.modal.tag-dialog > header {
+  align-items: flex-start;
+  flex-shrink: 0;
+  padding: 24px 24px 0;
+  border: 0;
+}
+.tag-dialog > header > div {
+  flex: 1;
+  min-width: 0;
+}
+.tag-dialog > header h2 {
+  font-size: 20px;
+  line-height: 1.3;
+  letter-spacing: -0.4px;
+}
+.tag-dialog > header p {
+  margin: 7px 0 0;
+  color: #68766d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.tag-dialog > header .icon-button {
+  width: 32px;
+  height: 32px;
+  margin: -4px -6px 0 0;
+  border-radius: 7px;
+  color: #66746b;
+}
+.tag-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px;
+}
+.tag-dialog .tag-dialog-label {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0;
+  color: #3c4c41;
+  font-size: 12px;
+  font-weight: 550;
+}
+.tag-dialog .tag-dialog-label input,
+.tag-dialog .tag-dialog-label select {
   display: block;
   width: 100%;
-  padding: 9px 11px;
-  border: 1px solid #cfd7e4;
-  border-radius: 6px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid #cad5cd;
+  border-radius: 8px;
   background: #fff;
   color: var(--ink);
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.4;
 }
-.tag-dialog-label input:focus,
-.tag-dialog-label select:focus {
+.tag-dialog .tag-dialog-label input::placeholder {
+  color: #89958d;
+}
+.tag-dialog .tag-dialog-label input:focus,
+.tag-dialog .tag-dialog-label select:focus {
   border-color: var(--blue);
-  box-shadow: 0 0 0 2px #24704f14;
+  box-shadow: 0 0 0 3px #24704f14;
 }
-.tag-dialog-label input[aria-invalid="true"] {
+.tag-dialog .tag-dialog-label input[aria-invalid="true"] {
   border-color: var(--danger);
+}
+.tag-dialog-hint {
+  margin: 7px 0 0;
+  color: #738076;
+  font-size: 11px;
+  line-height: 1.5;
 }
 .tag-dialog-error {
   color: var(--danger);
-  font-size: 11px;
-  margin: 7px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 8px 0 0;
 }
 .tag-color-field {
-  margin: 17px 0 0;
+  min-width: 0;
+  margin: 0;
   padding: 0;
   border: 0;
 }
 .tag-color-field legend {
   padding: 0;
   margin-bottom: 10px;
-  color: #536179;
+  color: #3c4c41;
   font-size: 12px;
+  font-weight: 550;
 }
 .tag-colors {
-  display: flex;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 44px));
+  gap: 8px;
 }
-.tag-colors button {
+.modal.tag-dialog .tag-colors button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 100%;
+  height: 44px;
   padding: 0;
-  border: 2px solid transparent;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+}
+.tag-colors button > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
+  background: var(--tag-color);
   color: white;
 }
-.tag-colors button[aria-pressed="true"] {
-  box-shadow:
-    0 0 0 2px #fff,
-    0 0 0 3px #98a9c3;
+.modal.tag-dialog .tag-colors button:hover {
+  background: #f0f4f1;
+}
+.modal.tag-dialog .tag-colors button[aria-pressed="true"] {
+  border-color: var(--tag-color);
+  background: #f2f6f3;
+}
+.tag-dialog button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.tag-dialog-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 46px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f4f7f4;
+  color: #718076;
+  font-size: 11px;
+}
+.tag-dialog-preview > span:first-child {
+  flex-shrink: 0;
+}
+.tag-dialog-preview .tag-chip {
+  min-width: 0;
+  background: #fff;
+  border-color: #dce4de;
+  padding: 5px 7px;
+  font-size: 12px;
+}
+.tag-dialog > footer {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 24px 20px;
+  border-top: 1px solid #e5ebe6;
+  background: #fbfcfb;
+}
+.tag-dialog > footer > .secondary-button,
+.tag-dialog > footer > .primary-button {
+  min-height: 38px;
+  min-width: 82px;
+  margin: 0;
+  border-radius: 8px;
+  padding: 9px 15px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.tag-dialog > footer > .secondary-button {
+  color: #536359;
+  border-color: #d9e2db;
+}
+.tag-dialog > footer > .primary-button:disabled {
+  background: #e1e9e3;
+  color: #78887d;
+  opacity: 1;
 }
 .tag-dialog footer .tag-delete {
   display: inline-flex;
@@ -367,7 +505,64 @@
   margin-right: auto;
   color: var(--danger);
   font-size: 11px;
-  padding: 7px 0;
+  padding: 9px 0;
+}
+.is-touch-device .tag-dialog > header .icon-button {
+  width: 44px;
+  height: 44px;
+  margin: -9px -10px 0 0;
+}
+.is-touch-device .tag-dialog .tag-dialog-label input,
+.is-touch-device .tag-dialog .tag-dialog-label select {
+  min-height: 44px;
+  font-size: 16px;
+}
+.is-touch-device .tag-dialog > footer > .primary-button,
+.is-touch-device .tag-dialog > footer > .secondary-button,
+.is-touch-device .tag-dialog > footer > .tag-delete {
+  min-height: 44px;
+}
+@media (max-width: 600px) {
+  .modal-backdrop.tag-dialog-backdrop {
+    padding: 14px;
+  }
+  .modal.tag-dialog {
+    max-height: calc(100dvh - 28px);
+  }
+  .modal.tag-dialog > header {
+    padding: 22px 20px 0;
+  }
+  .tag-dialog > header .icon-button {
+    width: 44px;
+    height: 44px;
+    margin: -9px -10px 0 0;
+  }
+  .tag-dialog-body {
+    padding: 22px 20px;
+    gap: 20px;
+  }
+  .tag-dialog .tag-dialog-label input,
+  .tag-dialog .tag-dialog-label select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .tag-dialog > footer {
+    flex-wrap: wrap;
+    padding: 14px 20px 18px;
+  }
+  .tag-dialog > footer > .primary-button,
+  .tag-dialog > footer > .secondary-button,
+  .tag-dialog > footer > .tag-delete {
+    min-height: 44px;
+  }
+}
+@media (max-width: 360px) {
+  .tag-dialog .tag-colors {
+    grid-template-columns: repeat(3, 44px);
+  }
+  .tag-dialog > footer > .tag-delete {
+    flex-basis: 100%;
+  }
 }
 @media (max-width: 560px) {
   .tag-popover {
