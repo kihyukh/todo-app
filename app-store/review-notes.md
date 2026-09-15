@@ -1,6 +1,6 @@
 # App Review notes
 
-Prepared copy for both platform versions. Review contact fields must be completed privately in App Store Connect. Run the walkthrough on the actual submitted builds before pasting the text below. Screenshots and runtime validation are tracked in [APP-STORE.md](../docs/APP-STORE.md).
+Review notes and complete private review contacts are saved for both platform versions **1.0.0 (1)** in App Store Connect. The private phone number is intentionally omitted here. The walkthrough below describes review access; completed runtime checks and remaining coverage are recorded separately. Screenshots and runtime validation are tracked in [APP-STORE.md](../docs/APP-STORE.md).
 
 ---
 

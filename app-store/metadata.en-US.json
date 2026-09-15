@@ -1,5 +1,5 @@
 {
-  "status": "listing-prepared-builds-selected-not-submitted",
+  "status": "submitted-waiting-for-review",
   "workingName": "GreenDay",
   "name": "GreenDay: Tasks & Notes",
   "displayName": "GreenDay",
@@ -25,7 +25,7 @@
     "status": "saved-to-app-store-connect",
     "price": "free",
     "countriesOrRegions": "all-175-current-and-future-regions",
-    "releaseMode": "automatic-after-approval-current-default"
+    "releaseMode": "automatic-after-approval-verified-both-platforms"
   },
   "futureMonetization": {
     "plan": "In-app purchases may be added in a later release.",
@@ -45,9 +45,29 @@
     "phoneStorage": "Provided privately and saved in App Store Connect for both platforms; intentionally omitted from repository files."
   },
   "distributionPlan": {
-    "status": "both-builds-selected-review-contacts-and-notes-saved",
+    "status": "both-platforms-submitted-waiting-for-review",
     "platforms": ["iOS", "macOS"],
-    "appRecord": "App Store record 6812229239 contains iOS and macOS versions 1.0.0, both in Prepare for Submission, with registered identifier com.kihyukh.greenday. Both uploaded builds 1.0.0 (1) show Complete and Ready to Submit in TestFlight. Selected builds 1.0.0 (1), complete private App Review contacts, and review notes are saved and verified for both platform versions. The listing name GreenDay: Tasks & Notes is saved; the native app display name remains GreenDay."
+    "appRecord": "App Store record 6812229239 contains iOS and macOS versions 1.0.0, both submitted with build 1.0.0 (1) and verified Waiting for Review on 2026-09-15. Registered identifier: com.kihyukh.greenday. Complete private App Review contacts and review notes are saved for both platforms. The listing name GreenDay: Tasks & Notes is saved; the native app display name remains GreenDay. Automatic release after approval is selected on both; approval and public availability remain pending.",
+    "submissions": {
+      "macOS": {
+        "version": "1.0.0",
+        "build": "1",
+        "submittedAt": "2026-09-15T22:21:00+09:00",
+        "status": "Waiting for Review",
+        "id": "e403c32b-3d2a-49a8-98b2-ca6d3e8dc243",
+        "url": "https://appstoreconnect.apple.com/apps/6812229239/distribution/reviewsubmissions/details/e403c32b-3d2a-49a8-98b2-ca6d3e8dc243",
+        "releaseMode": "automatic-after-approval"
+      },
+      "iOS": {
+        "version": "1.0.0",
+        "build": "1",
+        "submittedAt": "2026-09-15T22:23:00+09:00",
+        "status": "Waiting for Review",
+        "id": "e466323a-c2c9-456d-a9ea-a30dbcee92b3",
+        "url": "https://appstoreconnect.apple.com/apps/6812229239/distribution/reviewsubmissions/details/e466323a-c2c9-456d-a9ea-a30dbcee92b3",
+        "releaseMode": "automatic-after-approval"
+      }
+    }
   },
   "storeSetup": {
     "versionMetadata": "Saved for iOS and macOS: 1.0.0, promotional text, description, keywords, support/marketing URLs, copyright, and no reviewer sign-in.",
@@ -57,13 +77,17 @@
     "privacyLabel": "Published: Data Not Collected; verified in App Store Connect on 2026-09-15 after the publisher completed certification.",
     "reviewContact": "Complete contact provided privately and saved for iOS and macOS; phone intentionally omitted from repository metadata.",
     "euTraderStatus": "Digital Services Act Compliance verified on 2026-09-15: all regulatory requirements complete at this time. Trader classification and private declaration details are not recorded here.",
-    "screenshots": "Uploaded and verified: one 1320x2868 iPhone screenshot (6.9-inch slot) and three 2064x2752 iPad screenshots (13-inch slot). Native final Release simulator UI, fictional data only. Mac screenshot pending manual capture.",
-    "submission": "Neither platform submitted to App Review or released.",
+    "screenshots": "Uploaded and accepted: one 1320x2868 iPhone screenshot (6.9-inch slot), three 2064x2752 iPad screenshots (13-inch slot), and one 2880x1800 Mac screenshot (1 of 10 persisted). Native captures with fictional data only; preparation and hashes are retained in the platform manifests.",
+    "submission": "Both platforms submitted on 2026-09-15 and verified Waiting for Review: Mac at 22:21 KST and iOS at 22:23 KST. Automatic release after approval is selected; neither is approved or publicly released yet.",
     "buildSelection": "Selected build 1.0.0 (1) and App Review notes saved and verified for both platforms.",
-    "remainingRequirements": [
-      "Capture and upload the Mac screenshot.",
-      "Complete remaining offline/reconnection, attachment-import, and calendar-provider checks."
-    ],
-    "runtimeValidation": "Physical iPhone QA passed initial folder selection, two-way task/note/checklist iCloud delivery, note persistence after backgrounding and a fresh relaunch, and PDF opening before and after relaunch. Date saving was confirmed directly by the user; independent date-transfer verification remains separate. Development-signed QA does not verify App Store installation."
+    "remainingRequirements": [],
+    "runtimeValidation": "Physical iPhone QA passed initial folder selection, two-way task/note/checklist iCloud delivery, note persistence after backgrounding and a fresh relaunch, and PDF opening before and after relaunch. Date saving was confirmed directly by the user; independent date-transfer verification remains separate. Development-signed QA does not verify App Store installation.",
+    "contentRights": "No third-party editorial content. Submission validation found the earlier answer was not persisted; No was then selected and the outer App Information Save confirmed Saved on 2026-09-15.",
+    "followUpValidation": [
+      "Offline edits and reconnection.",
+      "Image/PDF import and broader file-provider error recovery.",
+      "Calendar-provider synchronization and remaining recurring-event, permission, and error scenarios.",
+      "App Store installation; physical testing used a development-signed QA build."
+    ]
   }
 }

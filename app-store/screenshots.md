@@ -1,6 +1,6 @@
 # Store screenshot capture sheet
 
-Status: **iPhone and iPad captured and uploaded; Mac pending manual capture**. Use the signed or final release-configured apps with a fresh fictional workspace. Existing screenshots of browser previews and the publisher's migrated workspace are not submission assets.
+Status: **iPhone, iPad, and Mac screenshots uploaded and accepted**. Use the signed or final release-configured apps with a fresh fictional workspace. Existing screenshots of browser previews and the publisher's migrated workspace are not submission assets.
 
 | Order | Screen                   | Fictional content                                                 | Purpose                                                      |
 | ----- | ------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------ |
@@ -34,7 +34,7 @@ Use opaque PNG or JPEG, one to ten screenshots per set. Confirm available slots 
 
 ## Uploaded on 15 September 2026
 
-These are native captures from the final Release simulator app. All 62 bundled web files match the uploaded release exactly. JPEG export preserves pixel dimensions and removes the alpha channel without altering the interface. All visible tasks are fictional.
+The iPhone and iPad assets are native captures from the final Release simulator app. All 62 bundled web files match the uploaded release exactly. Their JPEG export preserves pixel dimensions and removes the alpha channel without altering the interface. The Mac asset is a user-supplied native QA capture with fictional Research tasks, uniformly scaled onto an opaque 2880 × 1800 canvas without cropping or stretching. Both manifests record the preparation and hashes. All visible tasks are fictional.
 
 | Asset                                                               | Dimensions  | App Store slot  |
 | ------------------------------------------------------------------- | ----------- | --------------- |
@@ -42,7 +42,8 @@ These are native captures from the final Release simulator app. All 62 bundled w
 | [iPad tasks and math](screenshots/ios/ipad-01-tasks-and-notes.jpg)  | 2064 × 2752 | iPad 13-inch    |
 | [iPad work days](screenshots/ios/ipad-02-work-days.jpg)             | 2064 × 2752 | iPad 13-inch    |
 | [iPad open checkboxes](screenshots/ios/ipad-03-open-checkboxes.jpg) | 2064 × 2752 | iPad 13-inch    |
+| [Mac tasks and notes](screenshots/macos/mac-01-tasks-and-notes.jpg) | 2880 × 1800 | Mac             |
 
-App Store Connect confirms one iPhone image and three iPad images. The [manifest](screenshots/ios/manifest.json) records their hashes. No Mac image is uploaded.
+App Store Connect confirms **1 of 10** iPhone images, **3 of 10** iPad images, and **1 of 10** Mac images; the Mac upload persisted after saving. The [iOS manifest](screenshots/ios/manifest.json) and [Mac manifest](screenshots/macos/manifest.json) record their hashes.
 
-For the remaining Mac capture, use the isolated `~/Library/Caches/GreenDay/AppStore/QA/GreenDay Release QA.app` with its fictional workspace, select the Research list, and show the paper-review task’s math note. Verify the current task view against the final build before capture. Capture a 1440 × 900 or 2880 × 1800 pixel native window with macOS Shift-Command-4, Space, then Option-click to exclude the shadow. Confirm the resulting image dimensions and remove unrelated desktop elements before uploading. Do not capture the working app’s private tasks.
+For future Mac captures, use the isolated `~/Library/Caches/GreenDay/AppStore/QA/GreenDay Release QA.app` with its fictional workspace, select the Research list, and show the paper-review task’s math note. Verify the current task view against the final build before capture. Capture a 1440 × 900 or 2880 × 1800 pixel native window with macOS Shift-Command-4, Space, then Option-click to exclude the shadow. Confirm the resulting image dimensions and remove unrelated desktop elements before uploading. Do not capture the working app’s private tasks.
