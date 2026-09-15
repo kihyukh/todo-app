@@ -66,11 +66,18 @@ These results establish build and local interaction behavior. They do not establ
 - The installed Mac app confirmed row selection, duplication, Undo, and immediate border dragging; the 125px width was verified in the saved test record. The iPhone simulator confirmed touch handles, an on-screen column menu, insertion, and Undo. Temporary native test tasks were moved to Trash afterward; existing tasks were preserved.
 - Production web, Mac, simulator, and unsigned device archive builds passed. All 62 bundled web assets matched exactly across the outputs. No personal workspace or development directories were bundled.
 
-## Current window and navigation cleanup
+## Previous window and navigation cleanup
 
 - All **577 frontend tests** pass. Production web, Mac, simulator, and unsigned archive builds passed; the Mac change also passed its macOS 13 typecheck. All 62 packaged web assets match across the outputs, with no personal data or development sources bundled.
 - The installed Mac app shows full-size content with native window buttons and no visible title strip or sidebar branding. Top-edge task actions and the sidebar drag area were checked with pointer input. The user's current task was restored after reopening, with its saved note preserved.
 - The iPhone simulator confirmed a compact search/close row below the safe area and normal drawer opening/dismissal. No task records were edited for these checks.
+
+## Current top-header window dragging
+
+- Production web, Mac, simulator, and unsigned archive builds passed. All 62 web assets match across the outputs, with no personal records or development directories packaged. MacOS 13 and iOS 16 typechecks passed.
+
+- All **596 frontend tests** pass, including 16 window-drag tests and three App/platform checks. The tests verify that only designated top headers initiate dragging; pane bodies, notes, controls, task rows, calendars, scrollbars, and resize dividers preserve normal gestures. Browser and iPhone do not install the window-drag handler.
+- Native diagnostics confirmed real AppKit window movement. The implementation preserves the original mouse-down and matches the web reply to that gesture; a completed quick drag can apply its measured movement without interpreting ordinary clicks as drags. Temporary diagnostics were removed from the final app.
 
 ## Still needed before distribution
 

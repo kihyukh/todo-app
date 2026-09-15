@@ -19,6 +19,7 @@ import {
   needsIOSWorkspaceSetup,
 } from "../src/platform";
 import { nativeSend } from "../src/storage";
+import { isWindowDragTarget } from "../src/window-drag";
 
 let root: Root | undefined;
 let initialStorage: StorageInfo = { kind: "local" };
@@ -328,4 +329,109 @@ describe("mobile keyboard dismissal", () => {
     await act(async () => label<HTMLInputElement>("New task title")!.focus());
     expect(label("Dismiss keyboard")).toBeNull();
   });
+});
+
+describe("Mac window dragging", () => {
+  function mouseDown(element: Element) {
+    const event = new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      buttons: 1,
+      clientX: 220,
+      clientY: 36,
+      detail: 1,
+    });
+    act(() => {
+      element.dispatchEvent(event);
+    });
+    return event;
+  }
+
+  it("moves the native Mac window from top headers while keeping body space and controls untouched", async () => {
+    const stamp = "2026-09-15T00:00:00.000Z";
+    initialState = {
+      ...initial,
+      tasks: [
+        {
+          id: "drag-check",
+          title: "Window drag check",
+          notes: emptyDoc(),
+          projectId: "",
+          columnId: "next",
+          doDate: dateKey(),
+          deadline: null,
+          completedAt: null,
+          deletedAt: null,
+          createdAt: stamp,
+          updatedAt: stamp,
+          attachments: [],
+        },
+      ],
+    };
+    const app = await mount("macos");
+    await click(app.querySelector<HTMLElement>(".task-content")!);
+    const before = structuredClone(latest);
+    vi.mocked(nativeSend).mockClear();
+    for (const selector of [
+      ".sidebar-window-drag",
+      ".workspace-top",
+      ".workspace-header",
+      ".detail-top",
+    ]) {
+      const header = app.querySelector(selector)!;
+      expect(header, selector).not.toBeNull();
+      expect(isWindowDragTarget(header), selector).toBe(true);
+      expect(mouseDown(header).defaultPrevented, selector).toBe(true);
+    }
+    expect(actionableNativeMessages()).toEqual(
+      Array.from({ length: 4 }, () => ({
+        action: "dragWindow",
+        x: 220,
+        y: 36,
+        clickCount: 1,
+      })),
+    );
+    vi.mocked(nativeSend).mockClear();
+    for (const selector of [
+      ".sidebar",
+      ".sidebar-collections",
+      ".workspace",
+      ".task-scroll",
+      ".task-row",
+      ".detail",
+      ".detail-scroll",
+      ".detail-footer",
+      ".detail-top button",
+      ".workspace-header button",
+      ".search input",
+      '[aria-label="Task notes"]',
+    ]) {
+      const area = app.querySelector(selector)!;
+      expect(area, selector).not.toBeNull();
+      expect(isWindowDragTarget(area), selector).toBe(false);
+      expect(mouseDown(area).defaultPrevented, selector).toBe(false);
+    }
+    expect(actionableNativeMessages()).toEqual([]);
+    expect(latest).toEqual(before);
+  });
+
+  it.each([undefined, "ios"] as const)(
+    "leaves header mouse gestures alone on %s",
+    async (platform) => {
+      if (platform === "ios") {
+        window.__DAYMARK_PLATFORM__ = "ios";
+        finishIOSWorkspaceSetup();
+      }
+      const app = await mount(platform);
+      expect(app.querySelector(".sidebar-window-drag")).toBeNull();
+      vi.mocked(nativeSend).mockClear();
+      for (const selector of [".workspace-top", ".workspace-header"]) {
+        const header = app.querySelector(selector)!;
+        expect(header).not.toBeNull();
+        expect(mouseDown(header).defaultPrevented).toBe(false);
+      }
+      expect(actionableNativeMessages()).toEqual([]);
+    },
+  );
 });

@@ -2,8 +2,8 @@ import AppKit
 import WebKit
 import UniformTypeIdentifiers
 
-/// The only extra drag target is the unused space above sidebar search. Keeping
-/// it narrow leaves task controls and the editor interactive up to the top edge.
+/// The traffic-light reserve is native; the remaining top drag areas are hit-
+/// tested by the web UI so task controls and editor content stay usable.
 private final class SidebarWindowDragView: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
@@ -17,9 +17,118 @@ private final class SidebarWindowDragView: NSView {
     }
 }
 
+/// WebKit classifies the hit target asynchronously. Retain the native gesture
+/// until that reply so fast flicks do not disappear between mouse-down and reply.
+private final class WebWindowDragController {
+    private struct Gesture {
+        let down: NSEvent
+        let clientPoint: NSPoint
+        let startScreenPoint: NSPoint
+        let initialFrame: NSRect
+        var lastScreenPoint: NSPoint
+        var isDown = true
+        var didDrag = false
+    }
+
+    private weak var webView: WKWebView?
+    private weak var window: NSWindow?
+    private var gesture: Gesture?
+    private var eventMonitor: Any?
+    private var observers = [NSObjectProtocol]()
+
+    init(webView: WKWebView, window: NSWindow) {
+        self.webView = webView
+        self.window = window
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp, .rightMouseDown, .otherMouseDown]) { [weak self] event in
+            self?.record(event)
+            return event
+        }
+        let center = NotificationCenter.default
+        for (name, object) in [
+            (NSApplication.didResignActiveNotification, NSApp as AnyObject),
+            (NSWindow.didResignKeyNotification, window),
+            (NSWindow.willCloseNotification, window),
+            (NSWindow.willEnterFullScreenNotification, window),
+        ] {
+            observers.append(center.addObserver(forName: name, object: object, queue: .main) { [weak self] _ in
+                self?.gesture = nil
+            })
+        }
+    }
+
+    deinit {
+        if let eventMonitor { NSEvent.removeMonitor(eventMonitor) }
+        for observer in observers { NotificationCenter.default.removeObserver(observer) }
+    }
+
+    private func record(_ event: NSEvent) {
+        guard let webView, let window else { gesture = nil; return }
+        if event.type == .leftMouseDown {
+            gesture = nil
+            guard event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+                  event.window === window, webView.window === window,
+                  !window.styleMask.contains(.fullScreen) else { return }
+            let local = webView.convert(event.locationInWindow, from: nil)
+            guard webView.bounds.contains(local) else { return }
+            let zoom = webView.pageZoom
+            guard zoom > 0 else { return }
+            let client = NSPoint(x: (local.x - webView.bounds.minX) / zoom,
+                                 y: (webView.isFlipped ? local.y - webView.bounds.minY : webView.bounds.maxY - local.y) / zoom)
+            let screenPoint = window.convertPoint(toScreen: event.locationInWindow)
+            gesture = Gesture(down: event, clientPoint: client, startScreenPoint: screenPoint,
+                              initialFrame: window.frame, lastScreenPoint: screenPoint)
+        } else if event.type == .leftMouseDragged || event.type == .leftMouseUp {
+            guard var current = gesture, current.isDown, event.window === window else {
+                gesture = nil
+                return
+            }
+            current.lastScreenPoint = window.convertPoint(toScreen: event.locationInWindow)
+            if event.type == .leftMouseDragged { current.didDrag = true }
+            if event.type == .leftMouseUp { current.isDown = false }
+            gesture = current
+        } else {
+            gesture = nil
+        }
+    }
+
+    func beginDrag(x: Double, y: Double, clickCount: Int) {
+        guard let current = gesture else { return }
+        // A queued reply for an earlier down must not consume a newer gesture.
+        let pointMatches = abs(current.clientPoint.x - x) <= 2 && abs(current.clientPoint.y - y) <= 2
+        let clickMatches = current.down.clickCount == clickCount
+        guard pointMatches, clickMatches else { return }
+        // Consume once before handing the gesture to AppKit or catching it up.
+        gesture = nil
+        guard let window, webView?.window === window,
+              current.down.window === window,
+              NSApp.isActive, window.isKeyWindow, window.isVisible,
+              !window.isMiniaturized, window.attachedSheet == nil,
+              !window.styleMask.contains(.fullScreen) else { return }
+        let age = ProcessInfo.processInfo.systemUptime - current.down.timestamp
+        guard age >= 0, age <= 1 else { return }
+        if current.down.clickCount == 2 && !current.didDrag {
+            // A double-click remains a click if its release beat WebKit's reply.
+            window.performZoom(nil)
+        } else if current.isDown {
+            // Use the app-local down/up state: accessibility-generated mouse
+            // events need not update the session-wide pressedMouseButtons mask.
+            window.performDrag(with: current.down)
+        } else if current.didDrag, window.frame == current.initialFrame {
+            let delta = NSPoint(x: current.lastScreenPoint.x - current.startScreenPoint.x,
+                                y: current.lastScreenPoint.y - current.startScreenPoint.y)
+            guard hypot(delta.x, delta.y) >= 3 else { return }
+            var frame = current.initialFrame.offsetBy(dx: delta.x, dy: delta.y)
+            let screen = NSScreen.screens.first { $0.frame.contains(current.lastScreenPoint) } ?? window.screen
+            frame = window.constrainFrameRect(frame, to: screen)
+            window.setFrameOrigin(frame.origin)
+        }
+    }
+}
+
 final class DaymarkAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow!
     private var bridge: DaymarkWebBridge!
+    private var windowDrag: WebWindowDragController?
     private var terminationPending = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -38,6 +147,8 @@ final class DaymarkAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             window.backgroundColor = NSColor(calibratedRed: 243 / 255, green: 244 / 255, blue: 246 / 255, alpha: 1)
             window.minSize = NSSize(width: 860, height: 620)
             installContent(webView)
+            windowDrag = WebWindowDragController(webView: webView, window: window)
+            bridge.dragWindow = { [weak self] x, y, clickCount in self?.windowDrag?.beginDrag(x: x, y: y, clickCount: clickCount) }
             window.initialFirstResponder = webView
             window.delegate = self
             window.setFrameAutosaveName("DaymarkMainWindow")

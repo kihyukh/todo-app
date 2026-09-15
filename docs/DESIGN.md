@@ -27,7 +27,7 @@ The visual direction uses dark charcoal-green text, readable muted metadata, a q
 
 ## Window and navigation
 
-The workspace opens directly into search and task navigation, without a logo/name header. The Mac window uses full-size content and a transparent, untitled titlebar, so the task list and detail pane reach the top edge. The native window buttons sit over the sidebar. Only the sidebar reserves 44px above search; an invisible native drag area stays within its minimum width, leaving task controls and notes interactive. The iPhone drawer puts its close button beside search and respects the safe area.
+The workspace opens directly into search and task navigation, without a logo/name header. The Mac window uses full-size content and a transparent, untitled titlebar, so the task list and detail pane reach the top edge. The native window buttons sit over the sidebar. Only the sidebar reserves 44px above search. Window dragging is limited to the top: the space beside the window buttons, the workspace heading area, and the task-detail header. Pane bodies and their empty space never initiate window dragging. Buttons, task rows, note editors (including their writing space), calendars, menus, forms, scrollbars, and pane dividers keep their own gestures. Browser and iPhone interaction is unchanged. The iPhone drawer puts its close button beside search and respects the safe area.
 
 ## Task details and dates
 

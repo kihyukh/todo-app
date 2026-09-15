@@ -61,6 +61,7 @@ import CalendarWorkspace, {
 import TaskScheduleField from "./TaskScheduleField";
 import { PrivacyInfo } from "./PrivacyInfo";
 import { APP_NAME, APP_VERSION } from "./brand";
+import { installWindowDragging } from "./window-drag";
 import {
   dismissSoftwareKeyboard,
   finishIOSWorkspaceSetup,
@@ -216,6 +217,17 @@ function App() {
       );
   const selected = state.tasks.find((t) => t.id === selectedId && !t.deletedAt);
   const panes = usePaneWidths(!!selected);
+  useEffect(() => {
+    if (
+      !ready ||
+      window.__DAYMARK_PLATFORM__ !== "macos" ||
+      !panes.shell.current
+    )
+      return;
+    return installWindowDragging(panes.shell.current, (gesture) =>
+      nativeSend({ action: "dragWindow", ...gesture }),
+    );
+  }, [ready, panes.shell]);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
     const field = titleRef.current;
@@ -908,6 +920,13 @@ function App() {
       <PaneDivider kind="sidebar" layout={panes} hasDetail={!!selected} />
       <PaneDivider kind="detail" layout={panes} hasDetail={!!selected} />
       <aside className="sidebar">
+        {window.__DAYMARK_PLATFORM__ === "macos" && (
+          <div
+            className="sidebar-window-drag"
+            data-window-drag
+            aria-hidden="true"
+          />
+        )}
         <div className="sidebar-search-row">
           <div className="search">
             <Search size={15} />
@@ -1055,7 +1074,7 @@ function App() {
       <main
         className={`workspace ${mode === "board" && view !== "checkboxes" && view !== "calendar" ? "board-workspace" : ""} ${view === "calendar" ? "calendar-workspace-container" : ""}`}
       >
-        <div className="workspace-top">
+        <div className="workspace-top" data-window-drag>
           <IconButton label="Show sidebar" onClick={() => setSidebar(true)}>
             <PanelLeft size={18} />
           </IconButton>
@@ -1078,7 +1097,7 @@ function App() {
             )}
           </div>
         </div>
-        <header className="workspace-header">
+        <header className="workspace-header" data-window-drag>
           <h1>{title}</h1>
           <div className="view-actions">
             {!["checkboxes", "trash", "completed", "calendar"].includes(
@@ -1545,7 +1564,7 @@ function App() {
       </main>
       {selected && (
         <aside className="detail" key={selected.id}>
-          <header className="detail-top">
+          <header className="detail-top" data-window-drag>
             <button
               className="detail-back"
               onClick={() => setSelectedId(null)}

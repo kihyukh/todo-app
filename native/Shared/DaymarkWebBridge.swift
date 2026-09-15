@@ -51,6 +51,9 @@ final class DaymarkWebBridge: NSObject, WKScriptMessageHandler, WKNavigationDele
     var attach: ((Any?) -> Void)?
     var export: (([String: Any]?, Any?) -> Void)?
     var openURL: ((URL) -> Void)?
+    #if os(macOS)
+    var dragWindow: ((Double, Double, Int) -> Void)?
+    #endif
     private var timer: Timer?
     private var signature: Data?
     private var ready = false
@@ -93,7 +96,12 @@ final class DaymarkWebBridge: NSObject, WKScriptMessageHandler, WKNavigationDele
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.frameInfo.isMainFrame, message.frameInfo.request.url?.host == "app", let body = message.body as? [String: Any], let action = body["action"] as? String else { return }
+        guard message.webView === webView,
+              message.frameInfo.isMainFrame,
+              message.frameInfo.request.url?.scheme == "daymark",
+              message.frameInfo.request.url?.host == "app",
+              let body = message.body as? [String: Any],
+              let action = body["action"] as? String else { return }
         let requestID = body["requestId"]
         do {
             switch action {
@@ -104,6 +112,13 @@ final class DaymarkWebBridge: NSObject, WKScriptMessageHandler, WKNavigationDele
             case "chooseFolder": chooseFolder?(requestID)
             case "attach": attach?(requestID)
             case "export": export?(body["state"] as? [String: Any], requestID)
+            #if os(macOS)
+            case "dragWindow":
+                guard let x = body["x"] as? Double, let y = body["y"] as? Double,
+                      x.isFinite, y.isFinite,
+                      let clickCount = body["clickCount"] as? Int, clickCount > 0 else { return }
+                dragWindow?(x, y, clickCount)
+            #endif
             case "calendarStatus", "calendarConnect", "calendarEvents", "calendarSave", "calendarDelete":
                 calendars.handle(action, body: body) { [weak self] result in
                     switch result {

@@ -104,6 +104,17 @@ a {
   display: none;
   flex-shrink: 0;
 }
+/* Match the native traffic-light reserve across the sidebar's full width. */
+.is-native-mac .sidebar {
+  position: relative;
+}
+.sidebar-window-drag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+}
 /* Only the navigation pane reserves room for the Mac window controls. */
 .is-native-mac .sidebar-search-row {
   margin-top: 44px;
