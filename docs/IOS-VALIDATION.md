@@ -87,6 +87,7 @@ These results establish build and local interaction behavior. They do not establ
 - The installed Mac app confirmed the floating pane, three-column docking when zoomed wider, and the same selected task remaining open in a floating pane after restoring its original size. No personal task records were changed.
 - Production web, Mac, iPhone simulator, and unsigned device archive builds passed. All 62 web assets match across these outputs, with no personal records or development directories packaged. This update changes the shared interface; physical-device and provider-delivery limits below still apply.
 - The floating-pane entrance now slides from the right over 220ms, and the desktop close button is on the left of the header. Browser checks observed an animated transform on opening, no animation when switching/reselecting tasks or resizing, and the unchanged phone Back button with the desktop close button hidden. Task-opening controls explicitly bypass background dismissal so capture/bubble event timing cannot briefly close and remount the pane. All 611 existing tests still pass.
+- The close button is now shown only in the floating layout. Browser checks confirmed that it leaves no header gap in three-column view, reappears when narrowing, and stays hidden beside the phone's Back button. All 35 existing task-detail, pane-layout, and mobile App tests passed for this CSS-only follow-up.
 
 ## Still needed before distribution
 

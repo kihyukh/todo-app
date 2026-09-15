@@ -13,6 +13,9 @@
 .detail {
   container: task-detail / inline-size;
 }
+.app-shell[data-detail-layout="docked"] .detail-close {
+  display: none;
+}
 .detail .detail-top {
   height: 56px;
   min-height: 56px;
