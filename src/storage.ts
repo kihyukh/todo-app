@@ -125,6 +125,7 @@ export function useWorkspace() {
       );
       if (
         String(event.requestId ?? "").startsWith("calendar:") ||
+        String(event.requestId ?? "").startsWith("note-file:") ||
         String(event.type ?? "").startsWith("calendar")
       )
         return;

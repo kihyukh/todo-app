@@ -138,6 +138,64 @@ try check(store.attachmentData(url) == bytes, "Attachment bytes must round-trip"
 check(attachment["mime"] as? String == "image/png", "Attachment MIME should match")
 check(store.attachmentURL(URL(string: "daymark://attachment/subdirectory/file.pdf")!) == nil, "Attachment path traversal must be rejected")
 
+// Dropped files are copied from bytes and remain available without a task's
+// attachment-list entry. Their original names must never become storage paths.
+let droppedBytes = Data("%PDF-1.7\nDropped note document".utf8)
+let droppedName = "논문 검토.PDF"
+let dropped = try store.importAttachment(name: droppedName, mime: "application/pdf", base64: droppedBytes.base64EncodedString())
+let droppedURL = URL(string: dropped["url"] as! String)!
+check(dropped["name"] as? String == droppedName, "Dropped files must retain their original display names")
+check(dropped["mime"] as? String == "application/pdf" && dropped["size"] as? Int == droppedBytes.count, "Dropped file metadata must describe the copied bytes")
+check(UUID(uuidString: dropped["id"] as! String) != nil && droppedURL.pathExtension == "pdf", "Dropped files must use UUID names and sanitized lowercase extensions")
+try check(DaymarkStore(folder: directory).attachmentData(droppedURL) == droppedBytes, "Dropped bytes must survive reopening a workspace without an attachment-list entry")
+try check((current()["attachments"] as? [[String: Any]])?.isEmpty == true, "Importing bytes must not add a task attachment-list entry")
+
+for originalName in ["../outside.pdf", "/tmp/outside.pdf", "..\\outside.p$d-f", "report." + String(repeating: "z", count: 500)] {
+    let imported = try store.importAttachment(name: originalName, mime: "", base64: droppedBytes.base64EncodedString())
+    let importedURL = URL(string: imported["url"] as! String)!
+    let storedURL = store.attachmentURL(importedURL)!
+    check(storedURL.deletingLastPathComponent().standardizedFileURL == directory.appendingPathComponent("Attachments").standardizedFileURL, "A path-like original filename must stay contained in Attachments")
+    check(imported["name"] as? String == originalName, "The original name must remain display metadata")
+    check(storedURL.lastPathComponent.count <= 69, "A long extension must not exceed the generated filename limit")
+    try check(store.attachmentData(importedURL) == droppedBytes, "Path-like display names must not change imported content")
+}
+check(!fm.fileExists(atPath: directory.appendingPathComponent("outside.pdf").path), "Importing a traversal-style filename must not write outside Attachments")
+let unknown = try store.importAttachment(name: "handout.hwp", mime: "", base64: droppedBytes.base64EncodedString())
+check(unknown["mime"] as? String == "application/octet-stream", "Unknown file types must use a generic MIME fallback")
+let inferredPDF = try store.importAttachment(name: "paper.PDF", mime: "", base64: droppedBytes.base64EncodedString())
+check(inferredPDF["mime"] as? String == "application/pdf", "An empty MIME type must be inferred from a known extension")
+let emptyFile = try store.importAttachment(name: "empty.txt", mime: "text/plain", base64: "")
+let emptyURL = URL(string: emptyFile["url"] as! String)!
+try check(emptyFile["size"] as? Int == 0 && store.attachmentData(emptyURL).isEmpty, "Empty base64 must represent a valid zero-byte file")
+
+func checkImportRejected(_ message: String, name: String = "invalid.pdf", mime: String = "application/pdf", base64: String) throws {
+    let attachmentFolder = directory.appendingPathComponent("Attachments")
+    let before = try fm.contentsOfDirectory(atPath: attachmentFolder.path).count
+    var rejected = false
+    do { _ = try store.importAttachment(name: name, mime: mime, base64: base64) } catch { rejected = true }
+    check(rejected, message)
+    try check(fm.contentsOfDirectory(atPath: attachmentFolder.path).count == before, "A rejected import must not write an attachment")
+}
+for malformedBase64 in ["not base64!", "data:application/pdf;base64,JVBERg==", "JVBERg=", "JVBE\nRg==", "===="] {
+    try checkImportRejected("Malformed or wrapped base64 must be rejected", base64: malformedBase64)
+}
+for invalidName in ["", " \n", "bad\u{0}.pdf", String(repeating: "x", count: 1025)] {
+    try checkImportRejected("Invalid display names must be rejected", name: invalidName, base64: "YQ==")
+}
+for invalidMime in ["pdf", "text/plain\n", "text/plain; charset=utf-8"] {
+    try checkImportRejected("Invalid file MIME types must be rejected", mime: invalidMime, base64: "YQ==")
+}
+do {
+    let maximumBytes = Data(repeating: 97, count: DaymarkStore.maximumImportedAttachmentBytes)
+    let maximumFile = try store.importAttachment(name: "maximum.bin", mime: "", base64: maximumBytes.base64EncodedString())
+    let maximumURL = URL(string: maximumFile["url"] as! String)!
+    try check(store.attachmentData(maximumURL) == maximumBytes, "The 25 MB boundary must import successfully")
+    let tooManyBytes = Data(repeating: 97, count: DaymarkStore.maximumImportedAttachmentBytes + 1)
+    try checkImportRejected("Decoded content beyond 25 MB must be rejected even when its encoded length fits", base64: tooManyBytes.base64EncodedString())
+}
+let maximumEncodedBytes = ((DaymarkStore.maximumImportedAttachmentBytes + 2) / 3) * 4
+try checkImportRejected("Oversized encoded input must be rejected before decoding", base64: String(repeating: "A", count: maximumEncodedBytes + 4))
+
 // Model a file provider waiting for iCloud while the UI continues to handle input.
 let workerStarted = DispatchSemaphore(value: 0)
 let releaseWorker = DispatchSemaphore(value: 0)

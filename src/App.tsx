@@ -38,6 +38,8 @@ import {
   Hash,
 } from "lucide-react";
 import TaskEditor from "./TaskEditor";
+import { readBrowserNoteFile } from "./note-file-storage";
+import { nativeAttachmentLink } from "./note-links";
 import { CompletionMark, useTaskCompletion } from "./TaskCompletion";
 import { TaskDragHandle, TaskDragNotice, useTaskDrag } from "./TaskDrag";
 import { compareManualTasks, isActiveTask } from "./task-drag";
@@ -188,6 +190,13 @@ function App() {
   const [showEarlier, setShowEarlier] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<Attachment | null>(
     null,
+  );
+  useEffect(
+    () => () => {
+      if (attachmentPreview?.url.startsWith("blob:"))
+        URL.revokeObjectURL(attachmentPreview.url);
+    },
+    [attachmentPreview],
   );
   const [today, setToday] = useState(dateKey());
   const [toast, setToast] = useState("");
@@ -647,6 +656,67 @@ function App() {
           : t,
       ),
     }));
+  }
+  async function openNoteFile(href: string, label: string) {
+    const url = nativeAttachmentLink(href);
+    if (!url) return;
+    const previewMime = (name: string, mime: string) => {
+      if (mime === "application/pdf" || mime.startsWith("image/")) return mime;
+      const extension = name.split(".").pop()?.toLowerCase() ?? "";
+      return (
+        {
+          pdf: "application/pdf",
+          png: "image/png",
+          jpg: "image/jpeg",
+          jpeg: "image/jpeg",
+          gif: "image/gif",
+          webp: "image/webp",
+          svg: "image/svg+xml",
+          heic: "image/heic",
+        } as Record<string, string>
+      )[extension];
+    };
+    if (isNative()) {
+      const existing = state.tasks
+        .flatMap((task) => task.attachments)
+        .find((file) => file.url === url);
+      const mime = previewMime(url, existing?.mime ?? "");
+      if (!mime) {
+        nativeSend({ action: "openAttachment", url });
+        return;
+      }
+      setAttachmentPreview({
+        id: url,
+        name: label || "File",
+        size: 0,
+        url,
+        ...existing,
+        mime,
+      });
+      return;
+    }
+    const file = await readBrowserNoteFile(url);
+    if (!file)
+      throw new Error(
+        `This file is not stored in this browser. Open it in the ${APP_NAME} app where it was added.`,
+      );
+    const mime = previewMime(file.attachment.name, file.attachment.mime);
+    const objectUrl = URL.createObjectURL(
+      mime ? file.data.slice(0, file.data.size, mime) : file.data,
+    );
+    // Embedded browsers can advertise a PDF viewer yet render a blank object.
+    // Native WebKit previews documents; the browser offers the actual PDF file.
+    if (mime?.startsWith("image/")) {
+      setAttachmentPreview({ ...file.attachment, mime, url: objectUrl });
+    } else {
+      const download = document.createElement("a");
+      download.href = objectUrl;
+      download.download = file.attachment.name;
+      document.body.append(download);
+      download.click();
+      download.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    }
   }
   function attach() {
     if (!selected) return;
@@ -1845,6 +1915,7 @@ function App() {
               onChange={(notes) => updateTask(selected.id, { notes })}
               onPendingChange={setNotePending}
               onAttach={attach}
+              onOpenFile={openNoteFile}
               vimEnabled={vimEnabled}
             />
             {selected.attachments.length > 0 && (
@@ -2250,6 +2321,17 @@ function App() {
           >
             <header>
               <h2>{attachmentPreview.name}</h2>
+              {!isNative() && (
+                <a
+                  href={attachmentPreview.url}
+                  download={attachmentPreview.name}
+                  className="icon-button"
+                  aria-label="Download attachment"
+                  title="Download attachment"
+                >
+                  <Download size={18} />
+                </a>
+              )}
               <IconButton
                 label="Open attachment externally"
                 onClick={() =>

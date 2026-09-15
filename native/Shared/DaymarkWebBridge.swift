@@ -111,6 +111,16 @@ final class DaymarkWebBridge: NSObject, WKScriptMessageHandler, WKNavigationDele
                 save(state, requestID: requestID)
             case "chooseFolder": chooseFolder?(requestID)
             case "attach": attach?(requestID)
+            case "importAttachment":
+                guard let name = body["name"] as? String,
+                      let mime = body["mime"] as? String,
+                      let data = body["data"] as? String else { throw CocoaError(.coderInvalidValue) }
+                store.perform({ [store] in try store.importAttachment(name: name, mime: mime, base64: data) }) { [weak self] result in
+                    switch result {
+                    case .success(let attachment): self?.send(["type": "attachment", "attachment": attachment], requestID: requestID)
+                    case .failure(let error): self?.sendError(error.localizedDescription, requestID: requestID)
+                    }
+                }
             case "export": export?(body["state"] as? [String: Any], requestID)
             #if os(macOS)
             case "dragWindow":

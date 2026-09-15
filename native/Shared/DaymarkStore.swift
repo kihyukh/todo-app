@@ -5,6 +5,7 @@ import CryptoKit
 /// updatedAt resolves edits to the same record; prior versions remain in Revisions.
 final class DaymarkStore {
     static let collections = ["tasks", "projects", "columns", "tags"]
+    static let maximumImportedAttachmentBytes = 25 * 1024 * 1024
     private var folderURL: URL
     private var storageKind: String
     private let queue = DispatchQueue(label: "app.daymark.storage", qos: .utility)
@@ -294,12 +295,45 @@ final class DaymarkStore {
             let access = source.startAccessingSecurityScopedResource()
             defer { if access { source.stopAccessingSecurityScopedResource() } }
             let data = try coordinatedRead(source)
-            let id = UUID().uuidString.lowercased()
             let ext = source.pathExtension.lowercased().filter { $0.isLetter || $0.isNumber }
-            let filename = ext.isEmpty ? id : id + "." + ext
-            try coordinatedWrite(data, to: folder.appendingPathComponent("Attachments").appendingPathComponent(filename))
-            return ["id": id, "name": source.lastPathComponent, "mime": Self.mimeType(ext), "size": data.count, "url": "daymark://attachment/" + filename]
+            return try writeAttachment(data, name: source.lastPathComponent, mime: Self.mimeType(ext), extension: ext)
         }
+    }
+
+    /// A dropped WebKit File supplies bytes, never a trusted filesystem path.
+    /// Decode on the storage queue and bound both the encoded and decoded sizes.
+    func importAttachment(name: String, mime: String, base64: String) throws -> [String: Any] {
+        try serialized {
+            guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  name.utf8.count <= 1024,
+                  name.rangeOfCharacter(from: .controlCharacters) == nil,
+                  mime.utf8.count <= 255,
+                  mime.rangeOfCharacter(from: .controlCharacters) == nil,
+                  mime.isEmpty || mime.range(of: "^[A-Za-z0-9!#$&^_.+'-]+/[A-Za-z0-9!#$&^_.+'-]+$", options: .regularExpression) != nil else {
+                throw NSError(domain: "DaymarkStorage", code: 3, userInfo: [NSLocalizedDescriptionKey: "This file has an invalid name or file type."])
+            }
+            let maximumEncodedBytes = ((Self.maximumImportedAttachmentBytes + 2) / 3) * 4
+            guard base64.utf8.count <= maximumEncodedBytes else {
+                throw NSError(domain: "DaymarkStorage", code: 4, userInfo: [NSLocalizedDescriptionKey: "Each file can be up to 25 MB."])
+            }
+            guard let data = Data(base64Encoded: base64), data.base64EncodedString() == base64 else {
+                throw NSError(domain: "DaymarkStorage", code: 5, userInfo: [NSLocalizedDescriptionKey: "This file could not be read. Please try adding it again."])
+            }
+            guard data.count <= Self.maximumImportedAttachmentBytes else {
+                throw NSError(domain: "DaymarkStorage", code: 4, userInfo: [NSLocalizedDescriptionKey: "Each file can be up to 25 MB."])
+            }
+            // The original name is display metadata only; even path-like names
+            // cannot choose the destination. Limit the extension's disk length.
+            let ext = String((name as NSString).pathExtension.lowercased().filter { $0.isLetter || $0.isNumber }.prefix(32))
+            return try writeAttachment(data, name: name, mime: mime.isEmpty ? Self.mimeType(ext) : mime.lowercased(), extension: ext)
+        }
+    }
+
+    private func writeAttachment(_ data: Data, name: String, mime: String, extension ext: String) throws -> [String: Any] {
+        let id = UUID().uuidString.lowercased()
+        let filename = ext.isEmpty ? id : id + "." + ext
+        try coordinatedWrite(data, to: folder.appendingPathComponent("Attachments").appendingPathComponent(filename))
+        return ["id": id, "name": name, "mime": mime, "size": data.count, "url": "daymark://attachment/" + filename]
     }
 
     func attachmentURL(_ url: URL) -> URL? {

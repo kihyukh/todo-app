@@ -19,8 +19,8 @@ import {
   ImageImports,
   clipboardImages,
   insertImageFiles,
-  isImageFile,
 } from "./image-imports";
+import { installNoteFileDrop, insertNoteFiles } from "./note-file-drop";
 import { continueFromImage } from "./image-navigation";
 import Placeholder from "@tiptap/extension-placeholder";
 import { NoteTableKit } from "./note-table";
@@ -29,6 +29,7 @@ import { Markdown } from "@tiptap/markdown";
 import { createNotePublisher } from "./note-publisher";
 import {
   isAllowedNoteLink,
+  nativeAttachmentLink,
   normalizedNoteLink as normalizedLink,
   openNoteLink,
 } from "./note-links";
@@ -72,6 +73,7 @@ interface TaskEditorProps {
   onChange: (json: NoteNode) => void;
   onPendingChange: (pending: boolean) => void;
   onAttach: () => void;
+  onOpenFile?: (href: string, label: string) => void | Promise<void>;
   vimEnabled: boolean;
 }
 
@@ -110,6 +112,7 @@ export default function TaskEditor({
   onChange,
   onPendingChange,
   onAttach,
+  onOpenFile,
   vimEnabled,
 }: TaskEditorProps) {
   const [linkDraft, setLinkDraft] = useState<LinkDraft | null>(null);
@@ -132,13 +135,28 @@ export default function TaskEditor({
   const [notice, setNotice] = useState("");
   const onChangeRef = useRef(onChange);
   const onPendingRef = useRef(onPendingChange);
+  const onOpenFileRef = useRef(onOpenFile);
   const editorRef = useRef<Editor | null>(null);
   const taskIdRef = useRef(taskId);
   const receivedContent = useRef(content);
   const imageInput = useRef<HTMLInputElement>(null);
   onChangeRef.current = onChange;
   onPendingRef.current = onPendingChange;
+  onOpenFileRef.current = onOpenFile;
   taskIdRef.current = taskId;
+  const activateLink = (href: string, label: string) => {
+    if (nativeAttachmentLink(href) && onOpenFileRef.current) {
+      void Promise.resolve(onOpenFileRef.current(href, label)).catch((error) =>
+        setNotice(
+          error instanceof Error
+            ? error.message
+            : "This file could not be opened.",
+        ),
+      );
+    } else if (openNoteLink(href) === "native-only") {
+      setNotice(`Open this attachment in the ${APP_NAME} mobile or Mac app.`);
+    }
+  };
   const [publisher] = useState(() =>
     createNotePublisher<NoteNode>(
       (next) => {
@@ -237,7 +255,7 @@ export default function TaskEditor({
               rel: "noopener noreferrer nofollow",
               title: touch
                 ? "Tap for link actions"
-                : "⌘/Ctrl-click to open link",
+                : "Click to open · Option/Alt-click to edit text",
             },
           },
         }),
@@ -293,15 +311,15 @@ export default function TaskEditor({
                 : null;
             if (!link || !view.dom.contains(link) || event.button !== 0)
               return false;
-            // A normal click places the caret; opening a resource is deliberate.
+            // Filename links behave like ordinary links; Option-click still
+            // lets a mouse user place the caret directly inside their text.
             event.preventDefault();
-            if (event.metaKey || event.ctrlKey) {
-              if (
-                openNoteLink(link.getAttribute("href") ?? "") === "native-only"
-              )
-                setNotice(
-                  `Open this attachment in the ${APP_NAME} mobile or Mac app.`,
-                );
+            if (!touch && event.altKey) return false;
+            if (!touch || event.metaKey || event.ctrlKey) {
+              activateLink(
+                link.getAttribute("href") ?? "",
+                link.textContent ?? "File",
+              );
               return true;
             }
             if (touch) {
@@ -357,22 +375,6 @@ export default function TaskEditor({
           }
           return false;
         },
-        handleDrop: (view, event, _slice, moved) => {
-          const files = Array.from(event.dataTransfer?.files ?? []);
-          const images = files.filter(isImageFile);
-          if (moved || !files.length) return false;
-          if (!images.length) {
-            setNotice("Use Attach a file or PDF to add this file to the task.");
-            return true;
-          }
-          const position =
-            view.posAtCoords({
-              left: event.clientX,
-              top: event.clientY,
-            })?.pos ?? view.state.doc.content.size;
-          void insertImages(images, position, true);
-          return true;
-        },
       },
       onCreate: ({ editor: instance }) => {
         editorRef.current = instance;
@@ -413,6 +415,22 @@ export default function TaskEditor({
     if (editor && !editor.isDestroyed)
       editor.commands.setVimEnabled(vimEnabled);
   }, [editor, vimEnabled]);
+
+  useEffect(() => {
+    if (!editor || source !== null) return;
+    const destination = taskId;
+    let active = true;
+    const removeDrop = installNoteFileDrop(editor, (files, position) => {
+      void insertNoteFiles(editor, files, position, {
+        isCurrent: () => active && taskIdRef.current === destination,
+        notice: setNotice,
+      });
+    });
+    return () => {
+      active = false;
+      removeDrop();
+    };
+  }, [editor, source, taskId]);
 
   useEffect(() => {
     const input = imageInput.current;
@@ -538,7 +556,7 @@ export default function TaskEditor({
                 : context?.link
                   ? touch
                     ? "Tap a link to open or edit it"
-                    : "⌘/Ctrl-click to open link"
+                    : "Click to open · Option/Alt-click to edit text"
                   : "Type / on a new line for elements · Markdown & LaTeX";
 
   const applyLink = () => {
@@ -667,10 +685,7 @@ export default function TaskEditor({
             <button
               type="button"
               onClick={() => {
-                if (openNoteLink(touchLink.href) === "native-only")
-                  setNotice(
-                    `Open this attachment in the ${APP_NAME} mobile or Mac app.`,
-                  );
+                activateLink(touchLink.href, touchLink.label);
                 setTouchLink(null);
               }}
             >

@@ -78,6 +78,31 @@ afterEach(async () => {
 });
 
 describe("autosave scheduling", () => {
+  it("forwards note-file imports without treating their errors as failed workspace saves", async () => {
+    await advance(AUTOSAVE_DELAY_MS);
+    const before = {
+      saving: workspace.saving,
+      error: workspace.error,
+      state: workspace.state,
+    };
+    const forwarded = vi.fn();
+    window.addEventListener("daymark-native-message", forwarded);
+    try {
+      await act(() =>
+        window.daymarkNativeReceive?.({
+          type: "error",
+          requestId: "note-file:example",
+          message: "File could not be copied.",
+        }),
+      );
+      expect(forwarded).toHaveBeenCalledOnce();
+      expect(workspace.saving).toBe(before.saving);
+      expect(workspace.error).toBe(before.error);
+      expect(workspace.state).toBe(before.state);
+    } finally {
+      window.removeEventListener("daymark-native-message", forwarded);
+    }
+  });
   it.each(["saving", "saved", "failed"] as const)(
     "delivers calendar messages without changing a workspace whose save is %s",
     async (phase) => {

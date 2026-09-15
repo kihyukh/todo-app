@@ -564,3 +564,11 @@
     gap: 10px;
   }
 }
+.note-file-drop-caret {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  background: var(--blue, #23764d);
+  border-radius: 1px;
+  box-shadow: 0 0 0 1px #ffffffb3;
+}

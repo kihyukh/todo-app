@@ -89,11 +89,18 @@ These results establish build and local interaction behavior. They do not establ
 - The floating-pane entrance now slides from the right over 220ms, and the desktop close button is on the left of the header. Browser checks observed an animated transform on opening, no animation when switching/reselecting tasks or resizing, and the unchanged phone Back button with the desktop close button hidden. Task-opening controls explicitly bypass background dismissal so capture/bubble event timing cannot briefly close and remount the pane. All 611 existing tests still pass.
 - The close button is now shown only in the floating layout. Browser checks confirmed that it leaves no header gap in three-column view, reappears when narrowing, and stays hidden beside the phone's Back button. All 35 existing task-detail, pane-layout, and mobile App tests passed for this CSS-only follow-up.
 
-## Current tag dialog update
+## Previous tag dialog update
 
 - All **34 existing tag and mobile App tests** passed, and the production web build succeeded. The dialog now has padded fields, clearer color selection, a live preview, and a scrollable body with a separate footer.
 - Browser checks covered name autofocus, duplicate-name feedback, disabled invalid submission, group/color selection, live preview, forward/reverse Tab containment, and Escape restoring the trigger. At 390px and 320px widths, the dialog stays within the screen; at 320×568 its body scrolls while the action footer remains visible.
 - This revision was validated in the browser preview only. The installed Mac app, simulator app, and device archive were deliberately not rebuilt or replaced, preserving the working Mac app's calendar permission continuity. Their bundled assets remain at the previous revision.
+
+## Current file drop and link update
+
+- External file drops insert ordinary filename links at the indicated note position, without adding a bottom attachment-list entry. Browser checks used fictional PDF/image fixtures to verify mid-line insertion, a new paragraph below the note, persistence after reload, image preview on normal click, and Undo/Redo. A temporary browser drag source was used; Finder-to-installed-app dragging was not exercised.
+- The in-app browser did not render its advertised embedded PDF viewer reliably, so browser document links now download with their original names. The PDF download was verified in Downloads with bytes matching the fixture exactly. Image previews rendered correctly. Native PDF/image preview routing is covered by App integration tests, and other file types use the existing native external-open action.
+- All **157 focused frontend tests** passed, covering import persistence, size/read failures, native request isolation, caret geometry, import ordering and cancellation, link activation, and image-paste/slash-menu regressions. The production web build, all 90 native store checks, and macOS/iOS Swift typechecks passed in temporary verification environments.
+- No installed Mac or simulator app was replaced, and no real task, attachment, or calendar records were changed. The production web build is newer than the installed apps. Real-device file dragging, native preview interaction, and cross-device file delivery still need verification on the next signed build.
 
 ## Still needed before distribution
 

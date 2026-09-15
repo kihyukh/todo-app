@@ -9,6 +9,16 @@ import TaskEditor from "../src/TaskEditor";
 import { vimPluginKey } from "../src/vim-editor";
 import { NodeSelection } from "@tiptap/pm/state";
 
+vi.mock("../src/note-file-storage", () => ({
+  importNoteFile: vi.fn(async (file: File) => ({
+    id: file.name,
+    name: file.name,
+    mime: file.type,
+    size: file.size,
+    url: `daymark://attachment/${encodeURIComponent(file.name)}`,
+  })),
+}));
+
 let root: Root | undefined;
 beforeAll(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -80,10 +90,17 @@ describe("images in the task note", () => {
     expect(container.querySelector(".note-image")).toBeNull();
   });
 
-  it("uses the file drop location instead of the current text cursor", async () => {
+  it("inserts a plain filename link at the drop location, including for dropped images", async () => {
     const { editor: getEditor } = await mount();
     const editor = getEditor();
     vi.spyOn(editor.view, "posAtCoords").mockReturnValue({ pos: 3, inside: 0 });
+    vi.spyOn(editor.view.dom, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 0, 100, 40),
+    );
+    vi.spyOn(
+      editor.view.dom.querySelector("p")!,
+      "getBoundingClientRect",
+    ).mockReturnValue(new DOMRect(0, 0, 100, 40));
     await act(async () => {
       editor.view.focus();
       editor.commands.setTextSelection(6);
@@ -100,18 +117,20 @@ describe("images in the task note", () => {
       editor.view.dom.dispatchEvent(drop);
       await vi.waitFor(() =>
         expect(
-          editor.getJSON().content?.some((node) => node.type === "image"),
+          editor.view.dom.querySelector("a")?.textContent === "Dropped.png",
         ).toBe(true),
       );
     });
     const blocks = editor.getJSON().content!;
-    expect(blocks.map((node) => node.type)).toEqual([
-      "paragraph",
-      "image",
-      "paragraph",
-    ]);
+    expect(blocks.map((node) => node.type)).toEqual(["paragraph"]);
     expect(blocks[0].content?.[0].text).toBe("Al");
-    expect(blocks[2].content?.[0].text).toBe("pha");
+    expect(blocks[0].content?.[2].text).toBe("pha");
+    expect(editor.view.dom.querySelector("a")!.getAttribute("href")).toBe(
+      "daymark://attachment/Dropped.png",
+    );
+    expect(editor.view.dom.querySelector("img")).toBeNull();
+    await act(async () => editor.commands.undo());
+    expect(editor.getText()).toBe("Alpha");
   });
 
   it("pastes text beside a selected image without deleting the image", async () => {
@@ -723,7 +742,7 @@ describe("task editor publication", () => {
     expect(dom.getAttribute("writingsuggestions")).toBe("false");
   });
 
-  it("keeps link clicks in the note and opens only deliberate modifier-clicks", async () => {
+  it("opens links on ordinary click and keeps Option-click available for editing", async () => {
     const harness = await mount();
     const open = vi.spyOn(window, "open").mockReturnValue(null);
     try {
@@ -757,12 +776,16 @@ describe("task editor publication", () => {
       });
       link.dispatchEvent(ordinary);
       expect(ordinary.defaultPrevented).toBe(true);
-      expect(open).not.toHaveBeenCalled();
+      expect(open).toHaveBeenCalledExactlyOnceWith(
+        "https://example.com/paper",
+        "_blank",
+        "noopener,noreferrer",
+      );
       link.dispatchEvent(
         new MouseEvent("click", {
           bubbles: true,
           cancelable: true,
-          metaKey: true,
+          altKey: true,
         }),
       );
       expect(open).toHaveBeenCalledExactlyOnceWith(
@@ -973,7 +996,7 @@ describe("attachments linked inside task notes", () => {
     expect(editor.getText()).toBe("Review PDF");
   });
 
-  it("uses modifier-click to open native attachments while ordinary click keeps the note editable", async () => {
+  it("opens native attachments on ordinary click and retains Option-click text editing", async () => {
     const postMessage = vi.fn(),
       open = vi.spyOn(window, "open").mockReturnValue(null);
     window.webkit = { messageHandlers: { daymark: { postMessage } } };
@@ -989,13 +1012,16 @@ describe("attachments linked inside task notes", () => {
           new MouseEvent("click", { bubbles: true, cancelable: true }),
         ),
       );
-      expect(postMessage).not.toHaveBeenCalled();
+      expect(postMessage).toHaveBeenCalledExactlyOnceWith({
+        action: "openAttachment",
+        url: "daymark://attachment/review.pdf",
+      });
       await act(async () =>
         link.dispatchEvent(
           new MouseEvent("click", {
             bubbles: true,
             cancelable: true,
-            metaKey: true,
+            altKey: true,
           }),
         ),
       );

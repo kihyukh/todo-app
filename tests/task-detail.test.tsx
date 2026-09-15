@@ -15,14 +15,25 @@ import {
 import App from "../src/App";
 import { dateKey, emptyDoc } from "../src/model";
 import type { AppState, Task } from "../src/model";
+import { readBrowserNoteFile } from "../src/note-file-storage";
 
 let root: Root | undefined;
 let seed: AppState;
 let latest: AppState;
+let nativeMode = false;
 const workspaceUpdates = vi.fn();
+const fileOpenErrors = vi.fn();
+let editorFileLink = {
+  href: "daymark://attachment/review.pdf",
+  label: "Review paper.pdf",
+};
+
+vi.mock("../src/note-file-storage", () => ({
+  readBrowserNoteFile: vi.fn(),
+}));
 
 vi.mock("../src/storage", () => ({
-  isNative: () => false,
+  isNative: () => nativeMode,
   nativeSend: vi.fn(),
   useWorkspace: () => {
     const [state, setState] = useState(seed);
@@ -46,7 +57,11 @@ vi.mock("../src/TaskEditor", () => ({
   // This intentionally lightweight editor verifies the app retains the mounted
   // editing surface, DOM draft, focus and selection while changing pane layout.
   // ProseMirror behavior itself is exercised in task-editor and browser tests.
-  default: () => (
+  default: ({
+    onOpenFile,
+  }: {
+    onOpenFile?: (href: string, label: string) => void | Promise<void>;
+  }) => (
     <div className="task-note-editor">
       <div
         aria-label="Task notes"
@@ -54,6 +69,17 @@ vi.mock("../src/TaskEditor", () => ({
         suppressContentEditableWarning
         tabIndex={0}
       />
+      <a
+        href={editorFileLink.href}
+        onClick={(event) => {
+          event.preventDefault();
+          void Promise.resolve(
+            onOpenFile?.(editorFileLink.href, editorFileLink.label),
+          ).catch(fileOpenErrors);
+        }}
+      >
+        {editorFileLink.label}
+      </a>
     </div>
   ),
 }));
@@ -62,6 +88,12 @@ beforeAll(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 });
 beforeEach(() => {
+  nativeMode = false;
+  editorFileLink = {
+    href: "daymark://attachment/review.pdf",
+    label: "Review paper.pdf",
+  };
+  vi.mocked(readBrowserNoteFile).mockReset();
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
     value: 1280,
@@ -72,6 +104,9 @@ afterEach(async () => {
   root = undefined;
   document.body.replaceChildren();
   localStorage.clear();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
   vi.clearAllMocks();
 });
 
@@ -208,6 +243,166 @@ async function escape(target: EventTarget = window, prevented = false) {
   if (prevented) event.preventDefault();
   await act(async () => target.dispatchEvent(event));
 }
+
+describe("Files linked in task notes", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "URL",
+      class extends URL {
+        static createObjectURL = vi.fn(() => "blob:note-file-preview");
+        static revokeObjectURL = vi.fn();
+      },
+    );
+  });
+
+  it("previews an existing native PDF link using its workspace file", async () => {
+    nativeMode = true;
+    await mount([
+      task("Paper review", {
+        attachments: [
+          {
+            id: "review",
+            name: "Review paper.pdf",
+            mime: "application/pdf",
+            size: 128,
+            url: editorFileLink.href,
+          },
+        ],
+      }),
+    ]);
+    await selectTask("Paper review");
+    await click(
+      detail()!.querySelector<HTMLAnchorElement>(".task-note-editor a"),
+    );
+    expect(
+      label("Review paper.pdf")?.querySelector("object")?.getAttribute("data"),
+    ).toBe(editorFileLink.href);
+    expect(readBrowserNoteFile).not.toHaveBeenCalled();
+    expect(workspaceUpdates).not.toHaveBeenCalled();
+    expect(latest).toEqual(seed);
+  });
+
+  it("previews a stored image without changing attachments and releases its Blob URL on close or unmount", async () => {
+    const data = new Blob(["image bytes"], { type: "image/png" });
+    vi.mocked(readBrowserNoteFile).mockResolvedValue({
+      attachment: {
+        id: "review",
+        name: "Figure.png",
+        mime: "image/png",
+        size: data.size,
+        url: editorFileLink.href,
+      },
+      data,
+    });
+    await mount([task("Paper review")]);
+    await selectTask("Paper review");
+    const fileLink = detail()!.querySelector<HTMLAnchorElement>(
+      ".task-note-editor a",
+    )!;
+
+    await click(fileLink);
+
+    expect(readBrowserNoteFile).toHaveBeenCalledWith(editorFileLink.href);
+    expect(URL.createObjectURL).toHaveBeenCalledWith(data);
+    const preview = label("Figure.png")!;
+    expect(preview.getAttribute("role")).toBe("dialog");
+    expect(preview.querySelector("img")?.getAttribute("src")).toBe(
+      "blob:note-file-preview",
+    );
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    expect(workspaceUpdates).not.toHaveBeenCalled();
+    expect(latest).toEqual(seed);
+    expect(detail()?.querySelector(".attachments")).toBeNull();
+
+    await click(label("Close preview"));
+    expect(label("Figure.png")).toBeUndefined();
+    expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith(
+      "blob:note-file-preview",
+    );
+
+    await click(fileLink);
+    await act(async () => root!.unmount());
+    root = undefined;
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2);
+    expect(workspaceUpdates).not.toHaveBeenCalled();
+  });
+
+  it.each(["csv", "pdf"])(
+    "downloads %s with its original filename when it cannot be previewed",
+    async (extension) => {
+      if (extension === "pdf")
+        vi.stubGlobal("navigator", {
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          pdfViewerEnabled: false,
+        });
+      editorFileLink = {
+        href: `daymark://attachment/results.${extension}`,
+        label: `Experiment results.${extension}`,
+      };
+      const data = new Blob(["name,value\nalpha,2"], { type: "text/csv" });
+      vi.mocked(readBrowserNoteFile).mockResolvedValue({
+        attachment: {
+          id: "results",
+          name: editorFileLink.label,
+          mime: extension === "pdf" ? "application/pdf" : "text/csv",
+          size: data.size,
+          url: editorFileLink.href,
+        },
+        data,
+      });
+      const downloads: { url: string; filename: string }[] = [];
+      vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(
+        function (this: HTMLAnchorElement) {
+          downloads.push({ url: this.href, filename: this.download });
+        },
+      );
+      await mount([task("Paper review")]);
+      await selectTask("Paper review");
+      vi.useFakeTimers();
+      await act(async () => {
+        detail()!
+          .querySelector(".task-note-editor a")!
+          .dispatchEvent(
+            new MouseEvent("click", { bubbles: true, cancelable: true }),
+          );
+      });
+
+      expect(downloads).toEqual([
+        { url: "blob:note-file-preview", filename: editorFileLink.label },
+      ]);
+      expect(document.querySelector(".preview-modal")).toBeNull();
+      expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+      await act(async () => vi.advanceTimersByTimeAsync(1000));
+      expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith(
+        "blob:note-file-preview",
+      );
+      expect(workspaceUpdates).not.toHaveBeenCalled();
+      expect(latest).toEqual(seed);
+      expect(detail()?.querySelector(".attachments")).toBeNull();
+    },
+  );
+
+  it("reports an unavailable file without opening an empty preview or mutating the task", async () => {
+    vi.mocked(readBrowserNoteFile).mockResolvedValue(null);
+    await mount([task("Paper review")]);
+    await selectTask("Paper review");
+
+    await click(
+      detail()!.querySelector<HTMLAnchorElement>(".task-note-editor a"),
+    );
+
+    expect(fileOpenErrors).toHaveBeenCalledOnce();
+    expect(fileOpenErrors.mock.calls[0][0]).toBeInstanceOf(Error);
+    expect(fileOpenErrors.mock.calls[0][0].message).toContain(
+      "not stored in this browser",
+    );
+    expect(document.querySelector(".preview-modal")).toBeNull();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+    expect(workspaceUpdates).not.toHaveBeenCalled();
+    expect(latest).toEqual(seed);
+  });
+});
 
 describe("Responsive task detail", () => {
   it("opens a floating pane while retaining the task list and switches tasks directly", async () => {
