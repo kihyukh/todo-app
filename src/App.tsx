@@ -38,6 +38,7 @@ import {
   Hash,
 } from "lucide-react";
 import TaskEditor from "./TaskEditor";
+import PdfPreview from "./PdfPreview";
 import {
   DeleteListDialog,
   ListOptions,
@@ -204,6 +205,20 @@ function App() {
   const [attachmentPreview, setAttachmentPreview] = useState<Attachment | null>(
     null,
   );
+  useEffect(() => {
+    if (!attachmentPreview) return;
+    const previous = document.activeElement;
+    const frame = requestAnimationFrame(() =>
+      document
+        .querySelector<HTMLButtonElement>('[aria-label="Close preview"]')
+        ?.focus(),
+    );
+    return () => {
+      cancelAnimationFrame(frame);
+      if (previous instanceof HTMLElement && previous.isConnected)
+        previous.focus({ preventScroll: true });
+    };
+  }, [attachmentPreview]);
   useEffect(
     () => () => {
       if (attachmentPreview?.url.startsWith("blob:"))
@@ -771,7 +786,7 @@ function App() {
         .flatMap((task) => task.attachments)
         .find((file) => file.url === url);
       const mime = previewMime(url, existing?.mime ?? "");
-      if (!mime) {
+      if (!mime || mime === "application/pdf") {
         nativeSend({ action: "openAttachment", url });
         return;
       }
@@ -794,9 +809,7 @@ function App() {
     const objectUrl = URL.createObjectURL(
       mime ? file.data.slice(0, file.data.size, mime) : file.data,
     );
-    // Embedded browsers can advertise a PDF viewer yet render a blank object.
-    // Native WebKit previews documents; the browser offers the actual PDF file.
-    if (mime?.startsWith("image/")) {
+    if (mime === "application/pdf" || mime?.startsWith("image/")) {
       setAttachmentPreview({ ...file.attachment, mime, url: objectUrl });
     } else {
       const download = document.createElement("a");
@@ -2027,7 +2040,20 @@ function App() {
                 </div>
                 {selected.attachments.map((a) => (
                   <div className="attachment" key={a.id}>
-                    <button onClick={() => setAttachmentPreview(a)}>
+                    <button
+                      onClick={() => {
+                        if (
+                          isNative() &&
+                          (a.mime === "application/pdf" ||
+                            a.name.toLowerCase().endsWith(".pdf"))
+                        )
+                          nativeSend({
+                            action: "openAttachment",
+                            attachment: a,
+                          });
+                        else setAttachmentPreview(a);
+                      }}
+                    >
                       {a.mime.startsWith("image/") ? (
                         <img src={a.url} alt="" />
                       ) : (
@@ -2479,6 +2505,24 @@ function App() {
             role="dialog"
             aria-modal="true"
             aria-label={attachmentPreview.name}
+            onKeyDown={(event) => {
+              if (event.key !== "Tab") return;
+              const controls = Array.from(
+                event.currentTarget.querySelectorAll<HTMLElement>(
+                  "button:not(:disabled), a[href]",
+                ),
+              );
+              if (event.shiftKey && document.activeElement === controls[0]) {
+                event.preventDefault();
+                controls.at(-1)?.focus();
+              } else if (
+                !event.shiftKey &&
+                document.activeElement === controls.at(-1)
+              ) {
+                event.preventDefault();
+                controls[0]?.focus();
+              }
+            }}
           >
             <header>
               <h2>{attachmentPreview.name}</h2>
@@ -2493,19 +2537,19 @@ function App() {
                   <Download size={18} />
                 </a>
               )}
-              <IconButton
-                label="Open attachment externally"
-                onClick={() =>
-                  isNative()
-                    ? nativeSend({
-                        action: "openAttachment",
-                        attachment: attachmentPreview,
-                      })
-                    : window.open(attachmentPreview.url, "_blank", "noopener")
-                }
-              >
-                <ExternalLink size={18} />
-              </IconButton>
+              {isNative() && (
+                <IconButton
+                  label="Open attachment externally"
+                  onClick={() =>
+                    nativeSend({
+                      action: "openAttachment",
+                      attachment: attachmentPreview,
+                    })
+                  }
+                >
+                  <ExternalLink size={18} />
+                </IconButton>
+              )}
               <IconButton
                 label="Close preview"
                 onClick={() => setAttachmentPreview(null)}
@@ -2516,39 +2560,35 @@ function App() {
             {attachmentPreview.mime.startsWith("image/") ? (
               <img src={attachmentPreview.url} alt={attachmentPreview.name} />
             ) : attachmentPreview.mime === "application/pdf" ? (
-              <object data={attachmentPreview.url} type="application/pdf">
-                <p>This PDF can be opened in your default viewer.</p>
-                <button
-                  className="primary-button"
-                  onClick={() =>
-                    isNative()
-                      ? nativeSend({
-                          action: "openAttachment",
-                          attachment: attachmentPreview,
-                        })
-                      : window.open(attachmentPreview.url, "_blank", "noopener")
-                  }
-                >
-                  Open PDF
-                </button>
-              </object>
+              <PdfPreview
+                url={attachmentPreview.url}
+                name={attachmentPreview.name}
+              />
             ) : (
               <div className="file-preview-fallback">
                 <FileText size={40} />
                 <p>Open this file in its default app.</p>
-                <button
-                  className="primary-button"
-                  onClick={() =>
-                    isNative()
-                      ? nativeSend({
-                          action: "openAttachment",
-                          attachment: attachmentPreview,
-                        })
-                      : window.open(attachmentPreview.url, "_blank", "noopener")
-                  }
-                >
-                  Open file
-                </button>
+                {isNative() ? (
+                  <button
+                    className="primary-button"
+                    onClick={() =>
+                      nativeSend({
+                        action: "openAttachment",
+                        attachment: attachmentPreview,
+                      })
+                    }
+                  >
+                    Open file
+                  </button>
+                ) : (
+                  <a
+                    className="primary-button"
+                    href={attachmentPreview.url}
+                    download={attachmentPreview.name}
+                  >
+                    Download file
+                  </a>
+                )}
               </div>
             )}
           </section>

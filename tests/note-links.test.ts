@@ -53,11 +53,25 @@ describe("native attachment links", () => {
     });
     expect(open).not.toHaveBeenCalled();
     expect(openNoteLink("https://example.com/paper")).toBe("opened");
-    expect(open).toHaveBeenCalledExactlyOnceWith(
-      "https://example.com/paper",
-      "_blank",
-      "noopener,noreferrer",
-    );
+    expect(postMessage).toHaveBeenLastCalledWith({
+      action: "openExternal",
+      url: "https://example.com/paper",
+    });
+    expect(open).not.toHaveBeenCalled();
+  });
+  it("uses ordinary browser navigation when new-window requests are blocked", () => {
+    const opened: HTMLAnchorElement[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      opened.push(this);
+    });
+    expect(openNoteLink("https://example.com/paper")).toBe("opened");
+    expect(opened).toHaveLength(1);
+    expect(opened[0].href).toBe("https://example.com/paper");
+    expect(opened[0].target).toBe("_self");
+    expect(opened[0].rel).toContain("noreferrer");
+    expect(opened[0].isConnected).toBe(false);
   });
   it("reports native-only files in the browser and normalizes ordinary link editing", () => {
     const open = vi.spyOn(window, "open").mockReturnValue(null);

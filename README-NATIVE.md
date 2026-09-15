@@ -98,7 +98,7 @@ swiftc -swift-version 5 native/Shared/DaymarkStore.swift native/Tests/main.swift
 
 ## Web/native protocol
 
-Web code sends `window.webkit.messageHandlers.daymark.postMessage({ action, requestId, ... })`. Workspace actions are `load`, `save`, `chooseFolder`, `attach`, `export`, and `openAttachment`. Their responses call `window.daymarkNativeReceive(payload)` with `type: state`, `saved`, `attachment`, `exported`, `cancelled`, or `error`. State responses include `storage: { kind, path, message }`. Storage kinds are `icloud`, `local`, and `folder`.
+Web code sends `window.webkit.messageHandlers.daymark.postMessage({ action, requestId, ... })`. Workspace actions are `load`, `save`, `chooseFolder`, `attach`, `export`, and `openAttachment`. `openExternal` sends validated HTTP(S)/mailto links to the system browser or mail app; note clicks use this action directly rather than opening a web-view popup. PDF attachments use `openAttachment` for the system PDF viewer on Mac and Quick Look on iOS. Their responses call `window.daymarkNativeReceive(payload)` with `type: state`, `saved`, `attachment`, `exported`, `cancelled`, or `error`. State responses include `storage: { kind, path, message }`. Storage kinds are `icloud`, `local`, and `folder`.
 
 Calendar actions are `calendarStatus`, `calendarConnect`, `calendarEvents`, `calendarSave`, and `calendarDelete`; responses use `calendarStatus`, `calendarEvents`, `calendarSaved`, `calendarDeleted`, or `error`, echoing `requestId`. An unsolicited `calendarChanged` notice asks the frontend to refresh. Calendar request IDs use the `calendar:` prefix; the frontend broadcasts native messages internally without treating calendar errors as failed task saves.
 

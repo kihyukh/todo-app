@@ -744,7 +744,9 @@ describe("task editor publication", () => {
 
   it("opens links on ordinary click and keeps Option-click available for editing", async () => {
     const harness = await mount();
-    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const open = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
     try {
       await act(async () => {
         harness.editor().commands.setContent({
@@ -776,11 +778,9 @@ describe("task editor publication", () => {
       });
       link.dispatchEvent(ordinary);
       expect(ordinary.defaultPrevented).toBe(true);
-      expect(open).toHaveBeenCalledExactlyOnceWith(
-        "https://example.com/paper",
-        "_blank",
-        "noopener,noreferrer",
-      );
+      expect(open).toHaveBeenCalledOnce();
+      expect(open.mock.contexts[0].href).toBe("https://example.com/paper");
+      expect(open.mock.contexts[0].target).toBe("_self");
       link.dispatchEvent(
         new MouseEvent("click", {
           bubbles: true,
@@ -788,11 +788,7 @@ describe("task editor publication", () => {
           altKey: true,
         }),
       );
-      expect(open).toHaveBeenCalledExactlyOnceWith(
-        "https://example.com/paper",
-        "_blank",
-        "noopener,noreferrer",
-      );
+      expect(open).toHaveBeenCalledOnce();
       expect(harness.editor().getJSON()).toEqual(before);
     } finally {
       open.mockRestore();
@@ -1092,11 +1088,10 @@ describe("touch link actions", () => {
             url: href,
           });
         else
-          expect(open).toHaveBeenCalledExactlyOnceWith(
-            href,
-            "_blank",
-            "noopener,noreferrer",
-          );
+          expect(postMessage).toHaveBeenCalledExactlyOnceWith({
+            action: "openExternal",
+            url: href,
+          });
         expect(
           container.querySelector('[aria-label="Link actions"]'),
         ).toBeNull();

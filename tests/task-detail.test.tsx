@@ -16,6 +16,7 @@ import App from "../src/App";
 import { dateKey, emptyDoc } from "../src/model";
 import type { AppState, Task } from "../src/model";
 import { readBrowserNoteFile } from "../src/note-file-storage";
+import { nativeSend } from "../src/storage";
 
 let root: Root | undefined;
 let seed: AppState;
@@ -30,6 +31,11 @@ let editorFileLink = {
 
 vi.mock("../src/note-file-storage", () => ({
   readBrowserNoteFile: vi.fn(),
+}));
+vi.mock("../src/PdfPreview", () => ({
+  default: ({ url, name }: { url: string; name: string }) => (
+    <div aria-label={`PDF preview: ${name}`} data-url={url} />
+  ),
 }));
 
 vi.mock("../src/storage", () => ({
@@ -255,7 +261,7 @@ describe("Files linked in task notes", () => {
     );
   });
 
-  it("previews an existing native PDF link using its workspace file", async () => {
+  it("opens an existing native PDF link in the system viewer using its workspace file", async () => {
     nativeMode = true;
     await mount([
       task("Paper review", {
@@ -274,9 +280,11 @@ describe("Files linked in task notes", () => {
     await click(
       detail()!.querySelector<HTMLAnchorElement>(".task-note-editor a"),
     );
-    expect(
-      label("Review paper.pdf")?.querySelector("object")?.getAttribute("data"),
-    ).toBe(editorFileLink.href);
+    expect(nativeSend).toHaveBeenCalledWith({
+      action: "openAttachment",
+      url: editorFileLink.href,
+    });
+    expect(document.querySelector(".preview-modal")).toBeNull();
     expect(readBrowserNoteFile).not.toHaveBeenCalled();
     expect(workspaceUpdates).not.toHaveBeenCalled();
     expect(latest).toEqual(seed);
@@ -327,7 +335,7 @@ describe("Files linked in task notes", () => {
     expect(workspaceUpdates).not.toHaveBeenCalled();
   });
 
-  it.each(["csv", "pdf"])(
+  it.each(["csv"])(
     "downloads %s with its original filename when it cannot be previewed",
     async (extension) => {
       if (extension === "pdf")
@@ -382,6 +390,38 @@ describe("Files linked in task notes", () => {
       expect(detail()?.querySelector(".attachments")).toBeNull();
     },
   );
+
+  it("shows a stored PDF even when the browser has no built-in viewer and releases it on close", async () => {
+    vi.stubGlobal("navigator", {
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      pdfViewerEnabled: false,
+    });
+    const data = new Blob(["%PDF-test"], { type: "application/pdf" });
+    vi.mocked(readBrowserNoteFile).mockResolvedValue({
+      attachment: {
+        id: "review",
+        name: "Review paper.pdf",
+        mime: "application/pdf",
+        size: data.size,
+        url: editorFileLink.href,
+      },
+      data,
+    });
+    await mount([task("Paper review")]);
+    await selectTask("Paper review");
+    await click(
+      detail()!.querySelector<HTMLAnchorElement>(".task-note-editor a"),
+    );
+    expect(label("PDF preview: Review paper.pdf")?.dataset.url).toBe(
+      "blob:note-file-preview",
+    );
+    expect(document.querySelector("object")).toBeNull();
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    await click(label("Close preview"));
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:note-file-preview");
+    expect(workspaceUpdates).not.toHaveBeenCalled();
+  });
 
   it("reports an unavailable file without opening an empty preview or mutating the task", async () => {
     vi.mocked(readBrowserNoteFile).mockResolvedValue(null);

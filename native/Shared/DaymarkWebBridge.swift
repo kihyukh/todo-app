@@ -139,7 +139,12 @@ final class DaymarkWebBridge: NSObject, WKScriptMessageHandler, WKNavigationDele
             case "openAttachment":
                 let attachment = body["attachment"] as? [String: Any]
                 let raw = attachment?["url"] as? String ?? body["url"] as? String ?? body["attachment"] as? String
-                if let raw, let url = URL(string: raw) { openAttachment(url, requestID: requestID) }
+                guard let raw, let url = URL(string: raw) else { throw CocoaError(.fileReadInvalidFileName) }
+                openAttachment(url, requestID: requestID)
+            case "openExternal":
+                guard let raw = body["url"] as? String,
+                      let url = Self.externalLinkURL(raw) else { throw CocoaError(.fileReadUnsupportedScheme) }
+                openURL?(url)
             default: sendError("Unknown native action: \(action)", requestID: requestID)
             }
         } catch {
@@ -189,9 +194,18 @@ final class DaymarkWebBridge: NSObject, WKScriptMessageHandler, WKNavigationDele
             switch result {
             case .success(let file):
                 if let file { self?.openURL?(file) }
+                else { self?.sendError("This attachment could not be found in your workspace.", requestID: requestID) }
             case .failure(let error): self?.sendError(error.localizedDescription, requestID: requestID)
             }
         })
+    }
+
+    static func externalLinkURL(_ raw: String) -> URL? {
+        guard let url = URL(string: raw),
+              let scheme = url.scheme?.lowercased(),
+              ["https", "http", "mailto"].contains(scheme) else { return nil }
+        if scheme != "mailto" && (url.host?.isEmpty ?? true) { return nil }
+        return url
     }
 
     /// Closing waits for the web editor's freshest state to finish a coordinated save.
@@ -270,12 +284,15 @@ final class DaymarkWebBridge: NSObject, WKScriptMessageHandler, WKNavigationDele
             if navigationAction.targetFrame?.isMainFrame == false { decisionHandler(.allow); return }
             openAttachment(url)
         }
-        else if ["https", "http", "mailto"].contains(url.scheme?.lowercased() ?? "") { openURL?(url) }
+        else if let external = Self.externalLinkURL(url.absoluteString) { openURL?(external) }
         decisionHandler(.cancel)
     }
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        if let url = navigationAction.request.url, ["https", "http", "mailto"].contains(url.scheme?.lowercased() ?? "") { openURL?(url) }
+        if let url = navigationAction.request.url {
+            if url.scheme == "daymark", url.host == "attachment" { openAttachment(url) }
+            else if let external = Self.externalLinkURL(url.absoluteString) { openURL?(external) }
+        }
         return nil
     }
 

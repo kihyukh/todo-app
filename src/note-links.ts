@@ -53,6 +53,18 @@ export function openNoteLink(
   if (nativeAttachmentLink(href)) {
     if (!isNative()) return "native-only";
     nativeSend({ action: "openAttachment", url: href });
-  } else window.open(href, "_blank", "noopener,noreferrer");
+  } else if (isNative()) {
+    nativeSend({ action: "openExternal", url: href });
+  } else {
+    // Ordinary navigation works in browser previews that silently discard
+    // new-window requests. The browser's Back action returns to GreenDay.
+    const link = document.createElement("a");
+    link.href = href;
+    link.target = "_self";
+    link.rel = "noopener noreferrer";
+    document.body.append(link);
+    link.click();
+    link.remove();
+  }
   return "opened";
 }
