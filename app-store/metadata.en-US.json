@@ -53,12 +53,16 @@
     "versionMetadata": "Saved for iOS and macOS: 1.0.0, promotional text, description, keywords, support/marketing URLs, copyright, and no reviewer sign-in.",
     "category": "Productivity",
     "ageRating": "Calculated 4+ with regional exceptions; questionnaire saved.",
-    "privacyPolicyURL": "Saved to App Store Connect.",
-    "privacyLabel": "Data Not Collected draft saved; final publication certification awaiting publisher confirmation.",
+    "privacyPolicyURL": "Published in App Privacy with the public policy URL; verified in App Store Connect on 2026-09-15.",
+    "privacyLabel": "Published: Data Not Collected; verified in App Store Connect on 2026-09-15 after the publisher completed certification.",
     "reviewContact": "Complete contact provided privately and saved for iOS and macOS; phone intentionally omitted from repository metadata.",
-    "euTraderStatus": "Publisher declaration requested; not selected.",
+    "euTraderStatus": "Digital Services Act Compliance verified on 2026-09-15: all regulatory requirements complete at this time. Trader classification and private declaration details are not recorded here.",
     "screenshots": "Uploaded and verified: one 1320x2868 iPhone screenshot (6.9-inch slot) and three 2064x2752 iPad screenshots (13-inch slot). Native final Release simulator UI, fictional data only. Mac screenshot pending manual capture.",
     "submission": "Neither platform submitted to App Review or released.",
-    "buildSelection": "Selected build 1.0.0 (1) and App Review notes saved and verified for both platforms."
+    "buildSelection": "Selected build 1.0.0 (1) and App Review notes saved and verified for both platforms.",
+    "remainingRequirements": [
+      "Capture and upload the Mac screenshot.",
+      "Complete and record physical-device runtime, iCloud, and calendar-provider tests; no successful physical-device test results are claimed yet."
+    ]
   }
 }
