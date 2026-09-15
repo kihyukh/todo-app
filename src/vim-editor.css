@@ -1,0 +1,24 @@
+.note-prose[data-vim-mode="normal"]:focus {
+  caret-color: transparent;
+}
+.note-prose:focus .vim-block-cursor {
+  background: var(--accent, #23764d);
+  color: #fff;
+  border-radius: 1px;
+}
+.vim-empty-cursor {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.note-prose:focus .vim-empty-cursor::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -0.15em;
+  width: 0.6em;
+  height: 1.15em;
+  background: var(--accent, #23764d);
+}

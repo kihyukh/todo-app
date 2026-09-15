@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleDisplayName</key><string>$(DAYMARK_DISPLAY_NAME)</string>
+<key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+<key>CFBundleName</key><string>$(PRODUCT_NAME)</string>
+<key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
+<key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
+<key>LSRequiresIPhoneOS</key><true/>
+<key>UILaunchScreen</key><dict><key>UIColorName</key><string>LaunchBackground</string></dict>
+<key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
+<key>UISupportedInterfaceOrientations~ipad</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationPortraitUpsideDown</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>
+<key>LSSupportsOpeningDocumentsInPlace</key><true/>
+<key>UIFileSharingEnabled</key><true/>
+<key>UIApplicationSupportsIndirectInputEvents</key><true/>
+<key>NSCameraUsageDescription</key><string>Take a photo to include in your task notes.</string>
+<key>NSPhotoLibraryUsageDescription</key><string>Choose images to include in your task notes.</string>
+<key>NSCalendarsUsageDescription</key><string>Show your calendar beside your tasks and save events when you choose. Calendar accounts, including iCloud and Google, stay managed by Apple Calendar.</string>
+<key>NSCalendarsFullAccessUsageDescription</key><string>Show your calendar beside your tasks and create, edit, or remove events only when you choose. Your calendar data stays on your devices and with your calendar providers.</string>
+<key>ITSAppUsesNonExemptEncryption</key><false/>
+</dict></plist>

@@ -1,0 +1,27 @@
+{
+  "version": "1.0.0",
+  "build": "1",
+  "source": "Native Release simulator app with web resources byte-identical to the uploaded iOS archive; only fictional QA tasks. JPEG format export preserves captured pixel dimensions.",
+  "screenshots": [
+    {
+      "file": "iphone-01-task-notes.jpg",
+      "size": "1320x2868",
+      "sha256": "4913882c95fcbb3baa9604f6501d3f1231a29899f476533c355294afc53675c2"
+    },
+    {
+      "file": "ipad-01-tasks-and-notes.jpg",
+      "size": "2064x2752",
+      "sha256": "338e509aa307dcabd731ea9512e66d29d010ce39352d19c13e87f197c26338ba"
+    },
+    {
+      "file": "ipad-02-work-days.jpg",
+      "size": "2064x2752",
+      "sha256": "334d5600c1526f7503be0074211bcfda182dd4325e4159cd00bb7463d82f2ae9"
+    },
+    {
+      "file": "ipad-03-open-checkboxes.jpg",
+      "size": "2064x2752",
+      "sha256": "ea5016fb6a5a41180374f7a447c75705988247bfff1cefbb68f77bd65e009c50"
+    }
+  ]
+}

@@ -1,0 +1,183 @@
+.note-prose .tableWrapper {
+  margin: 12px 0;
+  padding-top: 20px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.note-prose .tableWrapper table {
+  margin: 0 0 2px;
+  overflow: visible;
+}
+.note-prose .column-resize-handle {
+  position: absolute;
+  top: -1px;
+  right: -3px;
+  bottom: -1px;
+  width: 5px;
+  z-index: 3;
+  background: var(--accent, #367856);
+  pointer-events: none;
+}
+.note-prose.resize-cursor,
+.note-prose.resize-cursor * {
+  cursor: col-resize !important;
+}
+.note-prose .selectedCell::after {
+  background: #3d865726;
+  z-index: 2;
+}
+.note-prose td,
+.note-prose th {
+  overflow-wrap: anywhere;
+}
+.note-table-controls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.note-editor-surface:has(.note-table-controls.is-visible) > .note-gutter {
+  visibility: hidden;
+}
+.note-table-handle {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #68736b;
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 5;
+}
+.note-table-handle::before {
+  content: "";
+  position: absolute;
+  background: #dfe4e0;
+  border-radius: 4px;
+  transition: background 100ms ease;
+}
+.note-table-handle.is-column::before {
+  inset: 6px 1px 3px;
+}
+.note-table-handle.is-row::before {
+  inset: 1px 3px 1px 6px;
+}
+.note-table-handle svg {
+  position: relative;
+  opacity: 0;
+}
+.note-table-handle:hover::before,
+.note-table-handle:focus-visible::before {
+  background: #bec9c1;
+}
+.note-table-handle:hover svg,
+.note-table-handle:focus-visible svg,
+.note-table-handle.is-open svg,
+.note-table-controls.is-touch .note-table-handle svg {
+  opacity: 1;
+}
+.note-table-handle.is-open::before {
+  background: #d5e9dc;
+}
+.note-table-handle.is-open {
+  color: var(--accent, #367856);
+}
+.note-table-handle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+.note-table-menu {
+  position: fixed;
+  z-index: 180;
+  width: 224px;
+  max-width: calc(100vw - 16px);
+  overflow-y: auto;
+  padding: 6px;
+  box-sizing: border-box;
+  border: 1px solid #dfe5e0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow:
+    0 10px 32px #203a2626,
+    0 2px 6px #203a2610;
+  color: var(--ink, #25372c);
+}
+.note-table-menu-title {
+  padding: 6px 8px 8px;
+  color: var(--secondary, #627067);
+  font-size: 11px;
+  font-weight: 600;
+}
+.note-table-menu > button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 33px;
+  padding: 7px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+.note-table-menu > button > span:not(.note-table-header-icon) {
+  flex: 1;
+}
+.note-table-menu > button:hover,
+.note-table-menu > button:focus-visible {
+  background: #edf3ee;
+  outline: none;
+}
+.note-table-menu > button.has-divider {
+  border-top: 1px solid #ecf0ed;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  margin-top: 4px;
+}
+.note-table-menu > button.is-destructive {
+  color: #ac4242;
+}
+.note-table-menu > button.is-destructive:hover,
+.note-table-menu > button.is-destructive:focus-visible {
+  background: #fff0ef;
+}
+.note-table-menu > button:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: transparent;
+}
+.note-table-header-icon {
+  display: inline-flex;
+  justify-content: center;
+  width: 15px;
+  font-size: 13px;
+  font-weight: 700;
+}
+@media (pointer: coarse) {
+  .note-prose .tableWrapper {
+    padding-top: 30px;
+  }
+  .note-table-menu > button {
+    min-height: 44px;
+    font-size: 14px;
+  }
+  .note-table-handle.is-column::before {
+    inset: 2px 1px;
+  }
+  .note-table-handle.is-row::before {
+    inset: 1px 2px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .note-table-handle::before {
+    transition: none;
+  }
+}

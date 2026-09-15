@@ -1,0 +1,16 @@
+{
+  "version": "1.0.0",
+  "build": "1",
+  "source": "User-supplied native Mac QA screenshot showing only fictional Research tasks.",
+  "sourceSize": "2840x1840",
+  "sourceSha256": "ae9b1cc52acc3c7424aa14531ad69fec5cfc707918ceac2555933b1d8027138e",
+  "preparation": "Full source image uniformly scaled by 1800/1840 and centered on an opaque white 2880x1800 sRGB canvas. No content cropped, regenerated, or stretched; JPEG quality 0.97.",
+  "screenshots": [
+    {
+      "file": "mac-01-tasks-and-notes.jpg",
+      "size": "2880x1800",
+      "sha256": "53da1f7533a590d6f2ed1b2ac19f008daa8a2643f48a683a50a98958d61f6356"
+    }
+  ],
+  "appStoreConnect": "Uploaded and accepted in the Mac slot (1 of 10), 2026-09-15."
+}

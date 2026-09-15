@@ -1,0 +1,441 @@
+.task-schedule-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.task-schedule-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  min-width: 0;
+  border: 0;
+  border-radius: 5px;
+  padding: 4px 6px;
+  color: #53605b;
+  background: transparent;
+  font-size: 13px;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.task-schedule-trigger:hover,
+.task-schedule-trigger[aria-expanded="true"] {
+  color: #226b48;
+  background: #edf3ee;
+}
+.task-schedule-trigger svg {
+  flex-shrink: 0;
+}
+.task-schedule-trigger.is-work {
+  flex: 0 1 auto;
+}
+.task-schedule-trigger.is-today {
+  color: #23764d;
+}
+.task-schedule-trigger.is-deadline {
+  font-size: 12px;
+  flex: 0 1 auto;
+}
+.task-schedule-trigger.is-deadline.has-date {
+  color: #8c661e;
+}
+.task-schedule-trigger.is-deadline.is-overdue {
+  color: #b3463f;
+}
+.task-schedule-trigger.is-empty {
+  color: #7a827e;
+}
+.task-schedule-trigger-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.task-schedule-trigger-count {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: inherit;
+  opacity: 0.85;
+}
+.task-schedule-field.is-touch .task-schedule-trigger {
+  min-height: 44px;
+  min-width: 44px;
+}
+.task-schedule-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 119;
+  background: #14231b38;
+  touch-action: none;
+}
+.task-schedule-popover {
+  position: fixed;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 356px;
+  max-height: calc(100dvh - 24px);
+  overflow: hidden;
+  border: 1px solid #dce2dd;
+  border-radius: 13px;
+  background: #fff;
+  color: #26352c;
+  box-shadow:
+    0 12px 42px #1b312320,
+    0 2px 8px #1b312310;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.task-schedule-popover button {
+  box-sizing: border-box;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.task-schedule-popover button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+.task-schedule-popover button:focus-visible,
+.task-schedule-trigger:focus-visible {
+  outline: 2px solid #23764d;
+  outline-offset: 2px;
+  position: relative;
+  z-index: 1;
+}
+/* Focus stays in the grid on touch; only keyboard navigation needs a ring. */
+.task-schedule-popover:not(.has-keyboard-focus)
+  .task-schedule-day:focus-visible {
+  outline: none;
+}
+.task-schedule-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px 0 16px;
+  border-bottom: 1px solid #edf0ed;
+  flex-shrink: 0;
+}
+.task-schedule-tabs {
+  display: flex;
+  gap: 20px;
+}
+.task-schedule-tabs button {
+  position: relative;
+  min-height: 38px;
+  padding: 0 0 11px;
+  color: #78817b;
+  background: transparent;
+  font-weight: 550;
+}
+.task-schedule-tabs button[aria-selected="true"] {
+  color: #23764d;
+  font-weight: 650;
+}
+.task-schedule-tabs button[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  height: 2px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #23764d;
+  border-radius: 2px;
+}
+.task-schedule-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 6px;
+  color: #6c776f;
+  background: transparent;
+}
+.task-schedule-icon:hover {
+  background: #f0f4f0;
+  color: #23764d;
+}
+.task-schedule-header > .task-schedule-icon {
+  align-self: flex-start;
+  margin-top: -2px;
+}
+.task-schedule-body {
+  overflow: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  padding: 0 15px 13px;
+  scrollbar-width: thin;
+}
+.task-schedule-help {
+  margin: 12px 1px 8px;
+  color: #79827c;
+  font-size: 11px;
+}
+.task-schedule-presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0 -3px 13px;
+}
+.task-schedule-presets button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-height: 59px;
+  padding: 10px 4px 8px;
+  border-radius: 8px;
+  color: #53645a;
+  background: transparent;
+  font-size: 11px;
+}
+.task-schedule-presets button svg {
+  color: #64806d;
+}
+.task-schedule-presets button:hover {
+  background: #f2f6f2;
+}
+.task-schedule-presets button[aria-pressed="true"] {
+  background: #edf5ee;
+  color: #216d48;
+}
+.task-schedule-presets button[aria-pressed="true"] svg {
+  color: #23764d;
+}
+.task-schedule-month {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 3px 7px;
+}
+.task-schedule-month strong {
+  font-size: 15px;
+  font-weight: 650;
+}
+.task-schedule-month > div {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+.task-schedule-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.task-schedule-week [role="columnheader"] {
+  color: #929b95;
+  text-align: center;
+  font-size: 11px;
+  padding: 4px 0 7px;
+}
+.task-schedule-popover .task-schedule-day {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 42px;
+  min-width: 0;
+  padding: 0;
+  border-radius: 6px;
+  color: #344039;
+  background: transparent;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.task-schedule-day > span {
+  box-sizing: border-box;
+  width: 31px;
+  height: 31px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+}
+.task-schedule-day:hover {
+  background: transparent;
+}
+.task-schedule-day:hover > span {
+  background: #edf3ee;
+}
+.task-schedule-day.is-adjoining {
+  color: #adb4ae;
+}
+.task-schedule-day.is-today > span {
+  border-color: #b7ccbd;
+  color: #216d48;
+}
+.task-schedule-day.is-selected > span,
+.task-schedule-day.is-selected:hover > span {
+  background: #23764d;
+  border-color: #23764d;
+  color: #fff;
+  font-weight: 650;
+}
+.task-schedule-day.has-deadline::after,
+.task-schedule-day.has-work::before {
+  content: "";
+  position: absolute;
+  bottom: 2px;
+  left: calc(50% - 2px);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #ba8830;
+}
+.task-schedule-day.has-work::before {
+  background: #55906b;
+}
+.task-schedule-day.has-work.has-deadline::before {
+  left: calc(50% - 5px);
+}
+.task-schedule-day.has-work.has-deadline::after {
+  left: calc(50% + 1px);
+}
+.task-schedule-selection {
+  margin: 10px 1px 0;
+  padding-top: 10px;
+  border-top: 1px solid #edf0ed;
+}
+.task-schedule-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+  color: #77817a;
+  font-size: 10px;
+}
+.task-schedule-deadline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.task-schedule-deadline.has-date {
+  color: #966d22;
+}
+.task-schedule-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-height: 68px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 2px;
+  margin: -2px;
+}
+.task-schedule-chips button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 25px;
+  padding: 3px 7px;
+  background: #eff5ef;
+  color: #3b6650;
+  border-radius: 5px;
+  font-size: 10px;
+}
+.task-schedule-chips button:hover {
+  background: #e3eee4;
+}
+.task-schedule-chips button svg {
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+.task-schedule-warning {
+  margin: 9px 0 0;
+  color: #936718;
+  font-size: 10px;
+}
+.task-schedule-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 13px;
+  gap: 12px;
+  border-top: 1px solid #e8ede8;
+  background: #fff;
+  flex-shrink: 0;
+}
+.task-schedule-footer > div {
+  display: flex;
+  gap: 7px;
+}
+.task-schedule-footer button {
+  min-height: 32px;
+  padding: 6px 11px;
+  border-radius: 6px;
+  color: #69756d;
+  background: transparent;
+}
+.task-schedule-footer button:hover:not(:disabled) {
+  background: #f0f4f0;
+}
+.task-schedule-footer .task-schedule-clear {
+  padding-left: 3px;
+}
+.task-schedule-footer .task-schedule-save,
+.task-schedule-footer .task-schedule-save:hover {
+  min-width: 62px;
+  background: #23764d;
+  color: #fff;
+  font-weight: 600;
+}
+.task-schedule-popover.is-sheet {
+  border-radius: 16px;
+  box-shadow: 0 12px 50px #14231b38;
+}
+.task-schedule-popover:is(.is-touch, .is-sheet) .task-schedule-tabs button {
+  min-height: 44px;
+}
+.task-schedule-popover:is(.is-touch, .is-sheet) .task-schedule-icon {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+}
+.task-schedule-popover:is(.is-touch, .is-sheet) .task-schedule-day {
+  min-height: 44px;
+  font-size: 15px;
+}
+.task-schedule-popover:is(.is-touch, .is-sheet) .task-schedule-day > span {
+  width: 34px;
+  height: 34px;
+}
+.task-schedule-popover:is(.is-touch, .is-sheet) .task-schedule-chips {
+  max-height: 98px;
+}
+.task-schedule-popover:is(.is-touch, .is-sheet) .task-schedule-chips button,
+.task-schedule-popover:is(.is-touch, .is-sheet) .task-schedule-footer button {
+  min-height: 44px;
+  min-width: 44px;
+  font-size: 12px;
+}
+.task-schedule-popover:is(.is-touch, .is-sheet) .task-schedule-summary,
+.task-schedule-popover:is(.is-touch, .is-sheet) .task-schedule-warning,
+.task-schedule-popover:is(.is-touch, .is-sheet) .task-schedule-help {
+  font-size: 11px;
+}
+@media (max-width: 400px) {
+  .task-schedule-trigger.is-empty .task-schedule-trigger-text {
+    display: none;
+  }
+}
+@media (max-width: 374px) {
+  .task-schedule-popover.is-sheet .task-schedule-body {
+    padding-left: 1px;
+    padding-right: 1px;
+  }
+  .task-schedule-popover.is-sheet .task-schedule-help,
+  .task-schedule-popover.is-sheet .task-schedule-presets,
+  .task-schedule-popover.is-sheet .task-schedule-month,
+  .task-schedule-popover.is-sheet .task-schedule-selection {
+    margin-left: 10px;
+    margin-right: 10px;
+  }
+}

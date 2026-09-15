@@ -1,0 +1,124 @@
+.list-options-menu {
+  position: fixed;
+  z-index: 150;
+  width: 192px;
+  padding: 6px;
+  border: 1px solid #dce4de;
+  border-radius: 10px;
+  background: white;
+  box-shadow: 0 8px 28px #192c2426;
+}
+.list-options-menu button {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  min-height: 38px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: left;
+}
+.list-options-menu button:hover,
+.list-options-menu button:focus-visible {
+  background: #f1f5f2;
+}
+.list-options-menu .list-delete-action,
+.record-delete-action {
+  color: var(--danger);
+}
+.record-delete-action {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.modal.list-delete-dialog {
+  width: 420px;
+  max-width: calc(100vw - 28px);
+  border-radius: 14px;
+}
+.modal.list-delete-dialog > header {
+  padding: 22px 24px 0;
+  border: 0;
+  align-items: flex-start;
+  gap: 16px;
+}
+.list-delete-dialog header h2 {
+  font-size: 18px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.list-delete-body {
+  padding: 16px 24px 22px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.list-delete-body p {
+  margin: 0;
+}
+.list-delete-body .list-delete-secondary {
+  margin-top: 10px;
+  color: var(--secondary);
+  font-size: 12px;
+}
+.list-delete-dialog > footer {
+  border-top: 1px solid #e5ebe6;
+  padding: 16px 24px 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.list-delete-dialog footer button {
+  min-height: 40px;
+  padding: 9px 14px;
+  border-radius: 7px;
+  margin: 0;
+  font-size: 13px;
+}
+.list-delete-dialog .list-delete-confirm {
+  background: #ad403b;
+  color: white;
+}
+.list-delete-dialog .list-delete-confirm:hover {
+  background: #913731;
+}
+.list-delete-notice {
+  gap: 12px;
+  max-width: calc(100vw - 32px);
+}
+.list-delete-notice > span {
+  overflow-wrap: anywhere;
+}
+.list-delete-notice > button {
+  flex-shrink: 0;
+  padding: 7px 10px;
+  color: var(--blue);
+  font-weight: 600;
+}
+.list-delete-notice > .icon-button {
+  padding: 0;
+  width: 30px;
+  height: 30px;
+}
+.is-touch-device .list-options-menu button,
+.is-touch-device .list-delete-dialog button {
+  min-height: 44px;
+}
+@media (max-width: 600px) {
+  .list-options-menu button,
+  .list-delete-dialog button,
+  .list-delete-dialog footer button {
+    min-height: 44px;
+  }
+  .modal.list-delete-dialog > header {
+    padding: 20px 20px 0;
+  }
+  .list-delete-body {
+    padding: 16px 20px 20px;
+  }
+  .list-delete-dialog > footer {
+    padding: 14px 20px 18px;
+  }
+}

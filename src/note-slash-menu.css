@@ -1,0 +1,122 @@
+.note-slash-menu {
+  position: fixed;
+  z-index: 121;
+  display: flex;
+  flex-direction: column;
+  width: min(310px, calc(100vw - 16px));
+  border: 1px solid #d5e1d9;
+  border-radius: 11px;
+  background: #fff;
+  color: var(--ink, #23382e);
+  box-shadow:
+    0 12px 36px #1e392529,
+    0 2px 6px #1e39250a;
+  overflow: hidden;
+  font-size: 12px;
+}
+.note-slash-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 12px 9px;
+  color: var(--secondary);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.note-slash-title > span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note-slash-menu kbd {
+  font: inherit;
+  font-size: 10px;
+  color: var(--muted);
+}
+.note-slash-options {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 0 5px;
+  overscroll-behavior: contain;
+}
+.note-slash-options button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px;
+  min-height: 47px;
+  border: 0;
+  border-radius: 6px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.note-slash-options button[aria-selected="true"] {
+  background: #e8f3eb;
+  color: #235c3f;
+}
+.note-slash-options button:hover {
+  background: #f0f5f1;
+}
+.note-slash-options button > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.note-slash-options strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.note-slash-options small {
+  display: block;
+  margin-top: 1px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--secondary);
+}
+.note-slash-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #dce7df;
+  background: #fff;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.note-slash-icon svg {
+  stroke-width: 1.6;
+}
+.note-slash-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-top: 5px;
+  padding: 9px 12px;
+  border-top: 1px solid #edf1ee;
+  font-size: 10px;
+  color: var(--secondary);
+}
+.note-slash-footer > span {
+  color: var(--muted);
+}
+.note-slash-empty {
+  padding: 12px 18px 18px;
+  line-height: 1.6;
+  color: var(--secondary);
+}
+.note-slash-menu.is-touch .note-slash-options button {
+  min-height: 50px;
+}
+.note-slash-menu.is-touch .note-slash-options strong {
+  font-size: 13px;
+}
+.note-slash-menu.is-touch .note-slash-title > kbd {
+  display: none;
+}

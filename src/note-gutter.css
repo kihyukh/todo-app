@@ -1,0 +1,83 @@
+.note-gutter {
+  --note-gutter-width: 24px;
+  --note-gutter-button-size: 24px;
+  position: absolute;
+  top: 0;
+  left: -28px;
+  bottom: 0;
+  width: var(--note-gutter-width);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.note-gutter-button {
+  position: absolute;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--note-gutter-button-size);
+  height: var(--note-gutter-button-size);
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--secondary, #536159);
+  pointer-events: auto;
+  cursor: pointer;
+  transition:
+    opacity 0.12s,
+    background-color 0.12s,
+    color 0.12s;
+}
+.note-gutter-heading {
+  /* The text baseline is roughly 3px below the center of this 10px label. */
+  transform: translateY(calc(-50% - 3px));
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.2px;
+}
+.note-gutter.has-open-menu .note-gutter-heading {
+  visibility: hidden;
+}
+.note-gutter-paragraph {
+  transform: translateY(-50%);
+  opacity: 0;
+}
+.note-editor-surface:hover .note-gutter-paragraph,
+.note-editor-surface:focus-within .note-gutter-paragraph,
+.note-gutter.has-open-menu .note-gutter-paragraph {
+  opacity: 0.55;
+}
+.note-gutter-paragraph.is-always-visible,
+.note-editor-surface:focus-within .note-gutter-paragraph.is-empty {
+  opacity: 1;
+}
+.note-gutter-button:hover,
+.note-gutter-button:focus-visible {
+  opacity: 1;
+  color: var(--accent, #23764d);
+  background: var(--selected, #e5f1e9);
+}
+.note-gutter-button:focus-visible {
+  outline: 2px solid var(--accent, #23764d);
+  outline-offset: 1px;
+}
+.note-gutter.is-touch {
+  left: -24px;
+}
+.note-gutter.is-touch .note-gutter-heading {
+  color: var(--secondary, #536159);
+}
+.note-gutter.is-touch .note-gutter-paragraph {
+  opacity: 0.6;
+}
+@media (prefers-reduced-motion: reduce) {
+  .note-gutter-button {
+    transition: none;
+  }
+}
