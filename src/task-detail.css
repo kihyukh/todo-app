@@ -233,7 +233,7 @@
     order: 3;
     flex: 1 0 100%;
   }
-  .detail .detail-actions > .icon-button:last-child {
+  .detail .detail-close {
     display: none;
   }
   .detail .detail-back {

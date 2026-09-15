@@ -558,6 +558,7 @@ function EventDetails({
           <div key={task.id} className="calendar-linked-task">
             <button
               type="button"
+              data-open-task
               onClick={() => {
                 onClose();
                 onOpenTask(task.id);
@@ -760,6 +761,7 @@ function TaskDayChip({
     <button
       type="button"
       className={`calendar-task-chip ${deadline ? "has-deadline" : ""}`}
+      data-open-task
       onClick={() => onOpenTask(task.id)}
       title={
         deadline

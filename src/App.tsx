@@ -219,6 +219,30 @@ function App() {
       );
   const selected = state.tasks.find((t) => t.id === selectedId && !t.deletedAt);
   const panes = usePaneWidths(!!selected);
+  const detailRef = useRef<HTMLElement>(null);
+  const detailWasOpen = useRef(false);
+  useLayoutEffect(() => {
+    const opening = ready && !!selected && !detailWasOpen.current;
+    detailWasOpen.current = ready && !!selected;
+    const pane = detailRef.current;
+    if (
+      !opening ||
+      panes.detailLayout !== "floating" ||
+      !pane?.animate ||
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
+    // Animate only a closed → open transition. Task changes and docking keep
+    // their existing editor lifecycle and cancel any unfinished entrance.
+    const entrance = pane.animate(
+      [
+        { transform: "translateX(calc(100% + 24px))" },
+        { transform: "translateX(0)" },
+      ],
+      { duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+    );
+    return () => entrance.cancel();
+  }, [ready, selected?.id, panes.detailLayout]);
   useEffect(() => {
     if (
       !ready ||
@@ -774,6 +798,7 @@ function App() {
             </button>
             <button
               className="task-content"
+              data-open-task
               onClick={() => setSelectedId(task.id)}
             >
               <span className={`task-title ${task.completedAt ? "done" : ""}`}>
@@ -875,6 +900,7 @@ function App() {
                 className={`start-task ${progressColumn && task.columnId === progressColumn.id ? "is-working" : ""}`}
                 aria-label={`Work on ${task.title}`}
                 title="Work on this task"
+                data-open-task
                 onClick={() => startWorking(task)}
               >
                 <Play size={13} />
@@ -935,12 +961,13 @@ function App() {
       data-detail-layout={panes.detailLayout}
       className={`app-shell ${selected ? "has-detail" : ""} ${sidebar ? "sidebar-open" : ""} ${touch ? "is-touch-device" : ""} ${window.__DAYMARK_PLATFORM__ === "macos" ? "is-native-mac" : ""} ${touchFocus ? "has-touch-focus" : ""}`}
       onClickCapture={(event) => {
-        // Keep the underlying list interactive. A task click in the same event
-        // selects its detail without an intermediate editor unmount.
+        // Task-opening controls switch directly. Closing here first would
+        // unmount the editor between React's capture and bubble handlers.
         if (
           panes.detailLayout === "floating" &&
           event.target instanceof Element &&
-          event.target.closest(".workspace, .sidebar")
+          event.target.closest(".workspace, .sidebar") &&
+          !event.target.closest("[data-open-task]")
         )
           setSelectedId(null);
       }}
@@ -1316,6 +1343,7 @@ function App() {
                   <button
                     key={task.id}
                     className="planning-row"
+                    data-open-task
                     onClick={() => setSelectedId(task.id)}
                   >
                     <Sun size={15} />
@@ -1382,6 +1410,7 @@ function App() {
                     <section className="checkbox-group" key={task.id}>
                       <button
                         className="parent-task"
+                        data-open-task
                         onClick={() => setSelectedId(task.id)}
                       >
                         <span>{task.title}</span>
@@ -1398,7 +1427,10 @@ function App() {
                               })
                             }
                           />
-                          <button onClick={() => setSelectedId(task.id)}>
+                          <button
+                            data-open-task
+                            onClick={() => setSelectedId(task.id)}
+                          >
                             {c.text || "Untitled checkbox"}
                           </button>
                         </div>
@@ -1597,7 +1629,12 @@ function App() {
         </footer>
       </main>
       {selected && (
-        <aside className="detail" key={selected.id} aria-label="Task details">
+        <aside
+          ref={detailRef}
+          className="detail"
+          key={selected.id}
+          aria-label="Task details"
+        >
           <header className="detail-top" data-window-drag>
             <button
               className="detail-back"
@@ -1606,6 +1643,13 @@ function App() {
             >
               <ArrowLeft size={18} />
             </button>
+            <IconButton
+              className="icon-button detail-close"
+              label="Close task"
+              onClick={() => setSelectedId(null)}
+            >
+              <X size={17} />
+            </IconButton>
             <button
               className={`task-check large ${selected.completedAt ? "checked" : ""} ${selected.completedAt && completion.completing.has(selected.id) ? "is-celebrating" : ""}`}
               aria-label={
@@ -1704,12 +1748,6 @@ function App() {
                   </div>
                 )}
               </div>
-              <IconButton
-                label="Close task"
-                onClick={() => setSelectedId(null)}
-              >
-                <X size={17} />
-              </IconButton>
             </div>
           </header>
           {touch && error && !showWorkspaceSetup && (

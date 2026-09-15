@@ -86,6 +86,7 @@ These results establish build and local interaction behavior. They do not establ
 - Browser checks confirmed a floating right pane at 860px, docking at the default 984px boundary (224px navigation, 360px list, 400px detail), and a wider three-column view. An edit to a fictional sample note retained its caret and Undo history through both transitions; Undo restored the original note. The date chooser stayed open while resizing. At 390px, details stayed full screen and Back returned to the list.
 - The installed Mac app confirmed the floating pane, three-column docking when zoomed wider, and the same selected task remaining open in a floating pane after restoring its original size. No personal task records were changed.
 - Production web, Mac, iPhone simulator, and unsigned device archive builds passed. All 62 web assets match across these outputs, with no personal records or development directories packaged. This update changes the shared interface; physical-device and provider-delivery limits below still apply.
+- The floating-pane entrance now slides from the right over 220ms, and the desktop close button is on the left of the header. Browser checks observed an animated transform on opening, no animation when switching/reselecting tasks or resizing, and the unchanged phone Back button with the desktop close button hidden. Task-opening controls explicitly bypass background dismissal so capture/bubble event timing cannot briefly close and remount the pane. All 611 existing tests still pass.
 
 ## Still needed before distribution
 
