@@ -1,5 +1,5 @@
 {
-  "status": "listing-prepared-builds-processed-not-submitted",
+  "status": "listing-prepared-builds-selected-not-submitted",
   "workingName": "GreenDay",
   "name": "GreenDay: Tasks & Notes",
   "displayName": "GreenDay",
@@ -41,12 +41,13 @@
     "lastName": "Hong",
     "email": "hominot@gmail.com",
     "phone": null,
-    "signInRequired": false
+    "signInRequired": false,
+    "phoneStorage": "Provided privately and saved in App Store Connect for both platforms; intentionally omitted from repository files."
   },
   "distributionPlan": {
-    "status": "both-builds-processed-review-setup-incomplete",
+    "status": "both-builds-selected-review-contacts-and-notes-saved",
     "platforms": ["iOS", "macOS"],
-    "appRecord": "App Store record 6812229239 contains iOS and macOS versions 1.0.0, both in Prepare for Submission, with registered identifier com.kihyukh.greenday. Both uploaded builds 1.0.0 (1) show Complete and Ready to Submit in TestFlight. Build selection is not saved: App Review contact information is required. The listing name GreenDay: Tasks & Notes is saved; the native app display name remains GreenDay."
+    "appRecord": "App Store record 6812229239 contains iOS and macOS versions 1.0.0, both in Prepare for Submission, with registered identifier com.kihyukh.greenday. Both uploaded builds 1.0.0 (1) show Complete and Ready to Submit in TestFlight. Selected builds 1.0.0 (1), complete private App Review contacts, and review notes are saved and verified for both platform versions. The listing name GreenDay: Tasks & Notes is saved; the native app display name remains GreenDay."
   },
   "storeSetup": {
     "versionMetadata": "Saved for iOS and macOS: 1.0.0, promotional text, description, keywords, support/marketing URLs, copyright, and no reviewer sign-in.",
@@ -54,9 +55,10 @@
     "ageRating": "Calculated 4+ with regional exceptions; questionnaire saved.",
     "privacyPolicyURL": "Saved to App Store Connect.",
     "privacyLabel": "Data Not Collected draft saved; final publication certification awaiting publisher confirmation.",
-    "reviewContact": "Phone number requested from publisher; contact and build selection remain incomplete.",
+    "reviewContact": "Complete contact provided privately and saved for iOS and macOS; phone intentionally omitted from repository metadata.",
     "euTraderStatus": "Publisher declaration requested; not selected.",
     "screenshots": "Uploaded and verified: one 1320x2868 iPhone screenshot (6.9-inch slot) and three 2064x2752 iPad screenshots (13-inch slot). Native final Release simulator UI, fictional data only. Mac screenshot pending manual capture.",
-    "submission": "Neither platform submitted to App Review or released."
+    "submission": "Neither platform submitted to App Review or released.",
+    "buildSelection": "Selected build 1.0.0 (1) and App Review notes saved and verified for both platforms."
   }
 }
