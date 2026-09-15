@@ -1,5 +1,6 @@
 /** Device preferences stay local; they never change a shared workspace. */
 const IOS_SETUP_KEY = "daymark.ios.workspace-setup.v1";
+const MAC_SETUP_KEY = "daymark.mac.workspace-setup.v1";
 
 declare global {
   interface Window {
@@ -28,6 +29,22 @@ export function needsIOSWorkspaceSetup(): boolean {
 export function finishIOSWorkspaceSetup(): void {
   try {
     localStorage.setItem(IOS_SETUP_KEY, "complete");
+  } catch {
+    /* The current session can continue without device storage. */
+  }
+}
+
+export function needsMacWorkspaceSetup(): boolean {
+  try {
+    return localStorage.getItem(MAC_SETUP_KEY) !== "complete";
+  } catch {
+    return true;
+  }
+}
+
+export function finishMacWorkspaceSetup(): void {
+  try {
+    localStorage.setItem(MAC_SETUP_KEY, "complete");
   } catch {
     /* The current session can continue without device storage. */
   }

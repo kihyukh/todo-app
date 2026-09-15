@@ -1,29 +1,157 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Privacy — GreenDay</title><link rel="stylesheet" href="style.css"></head>
-<body><main>
-<aside class="draft" role="note">Draft for review. GreenDay is the chosen app name. Set the publisher, effective date, and support contact before publishing.</aside>
-<header><div class="app-name">GreenDay</div><h1>Privacy policy</h1><p class="meta">Publisher: __PUBLISHER_NAME__ · Effective: __EFFECTIVE_DATE__</p></header>
-<p>GreenDay is a personal task, calendar, and note app. It does not require a GreenDay account, and it contains no advertising or analytics SDK. The publisher does not operate a service that receives your task workspace or connected calendar data.</p>
-<h2>Your tasks and files</h2>
-<p>Your tasks, notes, work days, deadlines, priorities, tags, checkboxes, images, attachments, and linked-event metadata are stored on your device or in a workspace folder you choose. Editing settings, pane widths, calendar visibility preferences, and the location of your chosen folder are remembered on your device.</p>
-<p>If you choose a folder in iCloud Drive or another file provider, that provider handles storage and syncing under its own terms and privacy practices. The publisher cannot access your private iCloud Drive through the app. Only files you select are imported; the app does not upload your workspace to a developer-owned server.</p>
-<h2>Optional calendar access</h2>
-<p>Calendar access is requested when you choose Connect calendars. With your permission, the native app uses Apple's EventKit framework to read calendars and events from accounts configured in Apple Calendar, including iCloud and Google. This information is used to display your calendar beside your tasks. Full event access is required by the operating system to read events; you can decline and continue using tasks and notes.</p>
-<p>Events you explicitly create, edit, or delete are saved through Apple Calendar. Your calendar provider handles synchronization and stores those events under its own terms and privacy practices. Account credentials remain with the operating system and provider. GreenDay does not provide a separate Google sign-in or send calendar data to a publisher-operated server.</p>
-<p>When you link an event to a task, the task stores event and calendar identifiers, the original occurrence identity for recurring events, and cached event titles, dates, times, and calendar labels/colors. This metadata follows the workspace you choose, including its exports and recovery revisions. The app does not copy the entire connected calendar into the task workspace. If you schedule a work session from a task, its title can prefill the event form; you review the event before saving it. Linking alone does not copy the task's full note or attachments into the calendar.</p>
-<p>You can revoke calendar access in your device's privacy settings. Hiding a calendar or unlinking an event changes its display or task association; it does not delete the provider's event. Unlinking does not erase linked-event metadata from older workspace revisions or exports. Remove calendar events through an explicit delete action in GreenDay, Apple Calendar, or the provider's own app if you want to delete those events.</p>
-<h2>Links and remote images</h2>
-<p>Opening a link in a note uses your system browser or the relevant app. A remotely hosted image that you put in a note can contact its source website when the image is displayed. That website may receive information normally sent with a web request, such as your IP address. Its privacy practices apply. Files copied into your workspace can be used without loading them from their original website.</p>
-<h2>Keeping and deleting data</h2>
-<p>The app retains your workspace until you remove it. Moving a task to Trash keeps a recoverable record. Earlier record versions and copied attachments may remain in the workspace so edits can be recovered. A task disappearing from the active list is not a permanent erasure of every copy.</p>
-<p>To erase a workspace completely, close the app on every device using it and remove that workspace folder, including its attachments and recovery history, through Finder or Files. Also remove any exports or other copies you made. Uninstalling the app does not remove files you put in iCloud Drive or another selected folder. Your file provider and device backups may retain copies according to their own policies.</p>
-<p>Removing the GreenDay app or its workspace does not delete events previously saved to your calendar accounts. Calendar providers may retain deleted events and backups according to their own policies. The GreenDay display name does not rename an existing workspace folder; a folder named Daymark can still hold your current workspace.</p>
-<h2>Support and beta testing</h2>
-<p>If you contact support, the publisher receives the contact details and information you choose to send and uses them to respond to your request. Please remove private task content from screenshots and use a small fictional example where possible. Contact support to request deletion of support correspondence; information may be kept where required to resolve a request or meet applicable obligations.</p>
-<p>If you use a TestFlight beta, Apple’s TestFlight service can provide crash information and feedback you submit to the developer. These beta-testing services are separate from the app’s task storage.</p>
-<h2>Contact and changes</h2>
-<p>Privacy and support contact: <strong>__SUPPORT_EMAIL__</strong>.</p>
-<p>This page will be updated if the app’s data practices change. Its effective date appears above.</p>
-<footer><a href="support.html">Support</a><span>__PUBLISHER_NAME__</span></footer>
-</main></body></html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Privacy — GreenDay</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <aside class="draft" role="note">
+        Draft for review. GreenDay is the chosen app name. Set the publisher,
+        effective date, and support contact before publishing.
+      </aside>
+      <header>
+        <div class="app-name">GreenDay</div>
+        <h1>Privacy policy</h1>
+        <p class="meta">
+          Publisher: __PUBLISHER_NAME__ · Effective: __EFFECTIVE_DATE__
+        </p>
+      </header>
+      <p>
+        GreenDay is a personal task, calendar, and note app. It does not require
+        a GreenDay account, and it contains no advertising or analytics SDK. The
+        publisher does not operate a service that receives your task workspace
+        or connected calendar data.
+      </p>
+      <h2>Your tasks and files</h2>
+      <p>
+        Your tasks, notes, work days, deadlines, priorities, tags, checkboxes,
+        images, attachments, and linked-event metadata are stored on your device
+        or in a workspace folder you choose. Editing settings, pane widths,
+        calendar visibility preferences, and the location of your chosen folder
+        are remembered on your device.
+      </p>
+      <p>
+        If you choose a folder in iCloud Drive or another file provider, that
+        provider handles storage and syncing under its own terms and privacy
+        practices. The publisher cannot access your private iCloud Drive through
+        the app. Files you explicitly select, paste, or drop are imported; the
+        app does not upload your workspace to a developer-owned server.
+      </p>
+      <p>
+        The Mac App Store version starts in its private app storage. Opening an
+        existing workspace requires you to select that folder; a system-granted
+        bookmark remembers that permission. If the folder becomes unavailable,
+        reconnect it in Settings. The app does not scan outside its permitted
+        folders for earlier workspaces.
+      </p>
+      <h2>Optional calendar access</h2>
+      <p>
+        Calendar access is requested when you choose Connect calendars. With
+        your permission, the native app uses Apple's EventKit framework to read
+        calendars and events from accounts configured in Apple Calendar,
+        including iCloud and Google. This information is used to display your
+        calendar beside your tasks. Full event access is required by the
+        operating system to read events; you can decline and continue using
+        tasks and notes.
+      </p>
+      <p>
+        Events you explicitly create, edit, or delete are saved through Apple
+        Calendar. Your calendar provider handles synchronization and stores
+        those events under its own terms and privacy practices. Account
+        credentials remain with the operating system and provider. GreenDay does
+        not provide a separate Google sign-in or send calendar data to a
+        publisher-operated server.
+      </p>
+      <p>
+        When you link an event to a task, the task stores event and calendar
+        identifiers, the original occurrence identity for recurring events, and
+        cached event titles, dates, times, and calendar labels/colors. This
+        metadata follows the workspace you choose, including its exports and
+        recovery revisions. The app does not copy the entire connected calendar
+        into the task workspace. If you schedule a work session from a task, its
+        title can prefill the event form; you review the event before saving it.
+        Linking alone does not copy the task's full note or attachments into the
+        calendar.
+      </p>
+      <p>
+        You can revoke calendar access in your device's privacy settings. Hiding
+        a calendar or unlinking an event changes its display or task
+        association; it does not delete the provider's event. Unlinking does not
+        erase linked-event metadata from older workspace revisions or exports.
+        Remove calendar events through an explicit delete action in GreenDay,
+        Apple Calendar, or the provider's own app if you want to delete those
+        events.
+      </p>
+      <h2>Links and remote images</h2>
+      <p>
+        Opening a link in a note uses your system browser or the relevant app. A
+        remotely hosted image that you put in a note can contact its source
+        website when the image is displayed. That website may receive
+        information normally sent with a web request, such as your IP address.
+        Its privacy practices apply. Files copied into your workspace can be
+        used without loading them from their original website.
+      </p>
+      <p>
+        PDFs opened in the Mac and iPhone apps use system document viewers. The
+        native app does not send PDF contents to an online conversion or preview
+        service.
+      </p>
+      <h2>Keeping and deleting data</h2>
+      <p>
+        The app retains your workspace until you remove it. Moving a task to
+        Trash keeps a recoverable record. Earlier record versions and copied
+        attachments may remain in the workspace so edits can be recovered. A
+        task disappearing from the active list is not a permanent erasure of
+        every copy.
+      </p>
+      <p>
+        To erase a workspace completely, close the app on every device using it
+        and remove that workspace folder, including its attachments and recovery
+        history, through Finder or Files. Also remove any exports or other
+        copies you made. Uninstalling the app does not remove files you put in
+        iCloud Drive or another selected folder. Your file provider and device
+        backups may retain copies according to their own policies.
+      </p>
+      <p>
+        Removing the GreenDay app or its workspace does not delete events
+        previously saved to your calendar accounts. Calendar providers may
+        retain deleted events and backups according to their own policies. The
+        GreenDay display name does not rename an existing workspace folder; a
+        folder named Daymark can still hold your current workspace.
+      </p>
+      <h2>Support and beta testing</h2>
+      <p>
+        If you contact support, the publisher receives the contact details and
+        information you choose to send and uses them to respond to your request.
+        Please remove private task content from screenshots and use a small
+        fictional example where possible. Contact support to request deletion of
+        support correspondence; information may be kept where required to
+        resolve a request or meet applicable obligations.
+      </p>
+      <p>
+        If you use a TestFlight beta, Apple’s TestFlight service can provide
+        crash information and feedback you submit to the developer. These
+        beta-testing services are separate from the app’s task storage.
+      </p>
+      <p>
+        When you visit these public support and privacy pages, your browser
+        sends ordinary connection information to the website host. These pages
+        contain no analytics scripts, advertising, external fonts, or contact
+        form.
+      </p>
+      <h2>Contact and changes</h2>
+      <p>Privacy and support contact: <strong>__SUPPORT_EMAIL__</strong>.</p>
+      <p>
+        This page will be updated if the app’s data practices change. Its
+        effective date appears above.
+      </p>
+      <footer>
+        <a href="support.html">Support</a><span>__PUBLISHER_NAME__</span>
+      </footer>
+    </main>
+  </body>
+</html>

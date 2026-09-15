@@ -1,14 +1,40 @@
-import { APP_NAME } from "./brand";
-import notices from "./third-party-notices.txt?raw";
+import { APP_NAME, PUBLIC_PRIVACY_URL, PUBLIC_SUPPORT_URL } from "./brand";
+import { openNoteLink } from "./note-links";
+import browserNotices from "./third-party-notices.txt?raw";
+import nativeNotices from "./third-party-notices.native.txt?raw";
 import "./privacy-info.css";
 
 export function PrivacyInfo() {
+  const notices =
+    import.meta.env.VITE_NATIVE_APP === "1" ? nativeNotices : browserNotices;
   return (
     <div className="privacy-info">
       <p>
         {APP_NAME} does not require an app account and contains no advertising
         or analytics SDK. This information is available offline.
       </p>
+      {(PUBLIC_PRIVACY_URL || PUBLIC_SUPPORT_URL) && (
+        <nav className="privacy-page-links" aria-label="Privacy and support">
+          {[
+            [PUBLIC_PRIVACY_URL, "Privacy policy"],
+            [PUBLIC_SUPPORT_URL, "Support"],
+          ].map(
+            ([url, label]) =>
+              url && (
+                <a
+                  key={label}
+                  href={url}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    openNoteLink(url);
+                  }}
+                >
+                  {label}
+                </a>
+              ),
+          )}
+        </nav>
+      )}
 
       <h4>Your workspace</h4>
       <p>
@@ -23,8 +49,8 @@ export function PrivacyInfo() {
       <p>
         Calendar access is optional. With your permission, {APP_NAME} reads
         calendars connected to Apple Calendar, including iCloud and Google
-        accounts. Events you create or edit are saved through Apple Calendar
-        and synced by the calendar provider. Linked event names, dates, and
+        accounts. Events you create or edit are saved through Apple Calendar and
+        synced by the calendar provider. Linked event names, dates, and
         identifiers are stored with your tasks so those links can follow your
         workspace across devices. Calendar credentials stay with the system.
       </p>

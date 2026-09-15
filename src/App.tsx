@@ -75,9 +75,11 @@ import { installWindowDragging } from "./window-drag";
 import {
   dismissSoftwareKeyboard,
   finishIOSWorkspaceSetup,
+  finishMacWorkspaceSetup,
   isNativeIOS,
   isTextEntry,
   needsIOSWorkspaceSetup,
+  needsMacWorkspaceSetup,
   usesTouchInterface,
 } from "./platform";
 import TaskTags, { TagChips, TagDialog, TagSidebar } from "./TaskTags";
@@ -169,8 +171,18 @@ function App() {
   const [touch] = useState(usesTouchInterface);
   const [touchFocus, setTouchFocus] = useState(false);
   const [workspaceSetup, setWorkspaceSetup] = useState(needsIOSWorkspaceSetup);
+  const [macWorkspaceSetup, setMacWorkspaceSetup] = useState(
+    needsMacWorkspaceSetup,
+  );
+  const [reconnectDismissed, setReconnectDismissed] = useState(false);
+  const sandboxedMac = storage.sandboxed === true;
   const showWorkspaceSetup =
-    workspaceSetup && isNativeIOS() && storage.kind === "local";
+    ready &&
+    storage.kind === "local" &&
+    ((workspaceSetup && isNativeIOS()) ||
+      (sandboxedMac &&
+        (macWorkspaceSetup ||
+          (storage.reconnectRequired && !reconnectDismissed))));
   const [selectedId, setSelectedId] = useState<string | null>(() =>
     detailLayoutForWidth(window.innerWidth) === "docked"
       ? "example-review"
@@ -481,7 +493,12 @@ function App() {
       finishIOSWorkspaceSetup();
       setWorkspaceSetup(false);
     }
-  }, [ready, storage.kind]);
+    if (sandboxedMac && ready && storage.kind !== "local") {
+      finishMacWorkspaceSetup();
+      setMacWorkspaceSetup(false);
+      setReconnectDismissed(false);
+    }
+  }, [ready, storage.kind, sandboxedMac]);
   useEffect(() => {
     writeVimPreference(vimEnabled);
   }, [vimEnabled]);
@@ -2139,14 +2156,22 @@ function App() {
       )}
       {showWorkspaceSetup && (
         <IOSWorkspaceSetup
+          sandboxedMac={sandboxedMac}
+          reconnectRequired={!!storage.reconnectRequired}
           error={error}
           onConnect={() => {
             setError("");
             nativeSend({ action: "chooseFolder" });
           }}
           onContinue={() => {
-            finishIOSWorkspaceSetup();
-            setWorkspaceSetup(false);
+            if (sandboxedMac) {
+              finishMacWorkspaceSetup();
+              setMacWorkspaceSetup(false);
+              setReconnectDismissed(true);
+            } else {
+              finishIOSWorkspaceSetup();
+              setWorkspaceSetup(false);
+            }
           }}
         />
       )}
@@ -2297,8 +2322,14 @@ function App() {
               </div>
               <div className="shortcut-row">
                 <span>Open a link in notes</span>
-                <kbd>⌘ click</kbd>
+                <kbd>{touch ? "Tap, then Open" : "Click"}</kbd>
               </div>
+              {!touch && (
+                <div className="shortcut-row">
+                  <span>Edit link text</span>
+                  <kbd>Option/Alt-click</kbd>
+                </div>
+              )}
               <h3>Make it yours</h3>
               <p className="muted">
                 The example tasks show how work days, deadlines, and rich notes
@@ -2660,10 +2691,14 @@ function App() {
   );
 }
 function IOSWorkspaceSetup({
+  sandboxedMac = false,
+  reconnectRequired = false,
   error,
   onConnect,
   onContinue,
 }: {
+  sandboxedMac?: boolean;
+  reconnectRequired?: boolean;
   error: string;
   onConnect: () => void;
   onContinue: () => void;
@@ -2697,14 +2732,24 @@ function IOSWorkspaceSetup({
           <Cloud size={30} />
         </span>
         <p className="ios-workspace-eyebrow">{APP_NAME}</p>
-        <h2 id="ios-workspace-title">Connect your Mac workspace</h2>
+        <h2 id="ios-workspace-title">
+          {sandboxedMac
+            ? reconnectRequired
+              ? "Reconnect your workspace"
+              : "Choose your workspace"
+            : "Connect your Mac workspace"}
+        </h2>
         <p>
-          Choose the same workspace folder you already use on your Mac. In the
-          folder picker, find your existing folder in iCloud Drive.
+          {sandboxedMac
+            ? "Already use GreenDay? Choose your existing GreenDay or Daymark workspace folder in iCloud Drive to keep your tasks, notes, and attachments together. Choose the same folder on iPhone."
+            : "Choose the same workspace folder you already use on your Mac. In the folder picker, find your existing folder in iCloud Drive."}
         </p>
         <p className="ios-workspace-help">
-          Your tasks, notes, and attachments will stay together on both devices.
-          You can also connect later in Settings.
+          {sandboxedMac
+            ? reconnectRequired
+              ? "Your previous folder could not be opened. Its files have not been moved or deleted. Reconnect it, or continue with separate local storage on this Mac."
+              : "This App Store version needs you to choose the folder once. Until then, new tasks stay in this app on your Mac. You can connect later in Settings."
+            : "Your tasks, notes, and attachments will stay together on both devices. You can also connect later in Settings."}
         </p>
         {error && (
           <div className="error-banner setup-error-banner" role="alert">
@@ -2726,7 +2771,7 @@ function IOSWorkspaceSetup({
             className="secondary-button"
             onClick={onContinue}
           >
-            Continue on this device
+            {sandboxedMac ? "Continue on this Mac" : "Continue on this device"}
           </button>
         </div>
       </section>

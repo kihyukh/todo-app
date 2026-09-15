@@ -16,6 +16,7 @@ import { dateKey, emptyDoc } from "../src/model";
 import App from "../src/App";
 import {
   finishIOSWorkspaceSetup,
+  finishMacWorkspaceSetup,
   needsIOSWorkspaceSetup,
 } from "../src/platform";
 import { nativeSend } from "../src/storage";
@@ -203,6 +204,98 @@ describe("iPhone workspace setup", () => {
       if (platform === undefined) expect(nativeSend).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("sandboxed Mac workspace setup", () => {
+  it("explains explicit adoption of the existing iCloud folder without changing tasks", async () => {
+    initialStorage = {
+      kind: "local",
+      sandboxed: true,
+      needsFolderSelection: true,
+    };
+    await mount("macos");
+    const setup = onboarding()!;
+    expect(setup).not.toBeNull();
+    expect(setup.textContent).toContain("GreenDay or Daymark");
+    expect(setup.textContent).toContain("iCloud Drive");
+    expect(setup.textContent).toContain(
+      "new tasks stay in this app on your Mac",
+    );
+    expect(actionableNativeMessages()).toEqual([]);
+    expect(document.activeElement).toBe(textButton("Choose workspace folder"));
+    await click(textButton("Choose workspace folder"));
+    expect(actionableNativeMessages()).toEqual([{ action: "chooseFolder" }]);
+    expect(onboarding()).not.toBeNull();
+    await act(async () =>
+      changeStorage({
+        kind: "folder",
+        sandboxed: true,
+        needsFolderSelection: false,
+      }),
+    );
+    expect(onboarding()).toBeNull();
+    expect(latest).toEqual(initial);
+  });
+
+  it("remembers a local Mac choice without changing the iPhone setup preference", async () => {
+    initialStorage = {
+      kind: "local",
+      sandboxed: true,
+      needsFolderSelection: true,
+    };
+    await mount("macos");
+    await click(textButton("Continue on this Mac"));
+    expect(onboarding()).toBeNull();
+    expect(actionableNativeMessages()).toEqual([]);
+    expect(localStorage.getItem("daymark.ios.workspace-setup.v1")).toBeNull();
+    await act(async () => root!.unmount());
+    root = undefined;
+    document.body.replaceChildren();
+    await mount("macos");
+    expect(onboarding()).toBeNull();
+    expect(latest).toEqual(initial);
+  });
+
+  it("prompts to reconnect an unavailable bookmark even after setup, and preserves retries", async () => {
+    finishMacWorkspaceSetup();
+    initialStorage = {
+      kind: "local",
+      sandboxed: true,
+      needsFolderSelection: true,
+      reconnectRequired: true,
+      message: "Choose your previous folder again.",
+    };
+    await mount("macos");
+    expect(onboarding()!.textContent).toContain("Reconnect your workspace");
+    expect(onboarding()!.textContent).toContain("not been moved or deleted");
+    await click(textButton("Choose workspace folder"));
+    await act(async () =>
+      changeError("The folder is unavailable. Please try again."),
+    );
+    expect(
+      onboarding()!.querySelector('[role="alert"]')?.textContent,
+    ).toContain("folder is unavailable");
+    await click(textButton("Choose workspace folder"));
+    expect(onboarding()!.querySelector('[role="alert"]')).toBeNull();
+    expect(actionableNativeMessages()).toEqual([
+      { action: "chooseFolder" },
+      { action: "chooseFolder" },
+    ]);
+    await click(textButton("Continue on this Mac"));
+    expect(onboarding()).toBeNull();
+    expect(latest).toEqual(initial);
+  });
+
+  it("opens a restored sandbox workspace without asking to adopt it again", async () => {
+    initialStorage = {
+      kind: "folder",
+      sandboxed: true,
+      needsFolderSelection: false,
+    };
+    await mount("macos");
+    expect(onboarding()).toBeNull();
+    expect(actionableNativeMessages()).toEqual([]);
+  });
 });
 
 describe("mobile workspace errors", () => {

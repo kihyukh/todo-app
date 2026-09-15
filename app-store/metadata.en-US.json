@@ -1,21 +1,21 @@
 {
-  "status": "draft-not-submitted",
+  "status": "prepared-not-submitted",
   "workingName": "GreenDay",
   "name": "GreenDay",
   "primaryLanguage": "en-US",
   "primaryCategory": "Productivity",
   "subtitle": "Plan today. Keep the details.",
   "promotionalText": "Choose what to work on today, keep deadlines separate, and put notes, checklists, images, and equations beside each task.",
-  "description": "Make room for the work that matters today.\n\nGreenDay combines a focused task list with space for the details behind your work.\n\nPLAN YOUR DAY\nGive a task a deadline, then choose one or several independent days to work on it. Today shows the tasks you deliberately scheduled, so distant deadlines do not crowd your daily plan.\n\nKEEP YOUR NOTES WITH THE TASK\nWrite Markdown, add links and checkboxes, and render inline or display LaTeX equations. Keep images and PDFs with the work they support.\n\nCALENDARS AND TASKS TOGETHER\nConnect calendars already added to Apple Calendar, including iCloud and Google accounts. Browse Month, Week, or Day, and link events to the tasks they support. Linked tasks stay one tap away without filling the calendar with duplicate entries.\n\nSEE THE NEXT STEPS\nOpen checkboxes gathers unfinished checklist items across your notes and takes you back to the original task. Organize larger efforts with projects, tags, and a board.\n\nWORK ON YOUR OWN TERMS\nTasks save automatically. Core task and note editing works offline. Choose a workspace folder in iCloud Drive to use the same files on your devices. Sync timing depends on iCloud Drive.\n\nPrefer the keyboard? Enable optional Vim mode for note editing with a hardware keyboard.\n\nNo app account is required. There are no advertisements or analytics SDKs in the app.",
+  "description": "Plan the work. Keep the details close.\n\nGreenDay brings tasks, calendars, and rich notes together in a focused workspace.\n\nWORK DAYS AND DEADLINES\nChoose one or several days to work on a task, even when those days are weeks apart. Keep its final deadline separate. Use Today to focus on the work you selected, or review approaching deadlines and priorities before planning your day.\n\nNOTES THAT FIT THE WORK\nWrite Markdown, checklists, tables, and links alongside each task. Render inline and display LaTeX equations, then move into an equation to edit its source. Paste images into notes or keep documents beside the instructions they support.\n\nYOUR NEXT SMALL STEP\nOpen checkboxes gathers unfinished checklist items from active tasks. Completing the parent task removes those items from this view without changing the note. Organize tasks with lists, tags, priorities, and a board.\n\nCALENDARS ALONGSIDE TASKS\nConnect calendars already configured in Apple Calendar, including iCloud and Google accounts. Switch between Month, Week, and Day. Link events to tasks and open the association from either side. Calendar access is optional.\n\nYOUR WORKSPACE, YOUR DEVICES\nCore task and note editing works offline and saves automatically. Select the same workspace folder in iCloud Drive on your Mac and iPhone to keep your files together. iCloud Drive handles transfers, so changes may take time to reach another device.\n\nOptional Vim mode supports keyboard navigation and editing, including equation source. On iPhone, a hardware keyboard is useful for these shortcuts.\n\nNo GreenDay account is required. The app contains no advertising or analytics SDK.",
   "keywords": "todo,tasks,planner,markdown,latex,notes,checklist,kanban,deadline,research,vim",
-  "copyright": "__YEAR_AND_COPYRIGHT_OWNER__",
-  "supportURL": "__PUBLIC_SUPPORT_HTTPS_URL__",
-  "privacyPolicyURL": "__PUBLIC_PRIVACY_HTTPS_URL__",
+  "copyright": null,
+  "supportURL": null,
+  "privacyPolicyURL": null,
   "marketingURL": null,
-  "sku": "__APP_STORE_SKU__",
+  "sku": null,
   "bundleIdentifiers": {
-    "iOS": "__IOS_BUNDLE_IDENTIFIER__",
-    "macOS": "__MACOS_BUNDLE_IDENTIFIER_IF_SUBMITTED__"
+    "iOS": null,
+    "macOS": null
   },
   "priceAndAvailability": {
     "price": null,
@@ -23,9 +23,9 @@
     "releaseMode": "manual-proposed"
   },
   "testFlight": {
-    "betaDescription": "A personal task planner with separate do dates and deadlines, rich Markdown and LaTeX notes, images, PDFs, and a view of unfinished checkboxes across tasks. No sign-in is required. Core editing works offline; selecting the same iCloud Drive workspace folder enables file syncing across devices.",
-    "whatToTest": "Please test selecting separate work days across months without changing deadlines; adding or removing Today while preserving the other dates; typing and cursor movement through equations, lists, and checkboxes; image insertion and reopening attachments; saving when the app backgrounds; and changes made on two devices using the same iCloud Drive workspace. Use fictional test tasks and report the steps that caused an issue. In a dedicated test calendar, check calendar permission, event creation and editing, all-day dates, and task-event links from both directions. Verify provider delivery separately from local event saves.",
-    "feedbackEmail": "__TESTFLIGHT_FEEDBACK_EMAIL__"
+    "betaDescription": "A focused planner with separate work days and deadlines, Markdown and LaTeX notes, checklists, images, and task-linked calendars. No GreenDay sign-in is required. Core editing works offline. To test sync, select the same folder in your own iCloud Drive on both devices.",
+    "whatToTest": "Use fictional tasks and a dedicated test calendar. Test nonconsecutive work days without changing the deadline; completion and Open checkboxes; cursor movement, selections, Vim mode, and Shift+J around equations and lists; pasted images and dropped documents; PDF/image opening; saving through backgrounding and relaunch; and offline edits on two devices using the same iCloud Drive workspace. Check calendar permission refusal, event edits, recurring occurrences, and links from both directions. A local save and provider delivery should be checked separately. On Mac, test the sandboxed release, folder reauthorization, and the transition from floating details to three columns.",
+    "feedbackEmail": null
   },
   "reviewContact": {
     "firstName": null,
@@ -33,5 +33,10 @@
     "email": null,
     "phone": null,
     "signInRequired": false
+  },
+  "distributionPlan": {
+    "status": "proposed",
+    "platforms": ["iOS", "macOS"],
+    "appRecord": "One app record with matching release bundle identifiers for both platforms; reserve after checking the publisher account."
   }
 }

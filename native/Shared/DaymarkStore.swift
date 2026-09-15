@@ -15,35 +15,72 @@ final class DaymarkStore {
     private var scopedURL: URL?
     private let manager = FileManager.default
     private let bookmarkKey = "DaymarkStorageBookmark"
+    private let preferences: UserDefaults
+    private let sandboxedMac: Bool
+    private var reconnectRequired = false
 
-    init(folder explicitFolder: URL? = nil) throws {
-        if let explicitFolder {
-            folderURL = explicitFolder
-            storageKind = "folder"
-        } else if let data = UserDefaults.standard.data(forKey: bookmarkKey) {
-            var stale = false
-            #if os(macOS)
-            let options: URL.BookmarkResolutionOptions = [.withSecurityScope]
-            #else
-            let options: URL.BookmarkResolutionOptions = []
-            #endif
-            if let selected = try? URL(resolvingBookmarkData: data, options: options, relativeTo: nil, bookmarkDataIsStale: &stale) {
-                _ = selected.startAccessingSecurityScopedResource()
-                scopedURL = selected
+    static var isSandboxedMac: Bool {
+        #if os(macOS)
+        return Bundle.main.object(forInfoDictionaryKey: "DaymarkAppSandbox") as? Bool == true
+        #else
+        return false
+        #endif
+    }
+
+    /// Injected preferences/defaults keep storage tests away from a real workspace.
+    init(folder explicitFolder: URL? = nil, preferences: UserDefaults = .standard,
+         sandboxedMac: Bool = DaymarkStore.isSandboxedMac, defaultFolder: URL? = nil) throws {
+        self.preferences = preferences
+        self.sandboxedMac = sandboxedMac
+        let fallback = { defaultFolder.map { ($0, "local") } ?? Self.defaultLocation(sandboxedMac: sandboxedMac) }
+        let initial = explicitFolder.map { ($0, "folder") } ?? fallback()
+        folderURL = initial.0
+        storageKind = initial.1
+        queue.setSpecific(key: queueKey, value: true)
+        if explicitFolder == nil, let data = preferences.data(forKey: bookmarkKey) {
+            var accessed: URL?
+            do {
+                var stale = false
+                #if os(macOS)
+                let options: URL.BookmarkResolutionOptions = [.withSecurityScope, .withoutUI]
+                #else
+                let options: URL.BookmarkResolutionOptions = [.withoutUI]
+                #endif
+                let selected = try URL(resolvingBookmarkData: data, options: options, relativeTo: nil, bookmarkDataIsStale: &stale)
+                if selected.startAccessingSecurityScopedResource() { accessed = selected }
+                // A missing provider folder must not silently become an empty new workspace.
+                var directory: ObjCBool = false
+                guard manager.fileExists(atPath: selected.path, isDirectory: &directory), directory.boolValue else {
+                    throw CocoaError(.fileReadNoSuchFile)
+                }
                 folderURL = selected
                 storageKind = "folder"
-            } else {
-                let fallback = Self.defaultLocation()
-                folderURL = fallback.0
-                storageKind = fallback.1
+                try prepareFolder()
+                scopedURL = accessed
+                if stale, let renewed = try? Self.bookmark(for: selected) {
+                    preferences.set(renewed, forKey: bookmarkKey)
+                }
+                return
+            } catch {
+                accessed?.stopAccessingSecurityScopedResource()
+                let location = fallback()
+                folderURL = location.0
+                storageKind = location.1
+                // Keep the original bookmark so choosing local storage never erases
+                // the route back to a temporarily unavailable existing workspace.
+                reconnectRequired = true
             }
-        } else {
-            let fallback = Self.defaultLocation()
-            folderURL = fallback.0
-            storageKind = fallback.1
         }
-        queue.setSpecific(key: queueKey, value: true)
         try prepareFolder()
+    }
+
+    private static func bookmark(for url: URL) throws -> Data {
+        #if os(macOS)
+        let options: URL.BookmarkCreationOptions = [.withSecurityScope]
+        #else
+        let options: URL.BookmarkCreationOptions = [.minimalBookmark]
+        #endif
+        return try url.bookmarkData(options: options, includingResourceValuesForKeys: nil, relativeTo: nil)
     }
 
     deinit { scopedURL?.stopAccessingSecurityScopedResource() }
@@ -62,14 +99,23 @@ final class DaymarkStore {
         return try queue.sync(execute: operation)
     }
 
-    private static func defaultLocation() -> (URL, String) {
-        #if os(macOS)
-        let cloud = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs", isDirectory: true)
-        if FileManager.default.fileExists(atPath: cloud.path) {
-            return (cloud.appendingPathComponent("Daymark", isDirectory: true), "icloud")
+    /// Sandboxed builds never probe the development app's unrestricted iCloud path.
+    static func macDefaultLocation(sandboxed: Bool, home: URL, support: URL,
+                                   cloudExists: (URL) -> Bool) -> (URL, String) {
+        if !sandboxed {
+            let cloud = home.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs", isDirectory: true)
+            if cloudExists(cloud) { return (cloud.appendingPathComponent("Daymark", isDirectory: true), "icloud") }
         }
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         return (support.appendingPathComponent("Daymark", isDirectory: true), "local")
+    }
+
+    private static func defaultLocation(sandboxedMac: Bool) -> (URL, String) {
+        #if os(macOS)
+        return macDefaultLocation(sandboxed: sandboxedMac,
+                                  home: FileManager.default.homeDirectoryForCurrentUser,
+                                  support: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!) {
+            FileManager.default.fileExists(atPath: $0.path)
+        }
         #else
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         return (documents.appendingPathComponent("Daymark", isDirectory: true), "local")
@@ -84,7 +130,16 @@ final class DaymarkStore {
             case "folder": message = "Saved in your selected folder. Select this same Daymark folder on your other devices."
             default: message = "Saved on this device. Choose a folder in iCloud Drive to sync between devices."
             }
-            return ["kind": kind, "path": folder.path, "message": message]
+            var info: [String: Any] = ["kind": kind, "path": folder.path, "message": message]
+            if sandboxedMac {
+                info["sandboxed"] = true
+                info["needsFolderSelection"] = kind == "local"
+            }
+            if reconnectRequired {
+                info["reconnectRequired"] = true
+                info["message"] = "Your previous workspace could not be opened. Its files have not been moved or deleted. Choose that folder again to reconnect; new changes are saved separately on this device."
+            }
+            return info
         }
     }
 
@@ -94,10 +149,10 @@ final class DaymarkStore {
         }
     }
 
-    /// Merge current records into the chosen folder before switching storage.
+    /// Copy into the selected workspace without deleting or renaming the old one.
     func chooseFolder(_ url: URL) throws {
         try serialized {
-            let current = try load()
+            let current = try load(strict: true)
             let oldFolder = folder
             let oldKind = kind
             let access = url.startAccessingSecurityScopedResource()
@@ -105,22 +160,34 @@ final class DaymarkStore {
             folderURL = url
             storageKind = "folder"
             do {
+                // Obtain the persistent grant and verify both workspaces before
+                // merging records. A failed selection keeps the old grant intact.
+                let bookmark = try Self.bookmark(for: url)
                 try prepareFolder()
-                if let current { _ = try save(current) }
+                _ = try load(strict: true)
                 let oldAttachments = oldFolder.appendingPathComponent("Attachments")
-                for source in (try? manager.contentsOfDirectory(at: oldAttachments, includingPropertiesForKeys: nil)) ?? [] {
-                    let target = folder.appendingPathComponent("Attachments").appendingPathComponent(source.lastPathComponent)
-                    if !manager.fileExists(atPath: target.path) { try coordinatedWrite(try Data(contentsOf: source), to: target) }
+                let sources = try manager.contentsOfDirectory(at: oldAttachments, includingPropertiesForKeys: nil)
+                var copies: [(URL, URL)] = []
+                if oldFolder.standardizedFileURL != url.standardizedFileURL {
+                    for source in sources {
+                        let data = try coordinatedRead(source)
+                        let target = folder.appendingPathComponent("Attachments").appendingPathComponent(source.lastPathComponent)
+                        if manager.fileExists(atPath: target.path) {
+                            guard try coordinatedRead(target) == data else {
+                                throw Self.attachmentNameConflict
+                            }
+                        } else { copies.append((source, target)) }
+                    }
                 }
-                #if os(macOS)
-                let bookmarkOptions: URL.BookmarkCreationOptions = [.withSecurityScope]
-                #else
-                let bookmarkOptions: URL.BookmarkCreationOptions = [.minimalBookmark]
-                #endif
-                let bookmark = try url.bookmarkData(options: bookmarkOptions, includingResourceValuesForKeys: nil, relativeTo: nil)
-                UserDefaults.standard.set(bookmark, forKey: bookmarkKey)
+                // Keep memory bounded to one file, including workspaces with many PDFs.
+                for (source, target) in copies {
+                    try coordinatedWrite(try coordinatedRead(source), to: target, replacingExisting: false)
+                }
+                if let current { _ = try save(current) }
+                preferences.set(bookmark, forKey: bookmarkKey)
                 oldScope?.stopAccessingSecurityScopedResource()
                 scopedURL = access ? url : nil
+                reconnectRequired = false
             } catch {
                 folderURL = oldFolder
                 storageKind = oldKind
@@ -130,12 +197,12 @@ final class DaymarkStore {
         }
     }
 
-    func load() throws -> [String: Any]? {
+    func load(strict: Bool = false) throws -> [String: Any]? {
         try serialized {
             var result: [String: Any] = ["schemaVersion": 1]
             var count = 0
             for collection in Self.collections {
-                let records = try readRecords(collection)
+                let records = try readRecords(collection, strict: strict)
                 result[collection] = records.values.sorted { ($0["id"] as? String ?? "") < ($1["id"] as? String ?? "") }
                 count += records.count
             }
@@ -256,11 +323,22 @@ final class DaymarkStore {
         return try result.get()
     }
 
-    private func coordinatedWrite(_ data: Data, to url: URL) throws {
+    private static var attachmentNameConflict: Error {
+        NSError(domain: "DaymarkStorage", code: 6, userInfo: [NSLocalizedDescriptionKey: "These workspaces contain different attachments with the same filename. No existing files were replaced. Choose another folder or export both workspaces before combining them."])
+    }
+
+    private func coordinatedWrite(_ data: Data, to url: URL, replacingExisting: Bool = true) throws {
         var coordinationError: NSError?
         var writeError: Error?
         NSFileCoordinator().coordinate(writingItemAt: url, options: .forReplacing, error: &coordinationError) { coordinatedURL in
-            do { try data.write(to: coordinatedURL, options: .atomic) } catch { writeError = error }
+            do {
+                if !replacingExisting && manager.fileExists(atPath: coordinatedURL.path) {
+                    // A provider may have delivered this attachment after validation.
+                    guard try Data(contentsOf: coordinatedURL) == data else { throw Self.attachmentNameConflict }
+                    return
+                }
+                try data.write(to: coordinatedURL, options: .atomic)
+            } catch { writeError = error }
         }
         if let coordinationError { throw coordinationError }
         if let writeError { throw writeError }

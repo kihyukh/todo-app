@@ -144,7 +144,18 @@ export function useWorkspace() {
             ? event.state
               ? mergeIfChanged(old, event.state)
               : old
-            : repairDeletedLists(event.state ?? createInitialState()),
+            : repairDeletedLists(
+                event.state ??
+                  (event.storage?.sandboxed
+                    ? {
+                        schemaVersion: 1,
+                        tasks: [],
+                        projects: [],
+                        columns: createInitialState().columns,
+                        tags: [],
+                      }
+                    : createInitialState()),
+              ),
         );
         loaded.current = true;
         setReady(true);

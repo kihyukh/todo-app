@@ -1,46 +1,69 @@
-# App Store and TestFlight delivery
+# GreenDay App Store release
 
-Prepared against Apple’s documentation on 14 September 2026. **The chosen app name is GreenDay; the publisher and signing team are still needed.** Nothing in this folder creates an App Store record, accepts an agreement, uploads a build, or publishes a website.
+Prepared against Apple's current documentation on **15 September 2026**. The release target is a native Mac app plus the iPhone/iPad app. **App Store Connect and the Apple Developer account are signed in, but both report that the Developer Program membership has expired.** No local signing identity is available, and no build has been uploaded, submitted, or released. Public privacy/support pages and final screenshots are not published or ready for submission yet.
 
-See [iPhone build validation](IOS-VALIDATION.md) for executed checks and the remaining simulator, hardware, and account checks.
+Executed app and device checks belong in [IOS-VALIDATION.md](IOS-VALIDATION.md). An unsigned archive validates compilation and resources; it cannot prove distribution signing, calendar permission continuity, file-provider delivery, or App Review acceptance.
 
-## Decisions needed to finish
+## Remaining publisher inputs
 
-| Input | Where it is used |
-| --- | --- |
-| Apple Developer team and GreenDay name availability | Signing, the App Store record, screenshots, policy pages |
-| Publisher/copyright owner | Store listing and privacy policy |
-| Public support email and hosting location | Support page and publicly accessible privacy policy URL |
-| Private review contact: name, email, international-format phone | App Review and TestFlight contact fields; do not commit these details |
-| Initial distribution: personal TestFlight or public App Store; price and countries | App Store Connect configuration |
+| Input                                                            | Needed for                                             |
+| ---------------------------------------------------------------- | ------------------------------------------------------ |
+| Renew expired Developer Program membership; configure the Xcode signing team and required agreements | Signing, provisioning, and release access |
+| Registered release bundle identifier and available GreenDay name | App record and both platform archives                  |
+| Actual publisher/copyright owner and public support email        | Store metadata, Mac copyright field, public pages      |
+| Chosen public HTTPS hosting URLs for privacy and support         | Store fields and the links embedded in each release    |
+| Private review contact: name, email, international-format phone  | App Review and TestFlight; enter privately, not in Git |
+| Price, countries/regions, trader status, and release timing      | Distribution settings; no choices have been submitted  |
 
-The Account Holder must resolve membership and agreement requirements in their own account. Apple Developer Program membership is normally USD 99 per year, with local pricing and some fee waivers. No purchase is part of this preparation. [Apple membership details](https://developer.apple.com/help/account/membership/program-enrollment)
+Prefer one GreenDay app record with iOS and macOS platforms, using the **same release bundle identifier** for both native targets. Apple requires matching identifiers for a universal purchase; separate records cannot simply be merged later. Development identifiers may remain separate from the configured release identifier. Reserve the final identifier against the publisher's account before archiving. [Apple platform workflow](https://developer.apple.com/help/app-store-connect/create-an-app-record/add-platforms)
 
-## Prepared material
+The Developer account currently offers **Renew membership** and displays a **US$99 annual fee**. The user was asked to renew through their own account; no renewal, payment, or agreement acceptance was attempted. After renewal, verify active membership and configure the signing team in Xcode before generating distribution packages. The scripts do not purchase membership, create an account, or accept agreements. [Apple enrollment](https://developer.apple.com/help/account/membership/program-enrollment)
 
-- [`app-store/metadata.en-US.json`](../app-store/metadata.en-US.json): listing and beta copy, with explicit unresolved identity/contact fields.
-- [`app-store/review-notes.md`](../app-store/review-notes.md): a short review walkthrough using synthetic tasks.
-- [`app-store/privacy-answers.md`](../app-store/privacy-answers.md): code-based privacy, encryption, and age-rating answers to confirm against the archive.
-- [`app-store/site/`](../app-store/site/): self-contained privacy and support page drafts. Fill every `__PLACEHOLDER__`, remove the draft banner, and publish them at the chosen HTTPS location. They use no scripts, external fonts, or analytics.
-- [`app-store/screenshots.md`](../app-store/screenshots.md): four useful screenshots to capture from a clean example workspace.
+## Prepared release materials
 
-## Build and beta sequence
+- [Store and TestFlight metadata](../app-store/metadata.en-US.json): current product copy. Missing publisher/account/contact values are `null`, not invented data.
+- [Review notes](../app-store/review-notes.md): current date-picker, checklist, file, equation, calendar, and sandbox walkthrough. Validate it on the submitted builds.
+- [Privacy answers](../app-store/privacy-answers.md): implementation evidence for privacy labels, manifests, export compliance, and the native package boundary.
+- [Public privacy/support pages](../app-store/site/): self-contained green-themed drafts. Complete every `__PLACEHOLDER__`, remove the draft notice and `noindex` marker, then publish at the chosen HTTPS location. No website was deployed during preparation.
+- [Screenshot sheet](../app-store/screenshots.md): five concrete shots for each platform, using fictional data. The iOS target also supports iPad, so its required 13-inch set must be captured.
 
-1. Choose final bundle identifiers and an SKU, then create the matching app record in App Store Connect. Keep the bundle identifiers consistent between Xcode, provisioning, and the store record. [Apple’s app-record workflow](https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-workflow)
-2. Use [`scripts/release-ios.sh`](../scripts/release-ios.sh) for the archive/export workflow and the signing inputs documented in the repository README. Archive the signed **iOS application**, not the local browser preview or the ad hoc Mac development bundle. Since 28 April 2026, iOS uploads require Xcode 26 or later and the iOS 26 SDK or later; this build-SDK rule does not require raising the app’s minimum supported iOS version to 26. Recheck the requirement on the day of upload. [Apple SDK requirements](https://developer.apple.com/news/upcoming-requirements/?id=04282026a)
-3. In the archive, verify the application icon, display name, bundle/version/build identifiers, privacy manifest, and bundled web assets. Use an App Store Connect distribution upload, rather than “TestFlight Internal Only,” if the same build may later go to public review. [Apple’s beta distribution tutorial](https://developer.apple.com/tutorials/develop-in-swift/test-your-beta-app)
-4. After processing, resolve the encryption questions, add the beta description and real feedback contact, and assign the build to a tester group. Internal testing supports up to 100 App Store Connect users; external testing supports up to 10,000 people and its first build requires review. TestFlight builds expire after 90 days. [TestFlight overview](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/)
+Apple requires a privacy-policy link both in App Store Connect and inside the app. The support URL must lead to actual support information. The native release embeds `VITE_PUBLIC_PRIVACY_URL` and `VITE_PUBLIC_SUPPORT_URL`; their format is checked before export/upload, but the publisher must still confirm that both pages are publicly reachable and accurate. [Privacy requirements](https://developer.apple.com/app-store/review/guidelines/#privacy), [platform metadata fields](https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information)
 
-## Checks before public submission
+## Local archive and upload tools
 
-- **Real-device save and sync:** create a test workspace; edit while offline; background and reopen the iPhone app; edit a different task on Mac; reconnect and verify both changes. Select the same iCloud Drive workspace folder on both devices. Confirm images/PDFs download and reopen. A local “saved” result is not a guarantee that iCloud finished uploading.
-- **Release data boundary:** the bundle contains application code, icons, fonts, and clearly fictional examples only. No migration exports, personal tasks, attachment files, support credentials, or local workspace backups belong in it.
-- **Privacy access:** finish and publish the policy and support pages, populate their URLs in App Store Connect, and check that the in-app policy matches the public version. A bundled policy is useful offline but does not replace the public URL. Apple requires both the metadata policy URL and an easily accessible in-app link. A support page must contain actual contact information. [Review privacy rules](https://developer.apple.com/app-store/review/guidelines/#privacy), [store fields](https://developer.apple.com/help/app-store-connect/reference/app-information/platform-version-information)
-- **Accurate claims:** use screenshots of the actual release build, answer the current age-rating questions, and declare only accessibility features tested on that build. Price, countries, trader status, and release timing remain publisher decisions. Apple requests a trader-status declaration, including for developers not distributing in the EU. [Trader requirements](https://developer.apple.com/help/app-store-connect/manage-compliance-information/manage-european-union-digital-services-act-trader-requirements)
-- **Submission:** select the tested build, provide the review contact and notes, and choose manual release if the publisher wants to inspect approval before going live. No demo account is needed because this app has no sign-in.
+Use the `--help` options for the complete configuration. These scripts never install over the user's working Mac app.
 
-## Separate Mac App Store gate
+| Command                                      | Result                                                                                  |
+| -------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `bash scripts/build-ios.sh --simulator`      | iPhone/iPad simulator build                                                             |
+| `bash scripts/build-ios.sh --archive`        | Unsigned device archive by default                                                      |
+| `bash scripts/build-mac-store.sh --unsigned` | Universal Mac validation archive                                                        |
+| `bash scripts/release-ios.sh --export`       | Signed iOS archive and local App Store IPA                                              |
+| `bash scripts/release-mac.sh --export`       | Signed universal Mac archive and local store package                                    |
+| Either release script with `--upload`        | Explicit App Store Connect upload for processing; does not submit for review or release |
 
-The installed Mac development build is not proof of Mac App Store readiness. Mac App Store submissions require App Sandbox. In a sandboxed build, the development shortcut that directly locates `~/Library/Mobile Documents/com~apple~CloudDocs/Daymark` must be replaced or bypassed by permitted storage access, such as the existing user-selected workspace folder and security-scoped bookmark flow. Verify first launch, bookmark restoration, attachments, external links, and an upgrade from the development workspace under the actual release entitlements. [Apple sandbox configuration](https://developer.apple.com/documentation/xcode/configuring-the-macos-app-sandbox)
+Both release scripts require `DAYMARK_DEVELOPMENT_TEAM`, the platform's `DAYMARK_IOS_BUNDLE_IDENTIFIER` or `DAYMARK_MAC_BUNDLE_IDENTIFIER`, `DAYMARK_VERSION`, an unused positive `DAYMARK_BUILD_NUMBER`, `VITE_PUBLIC_PRIVACY_URL`, and `VITE_PUBLIC_SUPPORT_URL`. The Mac release also requires `DAYMARK_COPYRIGHT` containing the actual publisher's notice. `DAYMARK_PUBLIC_PRIVACY_URL` and `DAYMARK_PUBLIC_SUPPORT_URL` are aliases for the canonical Vite URL variables. Keep private account credentials and review contacts out of repository files.
 
-Prepare a distinct, signed Mac archive and its own Mac screenshots when that target passes these checks. Do not advertise Mac App Store availability before approval.
+The iOS archive/export paths default to `build/Daymark.xcarchive` and `build/app-store`. Mac store output defaults to `~/Library/Caches/GreenDay/AppStore/macOS`, away from the iCloud-managed repository. Override the documented output paths if needed. Release scripts rebuild the repository's UI and refuse a different `DAYMARK_WEB_DIST`, preventing a stale custom browser build from being uploaded accidentally.
+
+Native UI builds set `VITE_NATIVE_APP=1`: PDFs use system viewers, and browser-only PDF.js assets/fonts are excluded. `scripts/verify-web-release.mjs <directory> --native` checks the production asset inventory. `scripts/verify-public-urls.mjs` validates the two release URL environment values without contacting a server. Xcode signing uses the signed-in account; no password or API key is placed in these scripts.
+
+Release-tool preparation passed 40 checks against temporary fixtures: valid production files and public URL formats; rejection of unknown files, source maps, symlinks, workspace directories, browser PDF assets, missing/remote entry resources, and invalid/local/placeholder URLs; plus script help and early failures before any build. Shell syntax and metadata-length checks passed. These checks did not sign, upload, publish, or use a personal workspace.
+
+For iOS uploads, Apple's current requirement is Xcode 26 or later with the iOS 26 SDK or later, effective 28 April 2026. This does not raise the app's iOS 16 deployment target. Recheck requirements immediately before upload. [Apple SDK requirement](https://developer.apple.com/news/upcoming-requirements/?id=04282026a)
+
+## Build and privacy checks
+
+1. Inspect each final archive's app identifier, version/build, icon, display name, copyright where applicable, entitlements, and privacy manifest. Mac uses App Sandbox and a separate Xcode target; the older ad hoc development bundle is not the store package. [Mac submission rules](https://developer.apple.com/app-store/review/guidelines/#hardware-compatibility)
+2. Confirm only application resources and fictional examples are packaged. The production-web check rejects unknown files, symlinks, source maps, workspace folders, and browser PDF resources. Manually review approved image/string content too; an asset filename allowlist cannot detect all personal data.
+3. Generate Xcode's privacy report. Current native manifests declare own-app preferences (`CA92.1`); Mac also declares elapsed time between in-app events (`35F9.1`) for window dragging. Proposed App Privacy answer is no developer-collected data, subject to the exact archive and publisher practices documented in [privacy-answers.md](../app-store/privacy-answers.md).
+4. Confirm native open-source notices are included and match the native bundle. Browser PDF.js, its codecs, CMaps, and Liberation fonts are excluded from native builds; browser distribution remains a separate package audit.
+5. Use the actual release settings to test public links, sandbox first launch and folder reauthorization, imported file reopening, local offline edits, iPhone background/relaunch saves, and two-device iCloud delivery. Use a separate fictional workspace and dedicated test calendar. A local Saved label does not certify cloud upload completion.
+
+## TestFlight and public submission
+
+Create the app record after renewing membership and confirming the release identity. Upload the signed platform builds, wait for processing, select them for the appropriate versions, and resolve the encryption questions. Complete the current age-rating questionnaire and only declare accessibility features tested on the final builds. Apple's TestFlight service supports internal and external groups; an external beta may require review. [App record creation](https://developer.apple.com/help/app-store-connect/create-an-app-record/add-a-new-app), [TestFlight overview](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/)
+
+Before public submission, complete screenshots, support and privacy URLs, copyright, the real review contact, pricing/availability, and applicable trader declarations. Prefer manual release so approval can be reviewed before going live; this is a proposed setting, not a configuration already saved in the account. [Trader requirements](https://developer.apple.com/help/app-store-connect/manage-compliance-information/manage-european-union-digital-services-act-trader-requirements), [release options](https://developer.apple.com/help/app-store-connect/manage-your-apps-availability/select-an-app-store-version-release-option)
+
+No demo login is needed. App Review still needs a reachable human contact and a complete, working build. Signed-device, sandbox, calendar-provider, and final screenshot checks remain release gates until their results are recorded.

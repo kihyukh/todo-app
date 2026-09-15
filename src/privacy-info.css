@@ -16,6 +16,19 @@
   margin: 0 0 10px;
 }
 
+.privacy-page-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin: 14px 0;
+}
+
+.privacy-page-links a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .privacy-info > :last-child {
   margin-bottom: 0;
 }

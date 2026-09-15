@@ -196,6 +196,69 @@ do {
 let maximumEncodedBytes = ((DaymarkStore.maximumImportedAttachmentBytes + 2) / 3) * 4
 try checkImportRejected("Oversized encoded input must be rejected before decoding", base64: String(repeating: "A", count: maximumEncodedBytes + 4))
 
+// Sandboxed release startup and explicit adoption of an existing workspace.
+// Every preference and path here is isolated from the user's app and iCloud.
+let suite = "DaymarkStoreTests." + UUID().uuidString
+let preferences = UserDefaults(suiteName: suite)!
+defer { preferences.removePersistentDomain(forName: suite) }
+let sandboxRoot = directory.appendingPathComponent("Sandbox", isDirectory: true)
+let localFolder = sandboxRoot.appendingPathComponent("Local", isDirectory: true)
+var cloudProbes = 0
+let sandboxDefault = DaymarkStore.macDefaultLocation(sandboxed: true, home: sandboxRoot, support: localFolder) { _ in cloudProbes += 1; return true }
+check(cloudProbes == 0 && sandboxDefault.1 == "local", "Sandbox startup must not probe the development iCloud path")
+check(sandboxDefault.0 == localFolder.appendingPathComponent("Daymark", isDirectory: true), "Sandbox default must remain in container Application Support")
+let developmentDefault = DaymarkStore.macDefaultLocation(sandboxed: false, home: sandboxRoot, support: localFolder) { _ in cloudProbes += 1; return true }
+check(developmentDefault.1 == "icloud" && developmentDefault.0.path.hasSuffix("Library/Mobile Documents/com~apple~CloudDocs/Daymark"), "Development builds must retain their existing iCloud path")
+let sandboxStore = try DaymarkStore(preferences: preferences, sandboxedMac: true, defaultFolder: localFolder)
+try check(sandboxStore.load() == nil && sandboxStore.kind == "local", "A sandbox first launch starts empty and local")
+check(sandboxStore.storageInfo["sandboxed"] as? Bool == true && sandboxStore.storageInfo["needsFolderSelection"] as? Bool == true, "Sandbox startup must tell the UI that explicit folder selection is available")
+let existingFolder = sandboxRoot.appendingPathComponent("ExistingDaymark", isDirectory: true)
+let existingStore = try DaymarkStore(folder: existingFolder)
+var existingOnly = task("Existing task", "2026-09-14T08:00:00.000Z")
+existingOnly["id"] = "existing-only"
+var newLocal = task("New local task", "2026-09-14T07:00:00.000Z")
+newLocal["id"] = "local-only"
+newLocal["doDates"] = ["2026-09-15", "2026-09-18"]
+newLocal["tagIds"] = ["reading"]
+newLocal["notes"] = ["type": "doc", "content": [["type": "blockMath", "attrs": ["latex": "x^2"]]]]
+let localAttachment = try sandboxStore.importAttachment(name: "local.pdf", mime: "application/pdf", base64: droppedBytes.base64EncodedString())
+let localAttachmentURL = URL(string: localAttachment["url"] as! String)!
+newLocal["attachments"] = [localAttachment]
+try sandboxStore.save(["schemaVersion": 1, "tasks": [newLocal, task("Old local revision", "2026-09-14T07:00:00.000Z")]])
+try existingStore.save(["schemaVersion": 1, "tasks": [existingOnly, task("Latest existing revision", "2026-09-14T08:00:00.000Z")]])
+try sandboxStore.chooseFolder(existingFolder)
+let selectedTasks = try sandboxStore.load()!["tasks"] as! [[String: Any]]
+check(Set(selectedTasks.compactMap { $0["id"] as? String }) == Set(["existing-only", "local-only", "test-task"]), "Choosing an existing folder must keep both workspaces' records")
+check(selectedTasks.first { $0["id"] as? String == "test-task" }?["title"] as? String == "Latest existing revision", "Choosing a folder must not replace newer existing edits")
+check(selectedTasks.first { $0["id"] as? String == "local-only" }?["doDates"] as? [String] == ["2026-09-15", "2026-09-18"], "Folder adoption must preserve complete task metadata")
+try check(sandboxStore.attachmentData(localAttachmentURL) == droppedBytes, "Attachments must be copied before referencing task records are merged")
+let originalLocal = try DaymarkStore(folder: localFolder)
+try check(originalLocal.attachmentData(localAttachmentURL) == droppedBytes && (originalLocal.load()!["tasks"] as? [[String: Any]])?.count == 2, "Folder adoption must leave the original local records and attachment bytes intact")
+check(preferences.data(forKey: "DaymarkStorageBookmark") != nil, "Folder selection must persist a bookmark in the supplied preference domain")
+let restoredSandbox = try DaymarkStore(preferences: preferences, sandboxedMac: true, defaultFolder: localFolder)
+check(restoredSandbox.folder.standardizedFileURL == existingFolder.standardizedFileURL && restoredSandbox.kind == "folder", "A new sandbox store must restore the selected workspace bookmark")
+try check(restoredSandbox.attachmentData(localAttachmentURL) == droppedBytes, "Attachment access must survive bookmark restoration")
+check(restoredSandbox.storageInfo["needsFolderSelection"] as? Bool == false, "A restored bookmark must not restart first-run selection")
+
+let goodBookmark = preferences.data(forKey: "DaymarkStorageBookmark")!
+let rejectedFolder = sandboxRoot.appendingPathComponent("Rejected", isDirectory: true)
+let rejectedStore = try DaymarkStore(folder: rejectedFolder)
+try Data("different file with the same name".utf8).write(to: rejectedFolder.appendingPathComponent("Attachments").appendingPathComponent(localAttachmentURL.lastPathComponent))
+var switchRejected = false
+do { try sandboxStore.chooseFolder(rejectedFolder) } catch { switchRejected = true }
+check(switchRejected && sandboxStore.folder == existingFolder, "An attachment-name collision must reject the folder switch and keep the prior workspace active")
+check(preferences.data(forKey: "DaymarkStorageBookmark") == goodBookmark, "A failed folder switch must retain the prior bookmark")
+try check(rejectedStore.load() == nil, "Attachment validation failure must not copy task records into the selected folder")
+try check(sandboxStore.attachmentData(localAttachmentURL) == droppedBytes, "A failed folder switch must leave the original attachment readable")
+
+preferences.set(Data("invalid bookmark".utf8), forKey: "DaymarkStorageBookmark")
+let recoveredSandbox = try DaymarkStore(preferences: preferences, sandboxedMac: true, defaultFolder: localFolder)
+check(recoveredSandbox.kind == "local" && recoveredSandbox.storageInfo["reconnectRequired"] as? Bool == true, "An unavailable bookmark must use local storage and show a clear reconnect message")
+check((recoveredSandbox.storageInfo["message"] as? String)?.contains("not been moved or deleted") == true, "Bookmark recovery must explain that the prior workspace is preserved")
+check(preferences.data(forKey: "DaymarkStorageBookmark") == Data("invalid bookmark".utf8), "Recovery must not discard an unavailable bookmark")
+try recoveredSandbox.chooseFolder(existingFolder)
+check(recoveredSandbox.storageInfo["reconnectRequired"] == nil && recoveredSandbox.kind == "folder", "Explicit reconnection must clear recovery status")
+
 // Model a file provider waiting for iCloud while the UI continues to handle input.
 let workerStarted = DispatchSemaphore(value: 0)
 let releaseWorker = DispatchSemaphore(value: 0)
@@ -238,4 +301,4 @@ check(operationsOnWorker, "Persistence IO must execute outside the UI thread")
 check(completionsOnMain, "Storage callbacks must return to the UI thread")
 check(completionOrder == [1, 2, 3], "Queued saves and reads must finish in order")
 check((lastState?["tasks"] as? [[String: Any]])?.first?["title"] as? String == "Latest queued edit", "A read after queued saves must contain the latest edit")
-print("Daymark native store: \(checks) persistence, work-date, tag, conflict, attachment, and background IO checks passed.")
+print("Daymark native store: \(checks) persistence, sandbox startup, folder adoption, work-date, tag, conflict, attachment, and background IO checks passed.")

@@ -1,6 +1,6 @@
-# iPhone and iPad validation
+# Native application validation
 
-The chosen display name is **GreenDay**, with a green icon and interface accent. Internal project/scheme names and `app.daymark.mobile` remain unchanged. The final archive audit confirmed version 1.0.0, build 1, and minimum deployment target iOS 16. The validation environment uses Xcode 26.6 and the iOS 26.5 SDK.
+The chosen display name is **GreenDay**, with a green icon and interface accent. The iPhone/iPad scheme is `Daymark` (`app.daymark.mobile`); the separate Mac App Store scheme is `DaymarkMac` (`app.daymark.desktop`). The latest verification archives use version 1.0.0, build 1, Xcode 26.6, and the platform 26.5 SDKs. Their minimum deployment targets are iOS 16 and macOS 13. They are verification artifacts, not signed store packages.
 
 ## Previously completed
 
@@ -95,19 +95,45 @@ These results establish build and local interaction behavior. They do not establ
 - Browser checks covered name autofocus, duplicate-name feedback, disabled invalid submission, group/color selection, live preview, forward/reverse Tab containment, and Escape restoring the trigger. At 390px and 320px widths, the dialog stays within the screen; at 320×568 its body scrolls while the action footer remains visible.
 - This revision was validated in the browser preview only. The installed Mac app, simulator app, and device archive were deliberately not rebuilt or replaced, preserving the working Mac app's calendar permission continuity. Their bundled assets remain at the previous revision.
 
-## Current file drop and link update
+## Previous file drop and link update
 
 - External file drops insert ordinary filename links at the indicated note position, without adding a bottom attachment-list entry. Browser checks used fictional PDF/image fixtures to verify mid-line insertion, a new paragraph below the note, persistence after reload, image preview on normal click, and Undo/Redo. A temporary browser drag source was used; Finder-to-installed-app dragging was not exercised.
 - The in-app browser did not render its advertised embedded PDF viewer reliably, so browser document links now download with their original names. The PDF download was verified in Downloads with bytes matching the fixture exactly. Image previews rendered correctly. Native PDF/image preview routing is covered by App integration tests, and other file types use the existing native external-open action.
 - All **157 focused frontend tests** passed, covering import persistence, size/read failures, native request isolation, caret geometry, import ordering and cancellation, link activation, and image-paste/slash-menu regressions. The production web build, all 90 native store checks, and macOS/iOS Swift typechecks passed in temporary verification environments.
 - No installed Mac or simulator app was replaced, and no real task, attachment, or calendar records were changed. The production web build is newer than the installed apps. Real-device file dragging, native preview interaction, and cross-device file delivery still need verification on the next signed build.
 
+## Current Mac and iOS store archive preparation — 15 September 2026
+
+Both Release archive commands succeeded. A read-only audit checked the resulting artifacts:
+
+| Archive | Application | Architectures | SDK / minimum OS |
+| --- | --- | --- | --- |
+| `~/Library/Caches/GreenDay/AppStore/macOS/GreenDay.xcarchive` | `Products/Applications/GreenDay.app` | arm64 and x86_64 | macOS 26.5 / 13.0 |
+| `~/Library/Caches/GreenDay/AppStore/iOS/GreenDay.xcarchive` | `Products/Applications/Daymark.app` | arm64 | iOS 26.5 / 16.0 |
+
+- Both application plists contain the GreenDay display name, expected bundle identifiers, version **1.0.0**, build **1**, calendar access descriptions, and the nonexempt-encryption declaration set to false. The iOS device family remains iPhone and iPad. The Mac category is Productivity and its `DaymarkAppSandbox` storage marker is true.
+- The web resources in both archives match `build/release-web` byte for byte: **62 files, 2,572,051 bytes**. The native bundle validator passed on the reference and both archived copies. Native builds omit browser-only PDF.js assets and use native document opening. The bundle inventory contains no workspace directories, attachment stores, revision stores, migration folders, source maps, source files, `node_modules`, or symlinks.
+- The Mac archive includes a structurally valid `Daymark.icns` with the expected icon-size chunks; the iOS archive includes `Assets.car`, generated icon PNGs, and 1024×1024 AppIcon catalog entries for iPhone and iPad. Both archives include their application dSYM bundles.
+- Both privacy manifests declare no tracking and no developer-collected data. They declare app-local UserDefaults use (`CA92.1`); the Mac manifest additionally declares elapsed in-app event timing (`35F9.1`) for native window dragging. These declarations describe the reviewed code; they do not replace the publisher's App Store privacy answers.
+- The Mac target enables App Sandbox and requests only outgoing network access, calendars, user-selected read/write files, and app-scoped bookmarks. Its separate store plist uses the sandbox-aware workspace path. The existing direct-development Mac build and its plist remain separate.
+- **Signing limitation:** the Mac executable has only the linker's ad hoc signature, with no team, sealed bundle resources, or embedded sandbox entitlements. The iOS application is unsigned. Neither archive contains a provisioning profile. The store marker and unsigned build settings alone do not establish runtime sandbox enforcement. The separately entitled runtime check below covers selected-folder behavior; final distribution signing and validation are still required. The Mac copyright field intentionally remains `Copyright owner not configured` in this verification archive.
+- Release scripts now require the actual Developer team, bundle/version/build inputs, and nonplaceholder public HTTPS privacy/support URLs; the Mac script also requires the publisher's copyright notice. Missing-team checks stopped signed archive, export, and upload commands before any build or network upload. Release builds use freshly built native web resources and validate their contents before packaging.
+
+The final archives were rebuilt after a help-text-only change, then their resource equality was rechecked. The artifact audit itself was read-only and did not change signing accounts, export a distribution package, or upload a build. The following runtime checks used the preceding build with identical application behavior and isolated test data:
+
+- A copy of the Mac archive was placed in a unique cache QA directory, assigned bundle identifier `app.daymark.releaseqa`, and ad hoc signed with the actual `GreenDay.entitlements`. Launch showed the workspace chooser. Through the system folder picker, the app connected a fictional external cache workspace containing six sample tasks.
+- Creating **Sandbox release check** saved its task JSON in that selected external folder. The QA app's sandbox container and persisted workspace bookmark were confirmed. After quitting and relaunching, the app restored the **Shared folder** connection and all seven tasks, including the new task, without a reconnect prompt. This checks sandboxed folder access and bookmark restoration on the local Mac; it does not prove iCloud provider delivery or App Store distribution signing.
+- The user's installed development app, existing workspace, and calendar data/permissions were not modified by the QA copy. Only the isolated fictional workspace was written.
+- The Release iPhone simulator app was installed and launched; visual inspection showed its existing test tasks. Further touch interaction checks could not proceed because the UI automation surface returned `noWindowsAvailable`. The iPad Release simulator install succeeded, but a new iPad launch/touch check is not claimed for this turn.
+
+No physical iPhone, real calendar/provider synchronization, or cross-device iCloud delivery was tested in this preparation. Store-signature checks and the deeper mobile interaction checks below remain outstanding.
+
 ## Still needed before distribution
 
 - Complete native calendar interaction checks for unlinking, event deletion, recurring occurrence edits/deletion, permission refusal, read-only calendars, and error recovery. Test external event changes and iCloud/Google delivery separately using a dedicated test calendar. Event creation and title editing were tested only in a simulator local calendar.
 - Finish touch review of Month/Week/Day layouts, overlapping/all-day events, and task work days/deadlines. Recheck note menu placement, selected-text formatting, and Vim interactions on the final mobile build.
 - Finish the remaining native interaction checks: touch link Open/Edit, deadline/tag sheets, image/PDF import and preview, folder selection, and error recovery. Capture App Store screenshots from the final build using fictional data.
-- Sign into Xcode with an Apple Developer Program team; reserve the final bundle identifier and create the App Store Connect record. No signing identity or authenticated App Store Connect session was available during this build.
+- Renew the expired Apple Developer Program membership, configure the signing team in Xcode, reserve the final bundle identifier, and create the App Store Connect record. App Store Connect and the Developer account are signed in, but both currently report expired membership; no local signing identity is available. The user was asked to renew. No payment, renewal, or agreement acceptance was attempted, and no build was uploaded.
 - Test on a physical iPhone: foreground/background persistence, local offline edits, Files permissions after relaunch, attachments, and cross-device iCloud delivery with the Mac using a separate test workspace. Simulator compilation does not verify these device/provider behaviors.
 - Finish publisher/contact details, privacy/support URLs, listing, and distribution settings described in [App Store delivery](APP-STORE.md). GreenDay is the chosen display name; the publisher/contact placeholders are still unresolved.
 

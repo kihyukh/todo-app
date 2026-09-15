@@ -57,6 +57,10 @@ export type StorageInfo = {
   kind: "icloud" | "local" | "folder";
   path?: string;
   message?: string;
+  /** Present only in the separate sandboxed Mac distribution. */
+  sandboxed?: boolean;
+  needsFolderSelection?: boolean;
+  reconnectRequired?: boolean;
 };
 export const now = () => new Date().toISOString();
 export const uid = () =>

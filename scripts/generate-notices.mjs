@@ -13,8 +13,12 @@ const sections = [
   "Open source notices",
   "This app is built with the following open source packages. Some listed packages support other included packages. Their license notices follow.",
 ];
+const nativeApp = process.env.VITE_NATIVE_APP === "1";
 let includedPackages = 0;
 for (const [location, item] of entries) {
+  // The native build uses system PDF viewers and removes this entire browser
+  // renderer, including its worker, codecs and standard fonts.
+  if (nativeApp && location === "node_modules/pdfjs-dist") continue;
   // PDF.js's optional Node canvas binaries are not shipped in the web bundle
   // or either WKWebView app. Their platform packages also omit license files.
   if (item.optional && /^node_modules\/@napi-rs\/canvas(?:-|$)/.test(location))
@@ -60,7 +64,12 @@ for (const [location, item] of entries) {
   includedPackages += 1;
 }
 await writeFile(
-  path.join(root, "src/third-party-notices.txt"),
+  path.join(
+    root,
+    nativeApp
+      ? "src/third-party-notices.native.txt"
+      : "src/third-party-notices.txt",
+  ),
   sections.join("\n\n") + "\n",
 );
 console.log(

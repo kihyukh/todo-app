@@ -1,4 +1,6 @@
-# Submission answers to confirm against the archive
+# Privacy answers and native package audit
+
+Prepared 15 September 2026 for the Mac and iPhone App Store release.
 
 This records the implementation assessment, not answers already submitted to Apple. Revisit it if the release adds a server, analytics, crash-reporting SDK, ads, account system, or embedded third-party service.
 
@@ -12,14 +14,15 @@ Do not promise “no network requests”: user-chosen iCloud/file-provider and c
 
 ## Privacy manifest
 
-| Manifest item | Current implementation |
-| --- | --- |
-| `NSPrivacyTracking` | `false`; no tracking domains |
-| `NSPrivacyCollectedDataTypes` | Empty array, subject to the final archive audit |
-| `NSPrivacyAccessedAPICategoryUserDefaults` | `CA92.1`: the app reads/writes its own workspace bookmark and preferences |
-| File timestamp, disk space, system boot time, active keyboards | No direct use found in the native source audit; do not add reasons without an actual use |
+| Manifest item                                | Current implementation                                                                                                                                                                         |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NSPrivacyTracking`                          | `false`; no tracking domains                                                                                                                                                                   |
+| `NSPrivacyCollectedDataTypes`                | Empty array, subject to the final archive audit                                                                                                                                                |
+| `NSPrivacyAccessedAPICategoryUserDefaults`   | `CA92.1`: the app reads/writes its own workspace bookmark and preferences                                                                                                                      |
+| `NSPrivacyAccessedAPICategorySystemBootTime` | Mac only: `35F9.1`; `ProcessInfo.systemUptime` checks elapsed time since an in-app mouse-down before moving the window. The value is not sent off-device. iOS has no corresponding direct use. |
+| File timestamp, disk space, active keyboards | No direct use found in the native source audit; do not add reasons without an actual use                                                                                                       |
 
-Task dates are values inside the app’s JSON records; they are not filesystem timestamp reads. File byte counts use loaded `Data.count`. The app uses Apple frameworks and bundled JavaScript libraries, with no native third-party telemetry SDK found. Inspect Xcode’s generated privacy report and the final archive for any changed dependencies. [Apple required-reason API guidance](https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api), [approved API reasons](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype)
+Task dates are values inside the app’s JSON records; they are not filesystem timestamp reads. File byte counts use loaded `Data.count`. The Mac manifest is `native/macOS/PrivacyInfo.xcprivacy`; iOS has its own manifest at `native/iOS/PrivacyInfo.xcprivacy`. The app uses Apple frameworks and bundled JavaScript libraries, with no native third-party telemetry SDK found. Inspect Xcode’s generated privacy report and the final archive for any changed dependencies. [Apple required-reason API guidance](https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api), [approved API reasons](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype)
 
 ## Export compliance
 
@@ -28,3 +31,13 @@ Proposed `ITSAppUsesNonExemptEncryption`: **NO** for the current implementation.
 ## Age rating and review access
 
 The current app contains no ads, gambling, chat, social feed, public content sharing, medical advice, or unrestricted in-app web browser. Private notes are not a broadly distributed user-content service; arbitrary web links open in the external browser. Answer the current questionnaire on that basis and let App Store Connect calculate the rating. Do not hardcode a rating before completing it. No reviewer login is required. [Apple age-rating definitions](https://developer.apple.com/help/app-store-connect/reference/app-information/age-ratings-values-and-definitions)
+
+## Native package and license boundary
+
+Native UI builds set `VITE_NATIVE_APP=1`. PDFs open through system viewers, and the browser-only PDF.js viewer is excluded from these bundles. This also excludes PDF.js's Liberation font binaries and their GPL-with-exception distribution terms from the native App Store packages. Do not substitute an ordinary browser `dist` directory when archiving. Native builds include a separate generated notice collection for their actual runtime package set.
+
+The browser development build still uses PDF.js, including its CMaps, codecs, and standard fonts. Its aggregated notices preserve the PDF.js and embedded-resource licenses. This native release assessment does not approve a separately distributed browser package or satisfy any additional source-distribution obligations for that package.
+
+`verify-web-release.mjs --native` rejects browser PDF assets, source maps, symlinks, unrecognized output, workspace folders, and non-bundled entry resources. The final archive still needs an inventory review: the allowlist validates package structure, not the truth or privacy of every image or string in approved asset files. Only the fictional `createInitialState` examples may be bundled; migration snapshots, private tasks, credentials, and workspace attachments stay outside the app resources.
+
+No policy/support site has been published by this audit. The HTML drafts contain no script, external font, form, or analytics service. Their publisher, support email, and effective date remain unresolved. Actual hosting practices must match the final policy. The signed release must receive the real public URLs through `VITE_PUBLIC_PRIVACY_URL` and `VITE_PUBLIC_SUPPORT_URL`; the app exposes those links in Settings → Privacy. A placeholder-free URL format check is not proof that the pages are reachable or complete.

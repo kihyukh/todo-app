@@ -8,6 +8,8 @@
     "build": "node scripts/generate-notices.mjs && tsc -b && vite build",
     "test": "vitest run",
     "build:mac": "npm run build && bash scripts/build-mac.sh",
+    "archive:mac": "bash scripts/build-mac-store.sh",
+    "release:mac": "bash scripts/release-mac.sh",
     "build:ios": "bash scripts/build-ios.sh --simulator",
     "archive:ios": "bash scripts/build-ios.sh --archive",
     "release:ios": "bash scripts/release-ios.sh"

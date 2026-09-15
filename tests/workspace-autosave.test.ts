@@ -78,6 +78,45 @@ afterEach(async () => {
 });
 
 describe("autosave scheduling", () => {
+  it("starts sandbox storage without examples and adopts existing records without replacing them", async () => {
+    await act(() => root.unmount());
+    root = createRoot(container);
+    messages = [];
+    await act(() => root.render(createElement(Harness)));
+    await act(() =>
+      window.daymarkNativeReceive?.({
+        type: "state",
+        state: null,
+        storage: { kind: "local", sandboxed: true, needsFolderSelection: true },
+      }),
+    );
+    expect(workspace.ready).toBe(true);
+    expect(workspace.state.tasks).toEqual([]);
+    expect(workspace.state.projects).toEqual([]);
+    expect(workspace.state.columns.map((column) => column.id)).toEqual([
+      "next",
+      "progress",
+      "waiting",
+    ]);
+    await advance(AUTOSAVE_DELAY_MS);
+    expect(saves()).toHaveLength(1);
+    expect(saves()[0].state?.tasks).toEqual([]);
+    await act(() =>
+      window.daymarkNativeReceive?.({
+        type: "state",
+        state: structuredClone(initial),
+        storage: {
+          kind: "folder",
+          sandboxed: true,
+          needsFolderSelection: false,
+        },
+      }),
+    );
+    expect(workspace.state.tasks).toEqual(initial.tasks);
+    expect(workspace.storage.kind).toBe("folder");
+    expect(workspace.state.tasks.some((task) => task.example)).toBe(false);
+  });
+
   it("repairs deleted-list membership on the first native load and saves it without repeated poll churn", async () => {
     // Remount without the normal beforeEach state message so this exercises the
     // initial load path, rather than the already-loaded merge path.
