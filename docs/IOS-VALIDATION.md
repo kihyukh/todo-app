@@ -72,12 +72,20 @@ These results establish build and local interaction behavior. They do not establ
 - The installed Mac app shows full-size content with native window buttons and no visible title strip or sidebar branding. Top-edge task actions and the sidebar drag area were checked with pointer input. The user's current task was restored after reopening, with its saved note preserved.
 - The iPhone simulator confirmed a compact search/close row below the safe area and normal drawer opening/dismissal. No task records were edited for these checks.
 
-## Current top-header window dragging
+## Previous top-header window dragging
 
 - Production web, Mac, simulator, and unsigned archive builds passed. All 62 web assets match across the outputs, with no personal records or development directories packaged. MacOS 13 and iOS 16 typechecks passed.
 
 - All **596 frontend tests** pass, including 16 window-drag tests and three App/platform checks. The tests verify that only designated top headers initiate dragging; pane bodies, notes, controls, task rows, calendars, scrollbars, and resize dividers preserve normal gestures. Browser and iPhone do not install the window-drag handler.
 - Native diagnostics confirmed real AppKit window movement. The implementation preserves the original mouse-down and matches the web reply to that gesture; a completed quick drag can apply its measured movement without interpreting ordinary clicks as drags. Temporary diagnostics were removed from the final app.
+
+## Current responsive task detail update
+
+- The installed TickTick Mac app was inspected by opening tasks, switching between them through the exposed list, dismissing its floating detail, and resizing into a third column.
+- All **611 frontend tests** pass, including 11 pane-layout tests and six responsive task-detail integration tests. The checks cover layout thresholds and saved preferences, retained editor DOM/focus/caret/draft/scroll, unsaved date drafts, dismissal, task switching, and phone Back navigation.
+- Browser checks confirmed a floating right pane at 860px, docking at the default 984px boundary (224px navigation, 360px list, 400px detail), and a wider three-column view. An edit to a fictional sample note retained its caret and Undo history through both transitions; Undo restored the original note. The date chooser stayed open while resizing. At 390px, details stayed full screen and Back returned to the list.
+- The installed Mac app confirmed the floating pane, three-column docking when zoomed wider, and the same selected task remaining open in a floating pane after restoring its original size. No personal task records were changed.
+- Production web, Mac, iPhone simulator, and unsigned device archive builds passed. All 62 web assets match across these outputs, with no personal records or development directories packaged. This update changes the shared interface; physical-device and provider-delivery limits below still apply.
 
 ## Still needed before distribution
 

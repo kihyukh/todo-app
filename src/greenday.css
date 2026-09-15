@@ -101,11 +101,11 @@
 .is-resizing-panes .pane-divider::after {
   background: #24704f66;
 }
-@media (min-width: 921px) {
+@media (min-width: 601px) {
   .app-shell {
     grid-template-columns: var(--sidebar-width, 224px) minmax(0, 1fr);
   }
-  .app-shell.has-detail {
+  .app-shell.has-detail[data-detail-layout="docked"] {
     grid-template-columns: var(--sidebar-width, 224px) minmax(0, 1fr) var(
         --detail-width,
         440px
@@ -117,8 +117,26 @@
   .app-shell > .workspace {
     grid-column: 2;
   }
-  .app-shell > .detail {
+  .app-shell[data-detail-layout="docked"] > .detail {
     grid-column: 3;
+  }
+  .app-shell.has-detail[data-detail-layout="floating"] {
+    grid-template-columns: var(--sidebar-width, 224px) minmax(0, 1fr);
+  }
+  .app-shell[data-detail-layout="floating"] > .detail {
+    position: absolute;
+    inset: 0 0 0 auto;
+    width: var(--floating-detail-width, 440px);
+    max-width: calc(100% - 56px);
+    grid-column: auto;
+    z-index: 40;
+    border-left: 1px solid var(--line);
+    box-shadow:
+      -8px 0 28px #152e201a,
+      -1px 0 5px #152e200d;
+  }
+  .app-shell > .detail .detail-back {
+    display: none;
   }
 }
 .task-title-editor {

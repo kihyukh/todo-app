@@ -1,8 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, RefObject } from "react";
 
 export type PaneWidths = { sidebar: number; detail: number };
+export type DetailLayout = "fullscreen" | "floating" | "docked";
 const STORAGE_KEY = "daymark.panes.v1";
+const MIN_SIDEBAR = 184;
+const MAX_SIDEBAR = 340;
+const MIN_WORKSPACE = 360;
+const MIN_DETAIL = 400;
+export function detailLayoutForWidth(
+  width: number,
+  sidebar = 224,
+): DetailLayout {
+  if (width <= 600) return "fullscreen";
+  return width >=
+    Math.max(MIN_SIDEBAR, Math.min(MAX_SIDEBAR, sidebar)) +
+      MIN_WORKSPACE +
+      MIN_DETAIL
+    ? "docked"
+    : "floating";
+}
 export const defaultPaneWidths = (width: number): PaneWidths => ({
   sidebar: 224,
   detail: Math.round(width * 0.42),
@@ -14,12 +31,19 @@ export function fitPaneWidths(
 ): PaneWidths {
   const sidebar = Math.round(
     Math.max(
-      184,
-      Math.min(340, preferred.sidebar, width - (hasDetail ? 620 : 300)),
+      MIN_SIDEBAR,
+      Math.min(
+        MAX_SIDEBAR,
+        preferred.sidebar,
+        width - MIN_WORKSPACE - (hasDetail ? MIN_DETAIL : 0),
+      ),
     ),
   );
   const detail = Math.round(
-    Math.max(340, Math.min(1000, preferred.detail, width - sidebar - 280)),
+    Math.max(
+      MIN_DETAIL,
+      Math.min(1000, preferred.detail, width - sidebar - MIN_WORKSPACE),
+    ),
   );
   return { sidebar, detail };
 }
@@ -46,19 +70,41 @@ export function usePaneWidths(hasDetail: boolean) {
   );
   const current = useRef(preferred);
   current.current = preferred;
-  const fitted = fitPaneWidths(preferred, width, hasDetail);
+  const detailLayout = detailLayoutForWidth(width, preferred.sidebar);
+  const fitted = fitPaneWidths(
+    preferred,
+    width,
+    hasDetail && detailLayout === "docked",
+  );
+  const floatingDetailWidth = Math.min(
+    Math.max(360, Math.min(560, preferred.detail)),
+    Math.max(360, width - fitted.sidebar - 120),
+  );
+  const observedShell = useRef<HTMLDivElement | null>(null);
+  const resizeObserver = useRef<ResizeObserver | null>(null);
+  // The shell appears after workspace loading. Attach when the element actually
+  // exists, while keeping the observer stable during note edits and pane drags.
+  useLayoutEffect(() => {
+    if (observedShell.current === shell.current) return;
+    resizeObserver.current?.disconnect();
+    observedShell.current = shell.current;
+    const measure = () =>
+      setWidth(shell.current?.clientWidth || window.innerWidth);
+    measure();
+    resizeObserver.current =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(measure);
+    if (shell.current) resizeObserver.current?.observe(shell.current);
+  });
   useEffect(() => {
     const measure = () =>
       setWidth(shell.current?.clientWidth || window.innerWidth);
     measure();
-    const observer =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(measure);
-    if (shell.current) observer?.observe(shell.current);
     window.addEventListener("resize", measure);
     return () => {
-      observer?.disconnect();
+      resizeObserver.current?.disconnect();
+      observedShell.current = null;
       window.removeEventListener("resize", measure);
     };
   }, []);
@@ -77,9 +123,12 @@ export function usePaneWidths(hasDetail: boolean) {
     shell,
     width,
     fitted,
+    preferred,
+    detailLayout,
     style: {
       "--sidebar-width": `${fitted.sidebar}px`,
       "--detail-width": `${fitted.detail}px`,
+      "--floating-detail-width": `${floatingDetailWidth}px`,
     } as CSSProperties,
     change,
     persist: () => change(current.current, true),
@@ -95,6 +144,8 @@ export function PaneDivider({
   layout: {
     shell: RefObject<HTMLDivElement | null>;
     fitted: PaneWidths;
+    preferred: PaneWidths;
+    detailLayout: DetailLayout;
     width: number;
     change: (next: PaneWidths, persist?: boolean) => void;
     persist: () => void;
@@ -104,22 +155,34 @@ export function PaneDivider({
   const drag = useRef<{
     x: number;
     widths: PaneWidths;
+    preferred: PaneWidths;
     pointer: number;
   } | null>(null);
   useEffect(() => {
     const shell = layout.shell.current;
     return () => shell?.classList.remove("is-resizing-panes");
   }, [layout.shell]);
-  if (layout.width <= 920 || (kind === "detail" && !hasDetail)) return null;
+  const hasDockedDetail = hasDetail && layout.detailLayout === "docked";
+  const visible = layout.width > 600 && (kind === "sidebar" || hasDockedDetail);
+  useEffect(() => {
+    if (visible || !drag.current) return;
+    drag.current = null;
+    layout.persist();
+    layout.shell.current?.classList.remove("is-resizing-panes");
+  }, [visible, layout]);
+  if (!visible) return null;
   const label =
     kind === "sidebar" ? "Resize navigation pane" : "Resize task detail pane";
   const apply = (value: number, persist = false) =>
     layout.change(
-      fitPaneWidths(
-        { ...layout.fitted, [kind]: value },
-        layout.width,
-        hasDetail,
-      ),
+      {
+        ...layout.preferred,
+        [kind]: fitPaneWidths(
+          { ...layout.fitted, [kind]: value },
+          layout.width,
+          hasDockedDetail,
+        )[kind],
+      },
       persist,
     );
   const finish = () => {
@@ -134,11 +197,14 @@ export function PaneDivider({
       tabIndex={0}
       aria-label={label}
       aria-orientation="vertical"
-      aria-valuemin={kind === "sidebar" ? 184 : 340}
+      aria-valuemin={kind === "sidebar" ? MIN_SIDEBAR : MIN_DETAIL}
       aria-valuemax={
         kind === "sidebar"
-          ? Math.min(340, layout.width - (hasDetail ? 620 : 300))
-          : Math.min(1000, layout.width - layout.fitted.sidebar - 280)
+          ? Math.min(
+              MAX_SIDEBAR,
+              layout.width - MIN_WORKSPACE - (hasDockedDetail ? MIN_DETAIL : 0),
+            )
+          : Math.min(1000, layout.width - layout.fitted.sidebar - MIN_WORKSPACE)
       }
       aria-valuenow={layout.fitted[kind]}
       aria-valuetext={`${layout.fitted[kind]} pixels`}
@@ -150,6 +216,7 @@ export function PaneDivider({
         drag.current = {
           x: event.clientX,
           widths: layout.fitted,
+          preferred: layout.preferred,
           pointer: event.pointerId,
         };
         layout.shell.current?.classList.add("is-resizing-panes");
@@ -157,8 +224,9 @@ export function PaneDivider({
       onPointerMove={(event) => {
         if (!drag.current || drag.current.pointer !== event.pointerId) return;
         const delta = event.clientX - drag.current.x;
-        layout.change(
-          fitPaneWidths(
+        layout.change({
+          ...drag.current.preferred,
+          [kind]: fitPaneWidths(
             {
               ...drag.current.widths,
               [kind]:
@@ -166,9 +234,9 @@ export function PaneDivider({
                 (kind === "sidebar" ? delta : -delta),
             },
             layout.width,
-            hasDetail,
-          ),
-        );
+            hasDockedDetail,
+          )[kind],
+        });
       }}
       onPointerUp={finish}
       onPointerCancel={finish}

@@ -1372,9 +1372,6 @@ kbd {
   .app-shell.has-detail {
     grid-template-columns: 190px minmax(0, 1fr);
   }
-  .app-shell.has-detail .workspace {
-    display: none;
-  }
   .detail {
     grid-column: 2;
     border-left: 0;
@@ -1408,6 +1405,9 @@ kbd {
   .app-shell.has-detail {
     display: block;
     height: 100dvh;
+  }
+  .app-shell.has-detail .workspace {
+    display: none;
   }
   .sidebar {
     position: fixed;

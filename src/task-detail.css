@@ -267,11 +267,6 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
-@media (min-width: 601px) and (max-width: 920px) {
-  .detail .detail-actions > .icon-button:last-child {
-    display: none;
-  }
-}
 .is-touch-device .detail .detail-top .priority-field,
 .is-touch-device .detail .detail-top .icon-button {
   width: 44px;

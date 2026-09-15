@@ -45,7 +45,7 @@ import {
   readCompletionSoundPreference,
   writeCompletionSoundPreference,
 } from "./completion-sound";
-import { PaneDivider, usePaneWidths } from "./PaneResize";
+import { detailLayoutForWidth, PaneDivider, usePaneWidths } from "./PaneResize";
 import {
   compareTaskPriority,
   isDueSoon,
@@ -162,7 +162,9 @@ function App() {
   const showWorkspaceSetup =
     workspaceSetup && isNativeIOS() && storage.kind === "local";
   const [selectedId, setSelectedId] = useState<string | null>(() =>
-    window.innerWidth > 920 ? "example-review" : null,
+    detailLayoutForWidth(window.innerWidth) === "docked"
+      ? "example-review"
+      : null,
   );
   const [mode, setMode] = useState<"list" | "board">("list");
   const [query, setQuery] = useState("");
@@ -416,6 +418,17 @@ function App() {
         add();
       }
       if (e.key === "Escape") {
+        if (
+          panes.detailLayout === "floating" &&
+          !isTextEntry(e.target) &&
+          !settings &&
+          !dialog &&
+          !tagDialog &&
+          !menu &&
+          !plan &&
+          !attachmentPreview
+        )
+          setSelectedId(null);
         setSettings(false);
         setDialog(null);
         setTagDialog(null);
@@ -425,7 +438,7 @@ function App() {
       }
     }
     const add = () => {
-      if (window.innerWidth <= 920) setSelectedId(null);
+      if (panes.detailLayout !== "docked") setSelectedId(null);
       if (["checkboxes", "completed", "trash", "calendar"].includes(view))
         setView("today");
       requestAnimationFrame(() => quickRef.current?.focus());
@@ -436,9 +449,19 @@ function App() {
       window.removeEventListener("keydown", key);
       window.removeEventListener("daymark-new-task", add);
     };
-  }, [view]);
+  }, [
+    view,
+    panes.detailLayout,
+    settings,
+    dialog,
+    tagDialog,
+    menu,
+    plan,
+    attachmentPreview,
+  ]);
   function changeView(v: View) {
-    if (window.innerWidth <= 920 || v === "calendar") setSelectedId(null);
+    if (panes.detailLayout !== "docked" || v === "calendar")
+      setSelectedId(null);
     setView(v);
     setQuery("");
     setSidebar(false);
@@ -909,7 +932,18 @@ function App() {
     <div
       ref={panes.shell}
       style={panes.style}
+      data-detail-layout={panes.detailLayout}
       className={`app-shell ${selected ? "has-detail" : ""} ${sidebar ? "sidebar-open" : ""} ${touch ? "is-touch-device" : ""} ${window.__DAYMARK_PLATFORM__ === "macos" ? "is-native-mac" : ""} ${touchFocus ? "has-touch-focus" : ""}`}
+      onClickCapture={(event) => {
+        // Keep the underlying list interactive. A task click in the same event
+        // selects its detail without an intermediate editor unmount.
+        if (
+          panes.detailLayout === "floating" &&
+          event.target instanceof Element &&
+          event.target.closest(".workspace, .sidebar")
+        )
+          setSelectedId(null);
+      }}
       onFocusCapture={(event) => {
         if (touch && isTextEntry(event.target)) setTouchFocus(true);
       }}
@@ -1563,7 +1597,7 @@ function App() {
         </footer>
       </main>
       {selected && (
-        <aside className="detail" key={selected.id}>
+        <aside className="detail" key={selected.id} aria-label="Task details">
           <header className="detail-top" data-window-drag>
             <button
               className="detail-back"
