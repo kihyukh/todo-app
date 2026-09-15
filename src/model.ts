@@ -1,4 +1,5 @@
 import type { CalendarEventLink } from "./calendar-model";
+import { repairDeletedLists } from "./lists";
 
 export type NoteNode = {
   type: string;
@@ -228,13 +229,13 @@ export function mergeState(a: AppState, b: AppState): AppState {
     }
     return [...map.values()].sort((a, b) => a.id.localeCompare(b.id));
   }
-  return {
+  return repairDeletedLists({
     schemaVersion: 1,
     tasks: merge(a.tasks, b.tasks),
     projects: merge(a.projects, b.projects),
     columns: merge(a.columns, b.columns),
     tags: merge(a.tags ?? [], b.tags ?? []),
-  };
+  });
 }
 export const emptyDoc = (): NoteNode => ({
   type: "doc",

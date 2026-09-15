@@ -38,6 +38,13 @@ import {
   Hash,
 } from "lucide-react";
 import TaskEditor from "./TaskEditor";
+import {
+  DeleteListDialog,
+  ListOptions,
+  type ListMenuAnchor,
+} from "./ListActions";
+import { flushSync } from "react-dom";
+import { deleteList, undoDeleteList, type ListDeletionReceipt } from "./lists";
 import { readBrowserNoteFile } from "./note-file-storage";
 import { nativeAttachmentLink } from "./note-links";
 import { CompletionMark, useTaskCompletion } from "./TaskCompletion";
@@ -180,6 +187,12 @@ function App() {
   const [notePending, setNotePending] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [tagDialog, setTagDialog] = useState<{ id?: string } | null>(null);
+  const [listMenu, setListMenu] = useState<ListMenuAnchor | null>(null);
+  const [listDelete, setListDelete] = useState<{
+    id: string;
+    returnFocus?: HTMLElement;
+  } | null>(null);
+  const [listUndo, setListUndo] = useState<ListDeletionReceipt | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [plan, setPlan] = useState(false);
   const [planFilter, setPlanFilter] = useState<"all" | "urgent" | "progress">(
@@ -227,6 +240,34 @@ function App() {
           (b.order ?? (["next", "progress", "waiting"].indexOf(b.id) + 1) * 10),
       );
   const selected = state.tasks.find((t) => t.id === selectedId && !t.deletedAt);
+  const deletingList = projects.find(
+    (project) => project.id === listDelete?.id,
+  );
+  const deletingTasks = state.tasks.filter(
+    (task) => task.projectId === listDelete?.id,
+  );
+  useEffect(() => {
+    // A synced deletion must not leave a view that creates new tasks in that list.
+    if (
+      view.startsWith("project:") &&
+      state.projects.some((p) => p.id === view.slice(8) && p.deletedAt)
+    ) {
+      setView("inbox");
+      setQuery("");
+    }
+    if (listMenu && !projects.some((p) => p.id === listMenu.id))
+      setListMenu(null);
+    if (listDelete && !deletingList) setListDelete(null);
+    if (
+      listUndo &&
+      !state.projects.some(
+        (project) =>
+          project.id === listUndo.id &&
+          project.deletedAt === listUndo.deletedAt,
+      )
+    )
+      setListUndo(null);
+  }, [state.projects, view, listMenu, listDelete, listUndo]);
   const panes = usePaneWidths(!!selected);
   const detailRef = useRef<HTMLElement>(null);
   const detailWasOpen = useRef(false);
@@ -442,6 +483,14 @@ function App() {
   useEffect(() => {
     function key(e: KeyboardEvent) {
       if (e.defaultPrevented) return;
+      if (
+        listDelete &&
+        (e.metaKey || e.ctrlKey) &&
+        ["k", "n"].includes(e.key.toLowerCase())
+      ) {
+        e.preventDefault();
+        return;
+      }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         searchRef.current?.focus();
@@ -457,6 +506,8 @@ function App() {
           !settings &&
           !dialog &&
           !tagDialog &&
+          !listMenu &&
+          !listDelete &&
           !menu &&
           !plan &&
           !attachmentPreview
@@ -465,12 +516,15 @@ function App() {
         setSettings(false);
         setDialog(null);
         setTagDialog(null);
+        setListMenu(null);
+        setListDelete(null);
         setMenu(false);
         setPlan(false);
         setAttachmentPreview(null);
       }
     }
     const add = () => {
+      if (listDelete) return;
       if (panes.detailLayout !== "docked") setSelectedId(null);
       if (["checkboxes", "completed", "trash", "calendar"].includes(view))
         setView("today");
@@ -488,6 +542,8 @@ function App() {
     settings,
     dialog,
     tagDialog,
+    listMenu,
+    listDelete,
     menu,
     plan,
     attachmentPreview,
@@ -499,6 +555,40 @@ function App() {
     setQuery("");
     setSidebar(false);
     setPlan(false);
+    setListMenu(null);
+  }
+  function confirmListDeletion() {
+    if (!listDelete) return;
+    const id = listDelete.id;
+    const stamp = now();
+    const deletion: { result: ReturnType<typeof deleteList> } = {
+      result: null,
+    };
+    // Commit this explicit action before showing Undo, so its receipt includes
+    // any task changes already queued by the editor or another device.
+    flushSync(() => {
+      setState((current) => {
+        deletion.result = deleteList(current, id, stamp);
+        return deletion.result?.state ?? current;
+      });
+    });
+    const result = deletion.result;
+    if (!result) {
+      setListDelete(null);
+      return;
+    }
+    setListUndo(result.receipt);
+    setListDelete(null);
+    setToast("");
+    drag.clearNotice();
+    if (view === `project:${id}`) {
+      changeView("inbox");
+    }
+    requestAnimationFrame(() =>
+      document
+        .querySelector<HTMLButtonElement>('[aria-label="Undo list deletion"]')
+        ?.focus({ preventScroll: true }),
+    );
   }
   function updateTask(id: string, patch: Partial<Task>) {
     setState((s) => ({
@@ -1125,6 +1215,16 @@ function App() {
                 className={`nav-item project-nav ${view === `project:${project.id}` ? "active" : ""}`}
                 {...drag.destinationProps({ kind: "project", id: project.id })}
                 onClick={() => changeView(`project:${project.id}`)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  setListMenu({
+                    id: project.id,
+                    element: event.currentTarget,
+                    ...(event.clientX || event.clientY
+                      ? { point: { x: event.clientX, y: event.clientY } }
+                      : {}),
+                  });
+                }}
                 onDoubleClick={() =>
                   setDialog({
                     kind: "project",
@@ -1261,13 +1361,15 @@ function App() {
             )}
             {view.startsWith("project:") && (
               <IconButton
-                label="Rename list"
-                onClick={() =>
-                  setDialog({
-                    kind: "project",
-                    id: view.slice(8),
-                    value: title,
-                  })
+                label="List options"
+                aria-haspopup="menu"
+                aria-expanded={listMenu?.id === view.slice(8)}
+                onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
+                  setListMenu(
+                    listMenu
+                      ? null
+                      : { id: view.slice(8), element: event.currentTarget },
+                  )
                 }
               >
                 <MoreHorizontal size={18} />
@@ -2202,6 +2304,41 @@ function App() {
           </section>
         </div>
       )}
+      {listMenu && (
+        <ListOptions
+          anchor={listMenu}
+          onClose={() => setListMenu(null)}
+          onEdit={() => {
+            const project = projects.find((p) => p.id === listMenu.id);
+            if (project)
+              setDialog({
+                kind: "project",
+                id: project.id,
+                value: project.name,
+              });
+            setListMenu(null);
+          }}
+          onDelete={() => {
+            setListDelete({ id: listMenu.id, returnFocus: listMenu.element });
+            setListMenu(null);
+          }}
+        />
+      )}
+      {listDelete && deletingList && (
+        <DeleteListDialog
+          name={deletingList.name}
+          activeCount={
+            deletingTasks.filter((t) => !t.completedAt && !t.deletedAt).length
+          }
+          completedCount={
+            deletingTasks.filter((t) => t.completedAt && !t.deletedAt).length
+          }
+          trashCount={deletingTasks.filter((t) => t.deletedAt).length}
+          returnFocus={listDelete.returnFocus}
+          onClose={() => setListDelete(null)}
+          onConfirm={confirmListDeletion}
+        />
+      )}
       {tagDialog && (
         <TagDialog
           key={tagDialog.id ?? "new"}
@@ -2223,7 +2360,11 @@ function App() {
           >
             <header>
               <h2 id="dialog-title">
-                {dialog.id ? "Rename" : "New"}{" "}
+                {dialog.id
+                  ? dialog.kind === "project"
+                    ? "Edit"
+                    : "Rename"
+                  : "New"}{" "}
                 {dialog.kind === "project" ? "list" : "column"}
               </h2>
               <IconButton
@@ -2293,6 +2434,26 @@ function App() {
               )}
             </div>
             <footer>
+              {dialog.kind === "project" && dialog.id && (
+                <button
+                  type="button"
+                  className="record-delete-action"
+                  onClick={() => {
+                    const returnFocus = Array.from(
+                      document.querySelectorAll<HTMLElement>(
+                        '[data-task-drop-kind="project"]',
+                      ),
+                    ).find(
+                      (element) => element.dataset.taskDropId === dialog.id,
+                    );
+                    setListDelete({ id: dialog.id!, returnFocus });
+                    setDialog(null);
+                  }}
+                >
+                  <Trash2 size={15} />
+                  Delete list…
+                </button>
+              )}
               <button
                 type="button"
                 className="secondary-button"
@@ -2393,6 +2554,43 @@ function App() {
           </section>
         </div>
       )}
+      {listUndo && !toast && !drag.notice && (
+        <div className="toast list-delete-notice" role="status">
+          <span>“{listUndo.name}” deleted. Tasks kept.</span>
+          <button
+            aria-label="Undo list deletion"
+            onClick={() => {
+              const receipt = listUndo;
+              const canRestore = state.projects.some(
+                (project) =>
+                  project.id === receipt.id &&
+                  project.deletedAt === receipt.deletedAt,
+              );
+              setState((current) => undoDeleteList(current, receipt, now()));
+              setListUndo(null);
+              if (canRestore) {
+                changeView(`project:${receipt.id}`);
+                requestAnimationFrame(() =>
+                  document
+                    .querySelector<HTMLButtonElement>(
+                      '[aria-label="List options"]',
+                    )
+                    ?.focus({ preventScroll: true }),
+                );
+              }
+            }}
+          >
+            Undo
+          </button>
+          <button
+            className="icon-button"
+            aria-label="Dismiss list deletion message"
+            onClick={() => setListUndo(null)}
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
       {toast && (
         <div className="toast" role="status">
           <Check size={15} />
@@ -2400,7 +2598,7 @@ function App() {
         </div>
       )}
       {!toast && <TaskDragNotice drag={drag} />}
-      {!toast && !drag.notice && completion.notice && (
+      {!listUndo && !toast && !drag.notice && completion.notice && (
         <div className="toast completion-toast" role="status">
           <Check size={16} />
           <span>Completed {completion.notice.title}</span>

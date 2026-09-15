@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createInitialState, mergeState, uid } from "./model";
 import type { AppState, Attachment, StorageInfo } from "./model";
 import { APP_NAME } from "./brand";
+import { repairDeletedLists } from "./lists";
 
 export const AUTOSAVE_DELAY_MS = 800;
 
@@ -143,7 +144,7 @@ export function useWorkspace() {
             ? event.state
               ? mergeIfChanged(old, event.state)
               : old
-            : (event.state ?? createInitialState()),
+            : repairDeletedLists(event.state ?? createInitialState()),
         );
         loaded.current = true;
         setReady(true);
@@ -173,7 +174,7 @@ export function useWorkspace() {
       readBrowser()
         .then((value) => {
           if (mounted) {
-            setState(value ?? createInitialState());
+            setState(repairDeletedLists(value ?? createInitialState()));
             loaded.current = true;
             setReady(true);
           }

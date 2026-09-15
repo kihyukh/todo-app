@@ -78,6 +78,163 @@ afterEach(async () => {
 });
 
 describe("autosave scheduling", () => {
+  it("repairs deleted-list membership on the first native load and saves it without repeated poll churn", async () => {
+    // Remount without the normal beforeEach state message so this exercises the
+    // initial load path, rather than the already-loaded merge path.
+    await act(() => root.unmount());
+    root = createRoot(container);
+    messages = [];
+    await act(() => root.render(createElement(Harness)));
+    const deletedAt = "2026-09-15T00:00:00.000Z";
+    const snapshot: AppState = {
+      ...structuredClone(initial),
+      projects: [
+        {
+          id: "research",
+          name: "Research",
+          color: "#24704f",
+          deletedAt,
+          updatedAt: deletedAt,
+        },
+      ],
+      tasks: [
+        {
+          ...structuredClone(initial.tasks[0]),
+          id: "a-active",
+          projectId: "research",
+        },
+        {
+          ...structuredClone(initial.tasks[0]),
+          id: "b-completed",
+          projectId: "research",
+          completedAt: "2026-09-14T12:00:00.000Z",
+        },
+        {
+          ...structuredClone(initial.tasks[0]),
+          id: "c-trash",
+          projectId: "research",
+          deletedAt: "2026-09-14T13:00:00.000Z",
+        },
+        {
+          ...structuredClone(initial.tasks[0]),
+          id: "z-pending-list",
+          projectId: "pending-download",
+        },
+      ],
+    };
+    expect(workspace.ready).toBe(false);
+    await act(() =>
+      window.daymarkNativeReceive?.({ type: "state", state: snapshot }),
+    );
+    expect(workspace.ready).toBe(true);
+    const repaired = workspace.state;
+    expect(repaired.tasks.slice(0, 3)).toEqual(
+      snapshot.tasks.slice(0, 3).map((task) => ({
+        ...task,
+        projectId: "",
+        updatedAt: "2026-09-15T00:00:00.001Z",
+      })),
+    );
+    expect(repaired.tasks[3]).toEqual(snapshot.tasks[3]);
+    expect(snapshot.tasks[0].projectId).toBe("research");
+    await advance(AUTOSAVE_DELAY_MS);
+    expect(saves()).toHaveLength(1);
+    expect(saves()[0].state).toEqual(repaired);
+    await act(() =>
+      window.daymarkNativeReceive?.({
+        type: "saved",
+        requestId: saves()[0].requestId,
+      }),
+    );
+
+    // A cloud provider can keep reporting the old snapshot until its write is
+    // visible. Repeating either version must not create another save cycle.
+    for (const poll of [snapshot, repaired, snapshot]) {
+      await act(() =>
+        window.daymarkNativeReceive?.({
+          type: "state",
+          state: structuredClone(poll),
+        }),
+      );
+      expect(workspace.state).toBe(repaired);
+      expect(workspace.saving).toBe(false);
+      await advance(AUTOSAVE_DELAY_MS * 2);
+      expect(saves()).toHaveLength(1);
+    }
+  });
+
+  it("saves a newer offline task repaired against a synced list tombstone just once", async () => {
+    const deletedAt = "2026-09-15T00:00:00.000Z";
+    const snapshot: AppState = {
+      ...structuredClone(initial),
+      projects: [
+        {
+          id: "research",
+          name: "Research",
+          color: "#24704f",
+          deletedAt,
+          updatedAt: deletedAt,
+        },
+      ],
+      tasks: [
+        {
+          ...structuredClone(initial.tasks[0]),
+          projectId: "",
+          updatedAt: deletedAt,
+        },
+      ],
+    };
+    await act(() =>
+      window.daymarkNativeReceive?.({ type: "state", state: snapshot }),
+    );
+    await advance(AUTOSAVE_DELAY_MS);
+    await act(() =>
+      window.daymarkNativeReceive?.({
+        type: "saved",
+        requestId: saves()[0].requestId,
+      }),
+    );
+    const remote: AppState = {
+      ...snapshot,
+      tasks: [
+        {
+          ...snapshot.tasks[0],
+          projectId: "research",
+          title: "Offline revision",
+          updatedAt: "2026-09-16T00:00:00.000Z",
+        },
+      ],
+    };
+    await act(() =>
+      window.daymarkNativeReceive?.({ type: "state", state: remote }),
+    );
+    const repaired = workspace.state;
+    expect(repaired.tasks[0]).toEqual({
+      ...remote.tasks[0],
+      projectId: "",
+      updatedAt: "2026-09-16T00:00:00.001Z",
+    });
+    await advance(AUTOSAVE_DELAY_MS);
+    expect(saves()).toHaveLength(2);
+    expect(saves()[1].state).toEqual(repaired);
+    await act(() =>
+      window.daymarkNativeReceive?.({
+        type: "saved",
+        requestId: saves()[1].requestId,
+      }),
+    );
+    await act(() =>
+      window.daymarkNativeReceive?.({
+        type: "state",
+        state: structuredClone(remote),
+      }),
+    );
+    expect(workspace.state).toBe(repaired);
+    expect(workspace.saving).toBe(false);
+    await advance(AUTOSAVE_DELAY_MS * 2);
+    expect(saves()).toHaveLength(2);
+  });
+
   it("forwards note-file imports without treating their errors as failed workspace saves", async () => {
     await advance(AUTOSAVE_DELAY_MS);
     const before = {
