@@ -62,7 +62,8 @@
     "buildSelection": "Selected build 1.0.0 (1) and App Review notes saved and verified for both platforms.",
     "remainingRequirements": [
       "Capture and upload the Mac screenshot.",
-      "Complete and record physical-device runtime, iCloud, and calendar-provider tests; no successful physical-device test results are claimed yet."
-    ]
+      "Complete remaining offline/reconnection, attachment-import, and calendar-provider checks."
+    ],
+    "runtimeValidation": "Physical iPhone QA passed initial folder selection, two-way task/note/checklist iCloud delivery, note persistence after backgrounding and a fresh relaunch, and PDF opening before and after relaunch. Date saving was confirmed directly by the user; independent date-transfer verification remains separate. Development-signed QA does not verify App Store installation."
   }
 }
